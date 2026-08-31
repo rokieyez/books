@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>서가 뒤의 방</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant:ital,wght@0,500;1,500&family=Noto+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="inner">
+    <span class="mark"><span class="tseal">藏</span>서가 뒤의 방</span>
+    <input type="search" id="q" placeholder="책을 찾습니다 — 벽마다 응답 수가 보입니다" aria-label="장서 검색">
+    <span class="census">1,284 / 1,300 입고<i><b></b></i></span>
+  </div>
+</div>
+
+<div class="ladder" aria-hidden="false">
+  <div class="rail" id="rail"><div class="car" id="car"></div></div>
+  <span class="alt" id="alt">지상 9.2m</span>
+</div>
+
+<div class="foyer">
+  <div class="fcandle l"></div><div class="fcandle r"></div>
+  <span class="latin">Post Libros</span>
+  <h1>서가 뒤의 방</h1>
+  <p class="sub">이 서재의 벽은 전부 책이다 — 그런데 벽마다 방이 하나씩 숨어 있다.</p>
+  <p class="secret">비뚤게 꽂힌 책을 당기면 문이 열린다 · 사다리를 타고 내려가면 책상이 나온다</p>
+  <div class="viewrow">
+    <div class="viewseg" role="tablist" aria-label="보기 방식">
+      <button data-v="walls" aria-selected="true">서가</button>
+      <button data-v="covers" aria-selected="false">표지</button>
+      <button data-v="list" aria-selected="false">목록</button>
+      <button data-v="stats" aria-selected="false">통계</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="walls"></div>
+
+<div class="wrap">
+  <section id="v-covers" hidden>
+    <div class="covers" id="covergrid"></div>
+    <p class="cover-note" id="cover-note"></p>
+  </section>
+
+  <section id="v-list" hidden>
+    <div class="listwrap">
+      <table class="ledger">
+        <thead><tr><th>제목</th><th>저자</th><th>분류</th><th>상태</th><th>입고</th><th>위치</th></tr></thead>
+        <tbody id="listbody"></tbody>
+      </table>
+    </div>
+    <p class="list-note" id="listnote"></p>
+  </section>
+
+  <section id="v-stats" hidden>
+    <div class="statgrid">
+      <div class="statpanel">
+        <h4>분류별 장서</h4>
+        <p class="ps">1,284권 · 6개 분류</p>
+        <div id="catbars"></div>
+      </div>
+      <div class="statpanel">
+        <h4>연도별 입고</h4>
+        <p class="ps">막대에 올리면 권수가 보입니다</p>
+        <div class="cols" id="yearcols"></div>
+      </div>
+      <div class="statpanel">
+        <h4>읽음 상태</h4>
+        <p class="ps">전체 1,284권 기준</p>
+        <div class="stack" id="statusbar"></div>
+        <div class="legend">
+          <span><i style="background:var(--st-done)"></i>읽음 527 · 41%</span>
+          <span><i style="background:var(--st-doing)"></i>읽는 중 77 · 6%</span>
+          <span><i style="background:var(--st-todo)"></i>안 읽음 680 · 53%</span>
+        </div>
+      </div>
+      <div class="statpanel">
+        <h4>가장 많이 모은 저자</h4>
+        <p class="ps">전집·시리즈 포함</p>
+        <div id="authorbars"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <section class="crate" id="crate">
+    <div class="crate-label"><b>새로 도착한 궤짝</b><span>16권 · 꽂을 곳을 정해주세요</span></div>
+    <div class="cratewrap" id="cratewrap">
+      <button class="cratelid" id="cratelid" aria-label="자물쇠를 눌러 궤짝을 연다">
+        <span class="strap s1"></span><span class="strap s2"></span>
+        <span class="lock">
+          <span class="shackle"></span>
+          <span class="lockbody"></span>
+        </span>
+        <span class="lidhint">…궤짝이 잠겨 있다 — 자물쇠를 누른다</span>
+      </button>
+      <div class="cratebox">
+      <p class="note">책장 사진 한 장에서 43권을 읽었습니다 — 40권은 이미 벽에 꽂았고, 3권은 후보가 갈립니다.</p>
+      <div class="crateitem">
+        <span class="guess">"총균쇠"</span>
+        <div class="cands">
+          <button class="cand">총, 균, 쇠 — 김진준 옮김 · 문학사상</button>
+          <button class="cand">총 균 쇠 — 강주헌 옮김 · 김영사</button>
+          <button class="cand">직접 검색…</button>
+        </div>
+      </div>
+      <div class="crateitem">
+        <span class="guess">"삼국…" (흐림)</span>
+        <div class="cands">
+          <button class="cand">삼국유사 — 일연</button>
+          <button class="cand">삼국사기 — 김부식</button>
+          <button class="cand">삼국지 세트 — 이문열 평역</button>
+        </div>
+      </div>
+      <div class="crateitem">
+        <span class="guess">"로마인 이야기"</span>
+        <div class="cands">
+          <button class="cand">6권 「팍스 로마나」</button>
+          <button class="cand">7권 「악명높은 황제들」</button>
+          <button class="cand">직접 검색…</button>
+        </div>
+      </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="desk" id="desk">
+  <div class="candlestick"></div>
+  <div class="candlewax"></div>
+  <div class="openbook"><span class="ribbon"></span></div>
+  <span class="lampline">바닥 · 책상 위 · 촛불이 켜져 있다</span>
+  <h3>난장이가 쏘아올린 작은 공</h3>
+  <p>오늘의 책 · 조세희 · 2025.12.01 입고 후 열어본 적 없음</p>
+  <button class="open-today" id="today-open">램프 아래에서 펼친다</button>
+</div>
+
+<footer class="colophon">서가 뒤의 방 · 시안 6 (디벨롭 v3) — 데이터는 예시</footer>
+
+<div class="veil" id="veil"></div>
+<div class="exlibris" id="exlibris" role="dialog" aria-label="서표">
+  <button class="close" id="x-close" aria-label="닫기">×</button>
+  <span class="mark" id="x-mark"></span>
+  <h3 id="x-title"></h3>
+  <p class="byline" id="x-byline"></p>
+  <div class="rule"></div>
+  <div id="x-full">
+    <h4>Summarium</h4>
+    <p class="body" id="x-summary"></p>
+    <h4>여백의 기록</h4>
+    <p class="marginalia" id="x-memo"></p>
+  </div>
+  <div id="x-pending">
+    <h4>Summarium</h4>
+    <p class="undeciphered">이 책의 기록은 아직 없습니다.</p>
+    <button class="genbtn" id="x-gen">지금 기록을 부탁한다 (실서비스: AI 요약 생성)</button>
+  </div>
+  <div class="sealmark">藏</div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
