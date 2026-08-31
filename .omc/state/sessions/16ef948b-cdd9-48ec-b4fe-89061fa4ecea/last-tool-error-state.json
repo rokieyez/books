@@ -1,7 +1,0 @@
-{
-  "tool_name": "mcp__claude-in-chrome__navigate",
-  "tool_input_preview": "{\"url\":\"http://127.0.0.1:8437/\"}",
-  "error": "The hidden tabs_context_mcp lookup did not respond within 8s. The Chrome extension may be slow to start or waiting on a permission prompt. Retry navigate, or call tabs_context_mcp explicitly to get a tabId first.",
-  "timestamp": "2026-08-31T17:02:49.159Z",
-  "retry_count": 1
-}
