@@ -20,8 +20,13 @@
 
     /* ── 로그인 ── */
     async signIn(email) {
-      // 비밀번호 없이 메일 링크로 들어온다
-      return client.auth.signInWithOtp({ email });
+      // 비밀번호 없이 메일로 들어온다.
+      // 링크는 지금 보고 있는 주소로 돌아오게 한다 — 로컬이든 배포든 같은 코드로 맞는다.
+      // (단, 그 주소가 Supabase 의 Redirect URLs 목록에 있어야 통한다)
+      return client.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: location.origin + location.pathname },
+      });
     },
     async signOut() {
       // 재설정·로그아웃은 전체 세션을 끊는다 (지금 이 접속만 남기지 않는다)

@@ -818,3 +818,75 @@
     .foyer .latin, .foyer h1, .foyer p.sub, .foyer .secret, .foyer .viewrow, .desk::before { animation: none; }
     .wallsec.pre { opacity: 1; transform: none; }
   }
+
+  /* ── 열쇠와 문지방 (로그인) ──────────────────────────── */
+  .keybtn {
+    flex: none; appearance: none; cursor: pointer;
+    font-family: "Gowun Batang", serif; font-weight: 700; font-size: 12.5px;
+    letter-spacing: .12em; color: var(--brass);
+    background: none; border: 1px solid var(--brass-dim);
+    padding: 6px 15px; border-radius: 2px;
+    transition: background .2s ease, box-shadow .2s ease;
+  }
+  .keybtn:hover, .keybtn:focus-visible {
+    background: rgba(224,177,94,.12); outline: none;
+    box-shadow: 0 0 16px rgba(224,177,94,.3);
+  }
+  .keybtn.in { color: var(--parchment-dim); border-color: var(--line); }
+
+  .gate {
+    position: fixed; z-index: 50; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(400px, calc(100vw - 32px));
+    background: linear-gradient(174deg, #33220F, #241708);
+    border: 1px solid var(--brass-dim);
+    box-shadow: inset 0 0 0 4px #241708, inset 0 0 0 5px rgba(224,177,94,.3), 0 26px 60px rgba(0,0,0,.7);
+    padding: 28px 30px 26px;
+  }
+  .gate .close {
+    position: absolute; top: 10px; right: 13px; appearance: none; border: none;
+    background: none; cursor: pointer; color: var(--parchment-dim); font-size: 20px; line-height: 1;
+  }
+  .gate .mark {
+    font-family: "Cormorant", serif; font-style: italic; font-size: 12.5px;
+    letter-spacing: .28em; color: var(--brass-dim); text-transform: uppercase;
+    display: block; margin-bottom: 10px;
+  }
+  .gate h3 {
+    margin: 0 0 8px; font-family: "Gowun Batang", serif; font-weight: 700;
+    font-size: 21px; color: #E8CE93; letter-spacing: .06em;
+  }
+  .gate .gate-sub { margin: 0 0 16px; font-size: 12.5px; color: var(--parchment-dim); line-height: 1.7; }
+  .gate form { display: flex; gap: 8px; }
+  .gate input {
+    flex: 1; min-width: 0; font: inherit; font-size: 14px;
+    background: rgba(23,16,9,.6); color: var(--parchment);
+    border: 1px solid var(--line); padding: 9px 14px;
+  }
+  .gate input:focus-visible { outline: none; border-color: var(--brass-dim); }
+  .gate input::placeholder { color: var(--parchment-dim); }
+  #gate-code { letter-spacing: .4em; text-align: center; font-family: "IBM Plex Mono", monospace; }
+  .gate .gate-go {
+    flex: none; appearance: none; cursor: pointer;
+    font-family: "Gowun Batang", serif; font-weight: 700; font-size: 13px; letter-spacing: .1em;
+    color: var(--brass); background: none; border: 1px solid var(--brass-dim);
+    padding: 9px 18px;
+  }
+  .gate .gate-go:hover, .gate .gate-go:focus-visible { background: rgba(224,177,94,.12); outline: none; }
+  .gate .gate-go:disabled { opacity: .45; cursor: default; }
+  .gate .gate-msg {
+    margin: 14px 0 0; font-size: 12.5px; line-height: 1.7;
+    color: var(--parchment-dim);
+  }
+  .gate .gate-msg.good { color: var(--brass); }
+  .gate .gate-msg.bad {
+    color: #E0A79C; border-left: 2px solid var(--wax);
+    padding: 8px 12px; background: rgba(142,47,35,.12);
+  }
+
+  /* 주인이 아니면 서재는 표본이다 — 숨기지 않고 밝힌다 */
+  body:not(.owner) .topbar .census::after {
+    content: "표본"; margin-left: 8px;
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: 1px 6px; letter-spacing: .1em; color: var(--parchment-dim);
+  }
