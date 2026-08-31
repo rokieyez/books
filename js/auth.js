@@ -23,10 +23,10 @@
   gate.innerHTML = `
     <button class="close" id="gate-close" aria-label="닫기">×</button>
     <span class="mark">Clavis</span>
-    <h3>열쇠를 청한다</h3>
-    <p class="gate-sub" id="gate-sub">주인의 메일 주소로 열쇠를 보냅니다. 메일 속 링크를 누르거나, 함께 온 여섯 자리를 여기 적으세요.</p>
+    <h3>주인의 열쇠</h3>
+    <p class="gate-sub" id="gate-sub">이 서재는 한 사람만 씁니다 — 새로 드는 문은 없습니다.<br>등록된 주인의 메일로 열쇠를 보냅니다. 메일 속 링크를 누르거나, 함께 온 여섯 자리를 여기 적으세요.</p>
     <form id="gate-form-mail" autocomplete="on">
-      <input type="email" id="gate-email" placeholder="메일 주소" aria-label="메일 주소" required autocomplete="email">
+      <input type="email" id="gate-email" placeholder="주인의 메일 주소" aria-label="주인의 메일 주소" required autocomplete="email">
       <button type="submit" class="gate-go" id="gate-send">열쇠를 보낸다</button>
     </form>
     <form id="gate-form-code" hidden autocomplete="off">
@@ -161,7 +161,12 @@
       const { error } = await db.signIn(pendingEmail);
       el("gate-send").disabled = false;
       if (error) {
-        say("열쇠를 보내지 못했습니다: " + error.message, "bad");
+        // 등록되지 않은 주소면 Supabase 가 가입 거절로 답한다 — 이 서재의 주인이 아니라는 뜻이다
+        const notOwner = error.code === "otp_disabled" ||
+          /signup|not allowed|disabled/i.test(error.message || "");
+        say(notOwner
+          ? "이 서재의 주인이 아닙니다 — 열쇠는 등록된 주소로만 갑니다."
+          : "열쇠를 보내지 못했습니다: " + error.message, "bad");
         return;
       }
       el("gate-form-mail").hidden = true;

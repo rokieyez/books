@@ -23,9 +23,18 @@
       // 비밀번호 없이 메일로 들어온다.
       // 링크는 지금 보고 있는 주소로 돌아오게 한다 — 로컬이든 배포든 같은 코드로 맞는다.
       // (단, 그 주소가 Supabase 의 Redirect URLs 목록에 있어야 통한다)
+      //
+      // shouldCreateUser: false — 여긴 가입하는 곳이 아니라 주인이 들어오는 곳이다.
+      // 이미 있는 계정이 아니면 메일조차 나가지 않는다.
+      // 다만 이건 화면 쪽 잠금일 뿐이다. 진짜 잠금은 Supabase 대시보드에서
+      // 신규 가입을 꺼두는 것 — 브라우저를 거치지 않고 API 를 직접 부르면
+      // 이 옵션은 무력하다.
       return client.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: location.origin + location.pathname },
+        options: {
+          emailRedirectTo: location.origin + location.pathname,
+          shouldCreateUser: false,
+        },
       });
     },
     async signOut() {
