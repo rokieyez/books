@@ -528,6 +528,121 @@
   .crateitem.resolved .cands { opacity: .4; }
   .crateitem.resolved .guess::after { content: " ✓ 꽂았다"; color: var(--brass); }
 
+  /* ── 사진을 들이는 곳 ─────────────────────────────────
+     주인에게만 열리는 자리 — 표본 화면에는 없다 */
+  body:not(.owner) .intake { display: none; }
+  .intake { margin-top: 56px; scroll-margin-top: 64px; }
+  .intake.busy .dropzone { pointer-events: none; opacity: .6; }
+
+  .intake-where {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .intake-where label {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12px; color: var(--parchment-dim); letter-spacing: .06em;
+  }
+  .intake-where select, .intake-where input {
+    background: #1B1108; color: var(--parchment);
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: 5px 8px; font: inherit; font-size: 12.5px;
+  }
+  .intake-where input { width: 66px; }
+  .intake-where select:focus-visible, .intake-where input:focus-visible {
+    outline: 2px solid var(--brass); outline-offset: 1px;
+  }
+  .intake-hint {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; color: var(--brass-dim); letter-spacing: .08em;
+  }
+
+  .dropzone {
+    display: flex; flex-direction: column; align-items: center; gap: 7px;
+    width: 100%; padding: 30px 20px; cursor: pointer;
+    color: var(--parchment); text-align: center;
+    border: 2px dashed var(--line); border-radius: 3px;
+    background:
+      radial-gradient(ellipse 300px 90px at 50% 0%, rgba(224,177,94,.05), transparent 70%),
+      linear-gradient(180deg, #221607, #1A1006);
+    transition: border-color .25s, background .25s;
+  }
+  .dropzone:hover, .dropzone.over, .dropzone:focus-visible {
+    border-color: var(--brass-dim); outline: none;
+    background:
+      radial-gradient(ellipse 300px 90px at 50% 0%, rgba(224,177,94,.11), transparent 70%),
+      linear-gradient(180deg, #2A1B09, #1A1006);
+  }
+  .dropzone .dz-mark {
+    font-size: 20px; color: var(--brass-dim); letter-spacing: .3em;
+  }
+  .dropzone b {
+    font-family: "Gowun Batang", serif; font-weight: 400; font-size: 14.5px;
+    letter-spacing: .04em;
+  }
+  .dropzone .dz-sub {
+    font-size: 11.5px; color: var(--parchment-dim);
+  }
+
+  .intake-queue { list-style: none; margin: 12px 0 0; padding: 0; }
+  .intake-queue li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 6px 2px; border-bottom: 1px solid rgba(74,58,34,.4);
+    font-size: 12px;
+  }
+  .intake-queue .qn {
+    color: var(--parchment-dim); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .intake-queue .qs {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    color: var(--brass-dim); white-space: nowrap; letter-spacing: .06em;
+  }
+  .intake-queue li.done .qs { color: var(--st-done); }
+  .intake-queue li.bad .qs { color: var(--wax); }
+
+  .intake-shelf { margin-top: 18px; }
+  .intake-empty {
+    margin: 10px 0 0; font-size: 11.5px;
+    color: var(--parchment-dim); font-style: italic;
+  }
+  .photogrid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  }
+  .photocard {
+    margin: 0; position: relative;
+    border: 1px solid var(--line); background: #1B1108;
+    box-shadow: 0 6px 14px rgba(0,0,0,.45);
+    transition: opacity .3s;
+  }
+  .photocard.going { opacity: .3; }
+  .photocard .ph {
+    aspect-ratio: 4 / 3; background: #120B04 center / cover no-repeat;
+  }
+  .photocard .ph.nophoto::after {
+    content: "사진을 열지 못했습니다";
+    display: grid; place-items: center; height: 100%;
+    font-size: 10.5px; color: var(--parchment-dim);
+  }
+  .photocard figcaption {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 6px 8px; font-size: 11px; color: var(--parchment-dim);
+  }
+  .photocard .pst {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; color: var(--brass-dim); letter-spacing: .06em;
+  }
+  .photocard .phdel {
+    position: absolute; top: 5px; right: 5px;
+    padding: 3px 8px; font: inherit; font-size: 10.5px;
+    color: var(--parchment); cursor: pointer;
+    background: rgba(23,16,9,.82); border: 1px solid var(--line); border-radius: 2px;
+    opacity: 0; transition: opacity .2s;
+  }
+  .photocard:hover .phdel, .photocard .phdel:focus-visible {
+    opacity: 1; outline: none; border-color: var(--wax);
+  }
+
   /* ── 바닥: 책상과 램프, 오늘의 책 ─────────────────────── */
   .desk {
     position: relative; margin-top: 64px; padding: 58px 18px 84px;
@@ -812,7 +927,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .panel, .room, .tome, .veil, .exlibris, .wallsec, .panelbox::before, .ladder .car, .cratelid,
-    .hbar .fill, .col i, .ladder .dot { transition: none; }
+    .hbar .fill, .col i, .ladder .dot,
+    .dropzone, .photocard, .photocard .phdel { transition: none; }
     .tome.latch:hover { animation: none; }
     .lock .lockbody, .room .roomlamp::after, .desk .candlewax::after, .foyer .fcandle::after,
     .foyer .latin, .foyer h1, .foyer p.sub, .foyer .secret, .foyer .viewrow, .desk::before { animation: none; }

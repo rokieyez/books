@@ -86,6 +86,64 @@
       return data;
     },
 
+    /* ── 책장 사진 들이기 ──
+       사진 한 장이 곧 위치 기록이다 — 어느 벽 몇 단을 찍었는지가 함께 남는다.
+       파일은 `<uid>/파일명` 으로 올린다. 스토리지 정책이 첫 폴더가 주인의
+       uid 인지 보고 통과시키므로, 이 규칙을 어기면 업로드가 거부된다. */
+    async uploadIntakePhoto(blob, { wall = null, shelf = null } = {}) {
+      const user = await this.currentUser();
+      if (!user) throw new Error("주인만 사진을 들일 수 있습니다");
+
+      const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+      const rand = Math.random().toString(36).slice(2, 8);
+      // 아이폰 HEIC 처럼 브라우저가 못 여는 형식은 줄이지 못하고 원본 그대로 올라온다
+      const type = blob.type || "image/jpeg";
+      const ext = (type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+      const path = `${user.id}/${stamp}-${rand}.${ext}`;
+
+      const { error: upErr } = await client.storage
+        .from("intake")
+        .upload(path, blob, { contentType: type, upsert: false });
+      if (upErr) throw upErr;
+
+      // 줄을 만들지 못하면 올라간 파일만 남아 떠돈다 — 지우고 실패를 알린다
+      const { data, error } = await client
+        .from("intake_photos")
+        .insert({ storage_path: path, wall, shelf })
+        .select()
+        .single();
+      if (error) {
+        await client.storage.from("intake").remove([path]);
+        throw error;
+      }
+      return data;
+    },
+
+    async listIntakePhotos({ limit = 60 } = {}) {
+      const { data, error } = await client
+        .from("intake_photos")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data;
+    },
+
+    /* 버킷이 비공개라 <img src> 로 바로 못 쓴다 — 한 시간짜리 열쇠를 받아온다 */
+    async photoUrl(storagePath, seconds = 3600) {
+      const { data, error } = await client.storage
+        .from("intake")
+        .createSignedUrl(storagePath, seconds);
+      if (error) throw error;
+      return data.signedUrl;
+    },
+
+    async removeIntakePhoto(photo) {
+      const { error } = await client.from("intake_photos").delete().eq("id", photo.id);
+      if (error) throw error;
+      await client.storage.from("intake").remove([photo.storage_path]);
+    },
+
     /* ── 궤짝: 확인이 필요한 책들 ── */
     async listPending() {
       const { data, error } = await client
