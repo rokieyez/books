@@ -24,16 +24,18 @@
       // 링크는 지금 보고 있는 주소로 돌아오게 한다 — 로컬이든 배포든 같은 코드로 맞는다.
       // (단, 그 주소가 Supabase 의 Redirect URLs 목록에 있어야 통한다)
       //
-      // shouldCreateUser: false — 여긴 가입하는 곳이 아니라 주인이 들어오는 곳이다.
-      // 이미 있는 계정이 아니면 메일조차 나가지 않는다.
-      // 다만 이건 화면 쪽 잠금일 뿐이다. 진짜 잠금은 Supabase 대시보드에서
-      // 신규 가입을 꺼두는 것 — 브라우저를 거치지 않고 API 를 직접 부르면
-      // 이 옵션은 무력하다.
+      // ⚠ 임시로 열어둔 상태 — 주인 계정을 아직 한 번도 만들지 않았기 때문이다.
+      // 주인이 처음 들어온 뒤 대시보드에서 신규 가입을 끄고, 여기도 다시
+      // shouldCreateUser: false 로 되돌린다.
+      //
+      // 되돌린 뒤의 뜻: 여긴 가입하는 곳이 아니라 주인이 들어오는 곳이다.
+      // 등록된 계정이 아니면 메일조차 나가지 않는다. 다만 그것도 화면 쪽
+      // 잠금일 뿐이라, 진짜 잠금은 언제나 대시보드의 신규 가입 차단이다.
       return client.auth.signInWithOtp({
         email,
         options: {
           emailRedirectTo: location.origin + location.pathname,
-          shouldCreateUser: false,
+          shouldCreateUser: true,
         },
       });
     },
