@@ -18,6 +18,14 @@
 - **모든 표는 주인만 접근 가능하다.** 로그인 전에는 조회가 빈 배열로 오는 게 정상 — 버그가 아니다
 - 스키마 변경은 Supabase 에 적용한 뒤 `supabase/migrations/` 에 같은 이름으로 남긴다
 
+## 배포
+
+- 저장소는 `rokieyez/books` — **경로가 저장소 이름을 따라가므로 이름을 바꾸면 주소가 깨진다** (로컬 폴더명 post-libros 와 다른 것은 의도)
+- 주소: https://www.rokiz.net/books/ — 도메인은 루트 사이트 저장소(`rokieyez/rokieyez.github.io`)의 CNAME 파일이 정하고, 이 프로젝트는 그걸 상속만 한다
+- 도메인 등록처는 닷네임. DNS: `www` CNAME → rokieyez.github.io, 루트 → GitHub A 레코드 4개
+- 배포는 main 에 `git push` 하면 끝 (GitHub Pages legacy 빌드)
+- Supabase Redirect URLs 에 `https://www.rokiz.net/**` 가 있어야 메일 링크 로그인이 산다
+
 ## 로드맵 (2026-09-01 기준)
 
 1. **1단계 (완료)** — 시안을 정적 사이트 구조로 이식
@@ -25,7 +33,7 @@
 3. **3단계 (다음)** — 로그인. 메일 링크(OTP) 방식으로 붙이고, 화면을 표본 데이터에서 `js/db.js` 조회로 교체
 4. **4단계** — 책 등록 파이프라인: 책장 사진 업로드 → AI 비전으로 책등 일괄 인식 → 알라딘 Open API 서지 조회 → 확신도에 따라 자동 입고/궤짝 분기. AI 호출은 키 노출 방지를 위해 Edge Function 경유
 5. **5단계** — AI 요약은 미리 만들지 않는다. 책을 처음 열 때 생성(lazy) — 비용이 열어보는 책에만 든다
-6. **6단계** — 아카이브 실데이터, 배포(GitHub Pages), 도메인
+6. **6단계 (배포 완료)** — GitHub Pages 로 올라감 (위 「배포」 참조). 남은 것: 닷네임 DNS 연결, HTTPS 강제, 아카이브 실데이터
 
 ## 규약
 
