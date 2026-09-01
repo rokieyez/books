@@ -62,6 +62,10 @@
 
   const veil = el("veil");
   let pendingEmail = "";
+  /* 지금 들어와 있는 사람. onAuthStateChange 가 갱신한다.
+     단추를 누를 때마다 서버에 물으면, 그 요청이 늦거나 실패할 때
+     아무 일도 일어나지 않고 이유도 보이지 않는다 — 그래서 기억해 둔다. */
+  let sessionUser = null;
 
   /* 문이 보여줄 세 가지 모습 */
   function showState(state) {
@@ -149,6 +153,7 @@
   /* ── 세션 상태를 화면에 반영 ── */
   async function reflect(user) {
     const mark = document.querySelector(".topbar .mark");
+    sessionUser = user ?? null;
     if (user) {
       keyBtn.textContent = "서재";
       keyBtn.title = user.email + " 로 들어와 있습니다";
@@ -180,11 +185,18 @@
     bar.appendChild(keyBtn);
     document.body.appendChild(gate);
 
-    keyBtn.addEventListener("click", async () => {
+    keyBtn.addEventListener("click", () => {
       if (!db) { say("Supabase 연결이 없어 지금은 들어갈 수 없습니다.", "bad"); return; }
       // 들어와 있으면 곧장 내보내지 않는다 — 비밀번호를 정하는 자리이기도 하다
-      const user = await db.currentUser();
-      openGate(user ? "inside" : "login");
+      try {
+        openGate(sessionUser ? "inside" : "login");
+      } catch (err) {
+        // 문이 안 열리면 최소한 이유는 남긴다
+        console.error("[열쇠] 문을 열지 못했습니다:", err);
+        gate.hidden = false;
+        veil.classList.add("show");
+        say("문을 여는 중 문제가 생겼습니다: " + (err.message || err), "bad");
+      }
     });
 
     el("gate-out").addEventListener("click", async () => {
