@@ -68,6 +68,21 @@ function catOf(path: string): string | null {
   return null;   // 알아볼 수 없으면 원래 분류를 그대로 둔다
 }
 
+/* 문학 벽의 단을 나누는 갈래. 벽은 다섯인데 열에 아홉이 문학이라
+   그 벽만 창고가 된다 — 알라딘 분류명을 한 겹 더 읽어 단을 가른다.
+   좁은 갈래부터 본다: 「소설/시/희곡>추리소설」은 추리이지 그냥 소설이 아니다. */
+function genreOf(path: string): string | null {
+  const p = path.replace(/\s/g, "");
+  if (!p) return null;
+  if (/추리|미스터리|스릴러|범죄/.test(p)) return "추리";
+  if (/SF|과학소설|판타지|환상/.test(p)) return "환상과 SF";
+  if (/시\/희곡|시집|희곡|서사시|평론/.test(p)) return "시와 희곡";
+  if (/에세이|산문/.test(p)) return "에세이";
+  if (/고전/.test(p)) return "고전";
+  if (/소설/.test(p)) return "소설";
+  return null;
+}
+
 /* 알라딘 표지는 기본이 엄지손톱(coversum)이라 흐리다. 사이트 검색 화면이 쓰는
    큰 그림(cover500)으로 주소를 올려 보고, 진짜 있는지 HEAD 로 확인한 뒤에만
    바꾼다 — 아주 옛 책은 큰 그림이 없을 수 있고, 그때는 원래 것을 지킨다.
@@ -171,6 +186,7 @@ async function aladinLookup(key: string, id: string, idType?: string) {
       cover: it.cover ? await bigCover(String(it.cover)) : null,
       year: /^\d{4}/.test(String(it.pubDate ?? "")) ? Number(String(it.pubDate).slice(0, 4)) : null,
       category: catOf(String(it.categoryName ?? "")),
+      genre: genreOf(String(it.categoryName ?? "")),
     };
   } catch {
     return null;
@@ -220,6 +236,46 @@ async function googleBooks(isbn: string) {
       year: /^\d{4}/.test(String(v.publishedDate ?? ""))
         ? Number(String(v.publishedDate).slice(0, 4)) : null,
       category: null,   // 구글 분류는 영어 갈래라 옮기지 않는다 — 원래 분류를 지킨다
+      genre: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* 국립중앙도서관 서지정보 (seoji) — 다섯 번째이자 마지막 사다리.
+   알라딘이 하루 한도로 막히면 서지가 통째로 멎는다는 것을 2026-09-01 에
+   겪었다. 납본된 책은 여기에 거의 다 있으므로, 알라딘이 쉬는 동안에도
+   제목·지은이·펴낸곳·쪽수·판형은 이 길로 들어온다. 표지는 없다.
+   열쇠(NLK_CERT_KEY)가 없으면 이 사다리는 조용히 건너뛴다. */
+async function nlkLookup(isbn: string) {
+  const key = Deno.env.get("NLK_CERT_KEY");
+  if (!key) return null;
+  try {
+    const params = new URLSearchParams({
+      cert_key: key, result_style: "json", page_no: "1", page_size: "1", isbn,
+    });
+    const res = await fetch(`https://seoji.nl.go.kr/landingPage/SearchApi.do?${params}`);
+    const j = await res.json();
+    const d = j.docs?.[0];
+    if (!d?.TITLE) return null;
+    // 쪽수는 「349 p.」, 판형은 「152*225mm」 처럼 온다 — 숫자만 건져 낸다
+    const pages = Number(String(d.PAGE ?? "").match(/\d+/)?.[0] ?? 0);
+    const size = String(d.BOOK_SIZE ?? "").match(/(\d+)\s*\*\s*(\d+)/);
+    const mm = (v: number, lo: number, hi: number) => (v >= lo && v <= hi ? v : null);
+    return {
+      title: String(d.TITLE).trim(),
+      author: d.AUTHOR ? String(d.AUTHOR).split(/[,;:]/)[0].trim() : null,
+      isbn13: d.EA_ISBN ? String(d.EA_ISBN).replace(/[^0-9Xx]/g, "") : (isbn.length === 13 ? isbn : null),
+      pages: pages > 0 && pages < 32000 ? pages : null,
+      sizeHeight: size ? mm(Number(size[2]), 80, 400) : null,
+      sizeDepth: null,
+      publisher: d.PUBLISHER ? String(d.PUBLISHER).trim() : null,
+      cover: null,
+      year: /^\d{4}/.test(String(d.PUBLISH_PREDATE ?? ""))
+        ? Number(String(d.PUBLISH_PREDATE).slice(0, 4)) : null,
+      category: null,   // 국중의 주제분류는 KDC 숫자라 이 서재의 벽 이름과 다르다
+      genre: null,
     };
   } catch {
     return null;
@@ -265,11 +321,15 @@ async function lookupHard(ttb: string, isbn: string) {
         cover: it.cover ? await bigCover(String(it.cover)) : null,
         year: /^\d{4}/.test(String(it.pubDate ?? "")) ? Number(String(it.pubDate).slice(0, 4)) : null,
         category: catOf(String(it.categoryName ?? "")),
+        genre: genreOf(String(it.categoryName ?? "")),
       };
     } catch { /* 다음 과녁으로 */ }
   }
-  // API 가 끝내 모르면: 알라딘 사이트 → 구글 도서 순으로 더 내려간다
-  return (await siteLookup(ttb, isbn)) ?? (await googleBooks(isbn));
+  // API 가 끝내 모르면: 알라딘 사이트 → 구글 도서 → 국립중앙도서관 순으로
+  // 더 내려간다. 마지막 칸은 알라딘이 통째로 막힌 날의 유일한 길이다.
+  return (await siteLookup(ttb, isbn))
+    ?? (await googleBooks(isbn))
+    ?? (await nlkLookup(isbn));
 }
 
 /* 마지막 수단 — 알라딘 웹사이트 검색.
@@ -350,7 +410,7 @@ Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth) return reply({ error: "열쇠가 없습니다" }, 401);
 
-  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string; crate?: boolean; candidate_id?: string; query?: string } = {};
+  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string; crate?: boolean; genre?: boolean; candidate_id?: string; query?: string } = {};
   try { body = await req.json(); } catch { /* 빈 몸통도 허용 */ }
 
   /* ── 궤짝 수동 검색 — 자동 확정(0.75)이 못 정한 후보를 사람이 살린다 ──
@@ -444,6 +504,46 @@ Deno.serve(async (req) => {
     return reply({ 확정: ok, 겹침: dup, 못정함: skip, 남음: count ?? 0, 확정목록 });
   }
 
+  /* ── 갈래 채우기 — 문학 벽의 단을 가른다 ──
+     서지를 이미 받아 둔 책이라도 갈래(genre)는 나중에 생긴 칸이라 비어 있다.
+     ISBN 을 아는 책은 조회 한 번이면 분류명을 얻으므로 권당 호출이 1회다 —
+     제목 검색 사다리를 타는 「서지 채우기」보다 훨씬 싸다. */
+  if (body.genre) {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: auth } } },
+    );
+    const limit = Math.min(Number(body.limit ?? 40), 60);
+    const { data: rows, error } = await db.from("books")
+      .select("id, isbn")
+      .is("genre", null).not("isbn", "is", null)
+      .order("created_at").limit(limit);
+    if (error) return reply({ error: "장서를 읽지 못했습니다: " + error.message }, 500);
+    if (!rows?.length) return reply({ 갈래: 0, 남음: 0, 말: "갈래를 채울 책이 없습니다" });
+
+    let got = 0, none = 0;
+    const 갈래수: Record<string, number> = {};
+    for (const r of rows) {
+      const info = await aladinLookup(ttb, String(r.isbn));
+      if (!info) { none++; continue; }
+      if (!info.genre) {
+        // 문학이 아닌 책에는 갈래가 없다 — 다시 묻지 않도록 「없음」을 적어 둔다
+        await db.from("books").update({ genre: "―" }).eq("id", r.id);
+        none++;
+        continue;
+      }
+      const { error: e2 } = await db.from("books").update({ genre: info.genre }).eq("id", r.id);
+      if (e2) { none++; continue; }
+      got++;
+      갈래수[info.genre] = (갈래수[info.genre] ?? 0) + 1;
+    }
+    const { count } = await db.from("books")
+      .select("id", { count: "exact", head: true })
+      .is("genre", null).not("isbn", "is", null);
+    return reply({ 갈래: got, 없음: none, 남음: count ?? 0, 갈래수 });
+  }
+
   /* ── 서표의 ISBN 직접 조회 — 이미 꽂힌 책에 번호로 서지를 붙인다 ──
      제목 검색이 못 찾는 책의 마지막 길: 실물 뒤표지의 ISBN 을 사람이 적었다.
      번호가 곧 신원이므로 조회 결과를 그대로 채운다. 단, 제목은 여기서도
@@ -462,7 +562,7 @@ Deno.serve(async (req) => {
     if (!info?.title) {
       const down = await aladinDown(ttb);
       if (down) return reply({ error: "알라딘 API 가 지금 응답을 거부합니다 (" + down + ") — 하루 호출 한도(5,000건)를 다 썼으면 내일 다시 눌러 주세요. 번호는 저장해 두지 않으니 그대로 두면 됩니다" }, 429);
-      return reply({ error: "알라딘·구글 도서 어디에도 없는 번호입니다 (" + isbn + ") — 번호를 다시 확인해 보세요" }, 404);
+      return reply({ error: "알라딘·구글 도서·국립중앙도서관 어디에도 없는 번호입니다 (" + isbn + ") — 번호를 다시 확인해 보세요" }, 404);
     }
 
     const patch: Record<string, unknown> = {
@@ -476,6 +576,7 @@ Deno.serve(async (req) => {
     if (info.cover) patch.cover_url = info.cover;
     if (info.year) patch.published_year = info.year;
     if (info.category) patch.category = info.category;
+    if (info.genre) patch.genre = info.genre;      // 문학 벽의 단을 가르는 갈래
     if (info.author) patch.author = info.author;   // 번호가 신원이다 — 지은이는 믿고 고친다
 
     const { error: e1 } = await db.from("books").update(patch).eq("id", body.book_id);
@@ -504,7 +605,7 @@ Deno.serve(async (req) => {
     if (!info?.title) {
       const down = await aladinDown(ttb);
       if (down) return reply({ error: "알라딘 API 가 지금 응답을 거부합니다 (" + down + ") — 하루 호출 한도(5,000건)를 다 썼으면 내일 다시 시도해 주세요" }, 429);
-      return reply({ error: "알라딘·구글 도서 모두에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
+      return reply({ error: "알라딘·구글 도서·국립중앙도서관 모두에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
     }
 
     const category = info.category || "문학";
@@ -513,6 +614,7 @@ Deno.serve(async (req) => {
       title: info.title,
       author: info.author,
       category,
+      genre: info.genre ?? null,
       isbn: info.isbn13 || isbn,
       publisher: info.publisher,
       cover_url: info.cover,
@@ -617,6 +719,10 @@ Deno.serve(async (req) => {
       if (info?.publisher && !b.publisher) extra.publisher = info.publisher;
       if (info?.cover && !b.cover_url) extra.cover_url = info.cover;
       if (info?.year && !b.published_year) extra.published_year = info.year;
+      if (info?.genre) extra.genre = info.genre;
+      // 지은이가 아예 비어 있으면 번호가 알려 준 이름을 받는다.
+      // (이미 적힌 이름은 건드리지 않는다 — 권 구분 같은 정보를 잃지 않게)
+      if (info?.author && !b.author) extra.author = info.author;
       await markTried(b.id, extra);
       if (info) filled++; else missed++;
       continue;
@@ -654,12 +760,16 @@ Deno.serve(async (req) => {
         cover: found.cover ? await bigCover(String(found.cover)) : null,
         year: /^\d{4}/.test(String(found.pubDate ?? "")) ? Number(String(found.pubDate).slice(0, 4)) : null,
         category: catOf(String(found.categoryName ?? "")),
+        genre: genreOf(String(found.categoryName ?? "")),
         pages: null, sizeHeight: null, sizeDepth: null,
       };
       if (hit.isbn) {
         // 쪽수·크기는 조회 API 에만 있다 — ISBN 을 알았으니 한 번 더 묻는다
         const info = await aladinLookup(ttb, String(hit.isbn));
-        if (info) { hit.pages = info.pages; hit.sizeHeight = info.sizeHeight; hit.sizeDepth = info.sizeDepth; }
+        if (info) {
+          hit.pages = info.pages; hit.sizeHeight = info.sizeHeight; hit.sizeDepth = info.sizeDepth;
+          if (info.genre) hit.genre = info.genre;   // 조회 쪽 분류명이 더 자세하다
+        }
       }
     } else {
       const web = await webFallback(ttb, stripped || b.title, b.author);
@@ -668,7 +778,7 @@ Deno.serve(async (req) => {
         hit = {
           title: i.title, author: i.author, isbn: i.isbn13,
           publisher: i.publisher, cover: i.cover, year: i.year,
-          category: i.category, pages: i.pages,
+          category: i.category, genre: i.genre ?? null, pages: i.pages,
           sizeHeight: i.sizeHeight, sizeDepth: i.sizeDepth,
         };
         score = web.score;
@@ -692,6 +802,7 @@ Deno.serve(async (req) => {
     if (hit.year) patch.published_year = hit.year;
     // 알라딘의 분류가 AI 의 짐작보다 정확하다 — 알아볼 수 있으면 바꿔 단다
     if (hit.category) patch.category = hit.category;
+    if (hit.genre) patch.genre = hit.genre;
 
     /* 제목은 자동으로 갈아치우지 않는다.
        「죽음의 한 연구 상」을 검색하면 단권본 「죽음의 한 연구」가 잡힌다.

@@ -41,10 +41,11 @@
   <div class="inner">
     <span class="mark"><span class="tseal">藏</span>서가 뒤의 방</span>
     <input type="search" id="q" placeholder="책을 찾습니다 — 벽마다 응답 수가 보입니다" aria-label="장서 검색">
-    <span class="census" id="census">
+    <!-- 막대는 읽어 낸 만큼 차오른다 — 그 막대를 누르면 차오른 만큼만 남는다 -->
+    <button type="button" class="census" id="census" aria-pressed="false">
       <span class="cnum" id="census-n">입고를 세는 중</span>
       <i><b id="census-bar"></b></i>
-    </span>
+    </button>
   </div>
 </div>
 
@@ -81,6 +82,10 @@
     <!-- 실물 높이 자료가 쌓이면 진짜 서가처럼 키 순서로도 볼 수 있다 -->
     <button class="heightsort" id="heightsort" aria-pressed="false"
             title="실물 키 순서로 꽂아 본다">키 순서</button>
+    <!-- 이 서재가 실제로 통과한 책들 — 대부분은 아직 기다리는 책이라
+         그냥 둘러보면 좀처럼 마주치지 않는다 -->
+    <button class="heightsort readpath" id="readpath" aria-pressed="false"
+            title="이 서재가 실제로 읽어 낸 책만 남긴다">읽은 책만</button>
   </div>
 </div>
 
@@ -256,6 +261,8 @@
         <button data-st="읽는 중">읽는 중</button>
         <button data-st="안 읽음">안 읽음</button>
       </div>
+      <!-- 안 읽은 책을 한 번에 책상 위로 — 상태와 갈피를 같이 세운다 -->
+      <button type="button" class="x-opennow" id="x-opennow" hidden>지금 펼친다</button>
     </div>
     <div class="x-row" id="x-bm-row" hidden>
       <span class="x-lb">갈피</span>

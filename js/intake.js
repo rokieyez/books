@@ -121,8 +121,37 @@
         <b>서지를 채운다</b>
         <span>알라딘에 물어 ISBN·출판사·표지·분류를 넣고 지은이 오탈자를 바로잡습니다</span>
       </div>
+      <!-- 하루 호출 한도의 계기판 — 이 눈금을 넘기면 키가 막혀 하루를 잃는다 -->
+      <div class="gauge" id="in-gauge" hidden>
+        <span class="gauge-n" id="in-gauge-n"></span>
+        <i><b id="in-gauge-bar"></b></i>
+      </div>
       <button type="button" class="enrich-go" id="in-enrich">끝까지 채운다</button>
       <div class="enrich-out" id="in-enrich-out"></div>
+    </div>
+
+    <div class="enrich">
+      <div class="enrich-head">
+        <b>문학 벽을 갈래낸다</b>
+        <span>열에 아홉이 문학 벽에 몰려 있습니다 — 소설·고전·에세이로 단을 가릅니다.
+          ISBN 을 아는 책만 물으므로 권당 조회 한 번입니다</span>
+      </div>
+      <button type="button" class="enrich-go" id="in-genre">갈래를 받아온다</button>
+      <div class="enrich-out" id="in-genre-out"></div>
+    </div>
+
+    <div class="enrich">
+      <div class="enrich-head">
+        <b>이름 없는 책들</b>
+        <span>지은이가 비어 있는 책만 모읍니다 — 대부분 알라딘이 한 번 놓친 책이니,
+          아는 이름은 그냥 적는 편이 빠릅니다</span>
+      </div>
+      <div class="enrich-row">
+        <button type="button" class="enrich-go" id="nm-load">이름 없는 책을 부른다</button>
+        <button type="button" class="enrich-go" id="nm-askall" hidden>보이는 책을 모두 물어본다</button>
+      </div>
+      <div class="enrich-out" id="nm-out"></div>
+      <div class="nameless" id="nm-list"></div>
     </div>
 
     <div class="enrich">
@@ -137,7 +166,7 @@
     <div class="enrich">
       <div class="enrich-head">
         <b>장서를 베껴 둔다</b>
-        <span>1,300권을 한 곳에만 두지 않습니다 — 지금 꽂힌 그대로를 파일로 내려받습니다</span>
+        <span>장서를 한 곳에만 두지 않습니다 — 지금 꽂힌 그대로를 파일로 내려받습니다</span>
       </div>
       <button type="button" class="enrich-go" id="in-export">목록을 내려받는다 (CSV)</button>
       <div class="enrich-out" id="in-export-out"></div>
@@ -671,8 +700,217 @@
       btn.textContent = "읽은 책의 기록을 짓는다";
     });
 
+    /* ── 갈래 채우기 ──────────────────────────────────────────
+       한 번 누르면 남은 것이 없을 때까지 마흔 권씩 돌고, 다시 누르면 멈춘다.
+       권당 조회 1회라 서지 채우기보다 싸지만, 그래도 계기판은 함께 본다. */
+    let genreStop = false;
+    el("in-genre").addEventListener("click", async () => {
+      const btn = el("in-genre"), out = el("in-genre-out");
+      if (btn.dataset.running) { genreStop = true; btn.textContent = "멈추는 중…"; return; }
+      btn.dataset.running = "1"; btn.textContent = "멈춘다"; genreStop = false;
+      let 얻음 = 0, 없음 = 0, 회 = 0, 마지막남음 = -1;
+      const 모음 = {};
+      const say = (t, cls = "") => {
+        out.innerHTML = `<p class="enrich-msg ${cls}"></p>`;
+        const names = Object.entries(모음).sort((a, b2) => b2[1] - a[1])
+          .map(([k, v]) => `${k} ${v}`).join(" · ");
+        out.querySelector("p").textContent = t + (names ? ` — ${names}` : "");
+      };
+      say("알라딘에 묻는 중…");
+      while (!genreStop) {
+        회++;
+        const { data, error } = await db.fillGenres(40);
+        if (error || data?.error) {
+          say("갈래를 받다 멈췄습니다 — " + (data?.error || error.message)
+            + ` (여기까지 ${얻음}권)`, "bad");
+          break;
+        }
+        얻음 += data.갈래 || 0;
+        없음 += data.없음 || 0;
+        Object.entries(data.갈래수 || {}).forEach(([k, v]) => { 모음[k] = (모음[k] || 0) + v; });
+        // 돌았는데 남은 수가 그대로다 — 헛돌지 않고 멈춘다
+        if (data.남음 === 마지막남음) {
+          say(`더 나아가지 못해 멈췄습니다 — ${얻음}권에 갈래를 달았습니다`, "bad");
+          break;
+        }
+        마지막남음 = data.남음;
+        await window.PostLibrosRefresh?.();
+        await drawGauge();
+        if (!data.남음) { say(`갈래를 다 달았습니다 — ${얻음}권`, "good"); break; }
+        say(`${회}번째 — ${얻음}권에 갈래 · 갈래 없음 ${없음} · 아직 ${data.남음}권`);
+      }
+      if (genreStop) say(`멈췄습니다 — ${얻음}권에 갈래를 달았습니다`, "good");
+      delete btn.dataset.running;
+      btn.textContent = "갈래를 받아온다";
+    });
+
+    /* ── 이름 없는 책들 ───────────────────────────────────────
+       지은이가 비어 있는 책은 「지은이 미상」으로 서가에 선다. 고치려면
+       서표를 한 권씩 열어야 했는데, 그러면 예순 권을 예순 번 여닫아야 한다.
+       한 자리에 모아 놓고 — 아는 이름은 그냥 적고, 모르는 것만 알라딘에
+       묻는다. 묻는 것은 권당 호출을 쓰므로 한 번에 스무 권까지만. */
+    let nmRows = [];
+    async function askOne(row) {
+      const { b, el: box, say, ask, inp } = row;
+      ask.disabled = true;
+      say.textContent = "묻는 중…";
+      box.classList.remove("done", "miss");
+      try {
+        const { data, error } = await db.enrichBook(b.id);
+        if (error || data?.error) throw new Error(data?.error || error.message);
+        // 서지 채우기는 지은이를 고치면 「고침」에 적어 돌려준다
+        const fixed = (data.고침 || [])[0];
+        const name = fixed?.지은이후 || null;
+        if (name) {
+          inp.value = name;
+          box.classList.add("done");
+          say.textContent = "찾았습니다";
+        } else {
+          box.classList.add("miss");
+          say.textContent = data.채움 ? "서지는 채웠지만 지은이는 못 얻었습니다" : "못 찾았습니다";
+        }
+      } catch (err) {
+        box.classList.add("miss");
+        say.textContent = String(err.message || err).slice(0, 60);
+      }
+      ask.disabled = false;
+      drawGauge();
+    }
+    async function saveName(row) {
+      const { b, el: box, say, inp } = row;
+      const v = inp.value.trim();
+      if (!v || v === (b.author || "")) return;
+      try {
+        await db.updateBook(b.id, { author: v });
+        b.author = v;
+        box.classList.add("done");
+        say.textContent = "적었습니다";
+        await window.PostLibrosRefresh?.();
+      } catch (err) {
+        box.classList.add("miss");
+        say.textContent = "적지 못했습니다";
+        console.error("[이름 없는 책] 적지 못했습니다:", err);
+      }
+    }
+    el("nm-load").addEventListener("click", async () => {
+      const out = el("nm-out"), host = el("nm-list");
+      out.innerHTML = `<p class="enrich-msg">이름 없는 책을 세는 중…</p>`;
+      host.innerHTML = "";
+      nmRows = [];
+      let books = [];
+      try { books = await db.listAuthorless(200); }
+      catch (err) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "부르지 못했습니다 — " + (err.message || err);
+        return;
+      }
+      if (!books.length) {
+        out.innerHTML = `<p class="enrich-msg good">모든 책에 지은이가 있습니다.</p>`;
+        el("nm-askall").hidden = true;
+        return;
+      }
+      out.innerHTML = `<p class="enrich-msg"></p>`;
+      out.querySelector("p").textContent =
+        `${books.length.toLocaleString()}권 — 아는 이름은 적고 자리를 옮기면 저장됩니다`;
+      el("nm-askall").hidden = false;
+      books.forEach((b) => {
+        const box = document.createElement("div");
+        box.className = "nmrow";
+        box.innerHTML = `<b></b>
+          <input type="text" placeholder="지은이" aria-label="지은이">
+          <button type="button" class="nmask">알라딘에 묻는다</button>
+          <span class="nmsay"></span>`;
+        box.querySelector("b").textContent = b.title;
+        const row = {
+          b, el: box,
+          inp: box.querySelector("input"),
+          ask: box.querySelector(".nmask"),
+          say: box.querySelector(".nmsay"),
+        };
+        row.inp.value = b.author || "";
+        row.ask.addEventListener("click", () => askOne(row));
+        row.inp.addEventListener("change", () => saveName(row));
+        row.inp.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") { e.preventDefault(); row.inp.blur(); }
+        });
+        nmRows.push(row);
+        host.appendChild(box);
+      });
+    });
+    let nmStop = false;
+    el("nm-askall").addEventListener("click", async () => {
+      const btn = el("nm-askall"), out = el("nm-out");
+      if (btn.dataset.running) { nmStop = true; btn.textContent = "멈추는 중…"; return; }
+      btn.dataset.running = "1"; btn.textContent = "멈춘다"; nmStop = false;
+      // 아직 이름이 없는 줄만, 한 번에 스무 권까지 — 호출을 아낀다
+      const todo = nmRows.filter((r) => !r.inp.value.trim()).slice(0, 20);
+      for (let i = 0; i < todo.length; i++) {
+        if (nmStop) break;
+        out.innerHTML = `<p class="enrich-msg"></p>`;
+        out.querySelector("p").textContent =
+          `묻는 중… ${i + 1} / ${todo.length} — 「${todo[i].b.title}」`;
+        await askOne(todo[i]);
+      }
+      const got = todo.filter((r) => r.inp.value.trim()).length;
+      const left = nmRows.filter((r) => !r.inp.value.trim()).length;
+      out.innerHTML = `<p class="enrich-msg ${got ? "good" : "bad"}"></p>`;
+      out.querySelector("p").textContent =
+        `${got}권의 이름을 찾았습니다`
+        + (left ? ` · 아직 ${left}권 남음 — 한 번 더 누르면 이어 묻습니다` : "");
+      if (got) await window.PostLibrosRefresh?.();
+      delete btn.dataset.running;
+      btn.textContent = "보이는 책을 모두 물어본다";
+    });
+
+    /* ── 알라딘 계기판 ────────────────────────────────────────
+       하루 호출 한도는 5,000건이고, 넘기면 키가 통째로 막혀 그날 하루의
+       서지 채우기가 전부 죽는다 (2026-09-01 에 한 번 겪었다). 그런데 남은
+       여유를 알려 주는 창구가 없어, 얼마나 썼는지 모르는 채로 계속 누르게
+       된다. 오늘 물어본 권수로 호출 수를 어림해 눈금으로 세운다.
+       — 다만 권당 호출 수는 회차마다 다르다(조회 1회 + 사다리 1~3회, 사이트·구글
+       까지 내려가면 더). 그래서 눈금은 「최소 이만큼은 썼다」는 바닥값일 뿐이고,
+       진짜 답은 알라딘에게 직접 묻는다. 어림이 여유롭다고 말하는데 실제로는
+       막혀 있는 일이 실제로 있었다 (2026-09-01: 어림 1,198 / 실제 차단). */
+    const DAY_CAP = 5000, CALLS_PER_BOOK = 2.5;
+    let aladinBlocked = false;
+    async function drawGauge(ask = false) {
+      const box = el("in-gauge"), num = el("in-gauge-n"), bar = el("in-gauge-bar");
+      if (!box) return false;
+      let tried = 0;
+      try { tried = await db.countTriedToday(); }
+      catch { box.hidden = true; return false; }
+      const calls = Math.round(tried * CALLS_PER_BOOK);
+      const pct = Math.min(100, calls / DAY_CAP * 100);
+      // 알라딘에게 직접 묻는 것은 호출 한 번을 쓴다 — 열 때와 회차 끝에만
+      if (ask) {
+        try {
+          const { alive, why } = await db.aladinAlive();
+          aladinBlocked = !alive;
+          box.dataset.why = why || "";
+        } catch { /* 못 물었으면 판단을 보류한다 */ }
+      }
+      box.hidden = false;
+      box.classList.toggle("warn", aladinBlocked || pct >= 80);
+      num.textContent =
+        `오늘 ${tried.toLocaleString()}권 물어봄 · 호출 최소 ${calls.toLocaleString()}회 (한도 ${DAY_CAP.toLocaleString()})`
+        + (aladinBlocked
+          ? ` · 알라딘이 막혔습니다${box.dataset.why ? ` — ${box.dataset.why}` : ""}`
+          : "");
+      bar.style.width = (aladinBlocked ? 100 : pct).toFixed(1) + "%";
+      [el("in-enrich"), el("in-genre")].forEach((btn) => {
+        if (!btn || btn.dataset.running) return;
+        // 막혔으면 단추를 잠근다 — 더 눌러 봐야 헛돌기만 한다
+        btn.disabled = aladinBlocked;
+        btn.title = aladinBlocked
+          ? "알라딘이 지금 응답을 거부합니다 — 자정(한국 시간)이 지나면 대개 풀립니다"
+          : "";
+      });
+      return aladinBlocked;
+    }
+    drawGauge(true);
+
     /* 서지 채우기 — 알라딘에 물어 빈 칸을 메운다.
-       1,300권을 스무 권씩 예순다섯 번 누르게 할 수는 없다. 한 번 누르면
+       장서 전체를 스무 권씩 수십 번 누르게 할 수는 없다. 한 번 누르면
        남은 것이 없을 때까지 스스로 돌고, 언제든 멈출 수 있다. */
     let enrichStop = false;
     el("in-enrich").addEventListener("click", async () => {
@@ -719,6 +957,11 @@
         고침.push(...(data.고침 || []));
         살펴볼것.push(...(data.살펴볼것 || []));
         await window.PostLibrosRefresh?.();
+        // 회차마다 알라딘에게 직접 묻는다 — 막히는 순간 스스로 멈춘다
+        if (await drawGauge(true)) {
+          draw(`알라딘이 응답을 거부하기 시작했습니다 — 여기까지 ${채움}권. 자정(한국 시간)이 지나면 이어서 채울 수 있습니다.`, "bad");
+          break;
+        }
         if (!data.남음) { draw(`다 채웠습니다 — ${채움}권 · 못 찾음 ${못찾음} · 겹침 ${겹침}`, "good"); break; }
         draw(`${회}번째 — 지금까지 ${채움}권 · 못 찾음 ${못찾음} · 겹침 ${겹침} · 아직 ${data.남음}권 남음`);
         if (enrichStop) { draw(`멈췄습니다 — ${채움}권 채움 · 아직 ${data.남음}권 남음`, "good"); break; }
@@ -726,6 +969,7 @@
 
       delete btn.dataset.running;
       btn.textContent = "끝까지 채운다";
+      drawGauge(true);
     });
 
     /* 손으로 한 권 — AI 가 놓쳤거나 사진에 없는 책 */

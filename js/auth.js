@@ -217,6 +217,8 @@
       pubYear: b.published_year || null,
       readYear: b.read_year || null,
       series: b.series || null,
+      // 문학 벽의 단을 가르는 갈래 — 「―」는 갈래가 없다고 이미 확인한 표식이다
+      genre: b.genre && b.genre !== "―" ? b.genre : null,
       st: b.read_status,
       // 서표에서 고칠 때 쓰는 원본 값들 — 화면용 loc 만으로는 되돌릴 수 없다
       wall: b.wall || null,

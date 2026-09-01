@@ -100,6 +100,8 @@
   .topbar input:focus-visible { outline: none; border-color: var(--brass-dim); box-shadow: 0 1px 0 var(--brass-dim); }
   .topbar input::placeholder { color: var(--parchment-dim); }
   .topbar .census {
+    /* 이제 누를 수 있는 문이다 — 단추의 기본 옷을 벗기고 원래 모습을 지킨다 */
+    appearance: none; border: none; background: none; padding: 0; cursor: pointer;
     flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
     color: var(--brass-dim); letter-spacing: .1em; font-variant-numeric: tabular-nums;
@@ -110,6 +112,9 @@
   /* 폭은 app.js 가 실제 입고 비율로 채운다 */
   .topbar .census i b { display: block; height: 100%; width: 0; background: var(--brass-dim); transition: width .6s ease; }
   .topbar .cnum { display: inline-flex; align-items: center; white-space: nowrap; }
+  .topbar .census:hover .cnum, .topbar .census:focus-visible .cnum { color: var(--brass); }
+  .topbar .census:focus-visible { outline: 1px solid var(--brass-dim); outline-offset: 4px; }
+  .topbar .census[aria-pressed="true"] .cnum { color: var(--brass); }
   @media (max-width: 560px) { .topbar .census { display: none; } }
 
   /* ── 사다리 ──────────────────────────────────────────── */
@@ -313,10 +318,20 @@
     to { transform: rotate(-11deg) translateY(-8px); }
   }
   .plank {
+    position: relative;
     width: 100%; height: 9px; margin: 0 0 9px; border-radius: 1px;
     background: linear-gradient(var(--wood3), var(--wood) 70%, #241708);
     box-shadow: 0 3px 7px rgba(0,0,0,.5);
   }
+  /* 널빤지에 붙인 갈래 이름표 — 진짜 서가의 손글씨 라벨처럼 작게 */
+  .planklabel {
+    position: absolute; left: 10px; top: 100%; margin-top: 3px;
+    font-family: "IBM Plex Mono", monospace; font-size: 9px;
+    letter-spacing: .12em; color: var(--brass-dim); opacity: .72;
+    white-space: nowrap; pointer-events: none;
+  }
+  /* 이름표가 붙은 단은 아래로 조금 더 숨을 준다 */
+  .plank.labeled { margin-bottom: 20px; }
 
   /* ── 서가 뒤의 방 ────────────────────────────────────── */
   .room {
@@ -710,6 +725,55 @@
   }
   .enrich-go:hover, .enrich-go:focus-visible { background: rgba(224,177,94,.24); outline: none; }
   .enrich-go:disabled { opacity: .45; cursor: default; }
+  .enrich-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* 알라딘 하루 한도의 계기판 — 눈금이 붉어지면 오늘은 그만 묻는다 */
+  .gauge {
+    display: flex; align-items: center; gap: 9px; margin: 2px 0 10px;
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    color: var(--brass-dim); letter-spacing: .06em; font-variant-numeric: tabular-nums;
+  }
+  .gauge i {
+    display: block; width: 120px; height: 4px; border-radius: 999px;
+    background: rgba(0,0,0,.5); overflow: hidden;
+  }
+  .gauge i b { display: block; height: 100%; width: 0; background: var(--brass-dim); transition: width .5s ease; }
+  .gauge.warn { color: var(--wax); }
+  .gauge.warn i b { background: var(--wax); }
+
+  /* 이름 없는 책들 — 한 줄에 한 권, 제목 옆에서 바로 이름을 적는다 */
+  .nameless { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .nameless:empty { display: none; }
+  .nmrow {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 7px 9px; border: 1px solid var(--line); border-radius: 2px;
+    background: rgba(27,17,8,.5);
+  }
+  .nmrow > b {
+    flex: 1 1 220px; font-family: "Gowun Batang", serif; font-size: 12.5px;
+    font-weight: 400; color: var(--parchment);
+  }
+  .nmrow input {
+    flex: 0 1 190px; background: #1B1108; color: var(--parchment);
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: 5px 8px; font: inherit; font-size: 12px;
+  }
+  .nmrow input:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+  .nmrow .nmask {
+    appearance: none; cursor: pointer; padding: 5px 11px;
+    font: inherit; font-size: 11.5px; color: var(--brass-dim);
+    background: none; border: 1px solid var(--line); border-radius: 2px;
+  }
+  .nmrow .nmask:hover, .nmrow .nmask:focus-visible { color: var(--brass); outline: none; }
+  .nmrow .nmask:disabled { opacity: .45; cursor: default; }
+  .nmrow .nmsay {
+    flex: 0 0 auto; font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; letter-spacing: .06em; color: var(--brass-dim);
+  }
+  .nmrow.done { border-color: var(--brass-dim); }
+  .nmrow.done .nmsay { color: var(--st-done); }
+  .nmrow.miss .nmsay { color: var(--wax); }
+
   .enrich-msg {
     margin: 10px 0 2px; font-family: "IBM Plex Mono", monospace;
     font-size: 10.5px; color: var(--brass-dim); letter-spacing: .06em; line-height: 1.7;
@@ -901,6 +965,17 @@
     color: var(--parchment-dim); background: none;
     border: 1px dashed var(--line); border-radius: 2px;
   }
+  /* 지금 펼친다 — 책을 책상 위로 올리는 한 걸음, 촛불빛으로 눈에 띄게 */
+  .x-opennow {
+    appearance: none; cursor: pointer; padding: 5px 12px;
+    font: inherit; font-size: 11.5px; color: var(--brass);
+    background: rgba(224,177,94,.1);
+    border: 1px solid var(--brass-dim); border-radius: 2px;
+  }
+  .x-opennow:hover, .x-opennow:focus-visible {
+    background: rgba(224,177,94,.2); outline: none;
+  }
+  .x-opennow[hidden] { display: none; }
   /* 서지 받아오기 — 지우는 단추와 달리 놋빛으로, 위험이 없음을 알린다 */
   .x-enrich {
     appearance: none; cursor: pointer; padding: 5px 12px;
@@ -1477,6 +1552,12 @@
   }
   .heightsort:hover, .heightsort:focus-visible { color: var(--parchment); outline: none; }
   .heightsort[aria-pressed="true"] { color: var(--brass); border-color: var(--brass-dim); }
+  /* 읽은 책만 — 켜져 있으면 촛불이 켜진 것처럼 안쪽이 은은하게 밝다 */
+  .readpath[aria-pressed="true"] {
+    background: rgba(224,177,94,.13);
+    box-shadow: 0 6px 14px rgba(0,0,0,.35), inset 0 0 12px rgba(224,177,94,.16);
+  }
+  .readpath[hidden] { display: none; }
 
   /* ── 주사위 — 오늘의 책 옆의 둘째 단추, 한 걸음 물러난 톤 ── */
   .desk .open-today.rand {

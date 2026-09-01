@@ -66,6 +66,59 @@
   let sortHeight = false;
   try { sortHeight = localStorage.getItem("pl-heightsort") === "1"; } catch { /* 사생활 모드 등 */ }
 
+  /* 읽은 책만 걷는 길 — 스무 권 남짓이 이 서재에서 실제로 통과한 책이고,
+     나머지는 아직 기다리는 책이다. 아무 데나 눌러 보는 사람은 대개 기다리는
+     쪽을 만나므로, 통과한 쪽으로 가는 문을 따로 낸다.
+     검색과 같은 층위의 거름망이라 모든 보기에 함께 걸린다. */
+  let stFilter = null;                        /* "읽음" | "읽는 중" | null */
+  const stPass = (b) => !stFilter || b.st === stFilter;
+  /* 검색어와 거름망을 함께 통과해야 보인다 — 벽의 응답 수도 이 규칙을 쓴다 */
+  function passes(b) { return stPass(b) && (!q() || matchBook(b, q())); }
+  function sifting() { return !!(q() || stFilter); }
+
+  /* 벽 하나의 세 단을 어떻게 채울지 정한다.
+     기본은 앞에서부터 스물둘씩 — 벽이 곧 한 갈래이므로 나눌 이유가 없다.
+     다만 한 벽이 서재의 절반을 넘게 삼키면(문학이 그렇다) 그 벽만은
+     갈래별로 단을 가른다. 갈래를 아는 책이 열 권도 안 되면 이름표를 달
+     자격이 없으므로 그냥 예전처럼 스물둘씩 끊는다. */
+  const SHELF_CAP = 22, SHELF_ROWS = 3;
+  function shelfLines(shelved, w) {
+    const flat = () => Array.from({ length: SHELF_ROWS }, (_, s) => ({
+      label: null, books: shelved.slice(s * SHELF_CAP, (s + 1) * SHELF_CAP),
+    }));
+    const total = allBooks().length;
+    // 서재의 40%를 넘게 가진 벽만 — 다른 벽은 나눌 만큼 두껍지 않다
+    if (!total || (w.books?.length || 0) / total < 0.4) return flat();
+    const known = shelved.filter((b) => b.genre);
+    if (known.length < 10) return flat();
+
+    const byGenre = new Map();
+    known.forEach((b) => {
+      if (!byGenre.has(b.genre)) byGenre.set(b.genre, []);
+      byGenre.get(b.genre).push(b);
+    });
+    const tops = [...byGenre.entries()]
+      .sort((x, y) => y[1].length - x[1].length)
+      .slice(0, SHELF_ROWS);
+    if (!tops.length) return flat();
+
+    const lines = tops.map(([name, list]) => ({
+      label: `${name} ${list.length.toLocaleString()}권`,
+      books: list.slice(0, SHELF_CAP),
+    }));
+    // 남는 단이 있으면 갈래를 모르는 책들이 채운다 — 빈 널빤지를 두지 않는다
+    if (lines.length < SHELF_ROWS) {
+      const rest = shelved.filter((b) => !b.genre);
+      if (rest.length) {
+        lines.push({
+          label: `아직 갈래를 모르는 ${rest.length.toLocaleString()}권`,
+          books: rest.slice(0, SHELF_CAP),
+        });
+      }
+    }
+    return lines;
+  }
+
   function renderWalls() {
     const host = $("walls"); host.innerHTML = "";
     wallEls.length = 0;
@@ -74,8 +127,8 @@
       const sec = document.createElement("section");
       sec.className = "wallsec";
       wallEls.push({ el: sec, w });
-      const hits = (w.cat !== "archive" && q())
-        ? w.books.filter(b => matchBook(b, q())).length : null;
+      const hits = (w.cat !== "archive" && sifting())
+        ? w.books.filter(passes).length : null;
       w.hits = hits;
       if (hits === 0) sec.style.opacity = ".4"; /* 검색에 응답 없는 벽은 어두워진다 */
       sec.innerHTML = `<div class="sec-label"><b></b><span class="desc"></span><span class="hits"></span></div>`;
@@ -197,13 +250,12 @@
       } else {
         /* 벽에는 66권만 그려진다. 검색 중이면 응답한 책을 앞으로 끌어와
            찾는 책이 보이지 않는 뒷줄에 묻히지 않게 한다. */
-        const hit = (b) => matchBook(b, q());
         // 키 순서일 때는 실물 높이(없으면 어림값)로 줄을 세운다 — 검색 앞줄 규칙이 우선
         const base = sortHeight
           ? [...w.books].sort((x, y) => y.h - x.h || y.w2 - x.w2)
           : w.books;
-        const shelved = q()
-          ? [...base.filter(hit), ...base.filter(b => !hit(b))]
+        const shelved = sifting()
+          ? [...base.filter(passes), ...base.filter(b => !passes(b))]
           : base;
         /* 걸쇠(비뚤어진 책)는 진짜 책의 자리를 빼앗지 않고 사이에 끼어든다 —
            예전에는 그 자리의 책 한 권이 서가에서 열 수 없게 가려졌다 */
@@ -220,16 +272,22 @@
           });
           return el;
         };
-        for (let s = 0; s < 3; s++) {
+        /* 단을 어떻게 가를 것인가.
+           보통은 그냥 스물둘씩 세 줄이다. 그런데 문학 벽에는 장서의 열에
+           아홉이 몰려 있어, 한 줄이 무엇을 모아 둔 줄인지 말할 수 없다.
+           갈래(genre)를 아는 책이 넉넉히 쌓이면 그 벽만 단을 갈래로 가른다 —
+           소설 한 단, 고전 한 단, 에세이 한 단. 널빤지에 이름표가 붙는다. */
+        const lines = shelfLines(shelved, w);
+        lines.forEach(({ label, books }, s) => {
           const line = document.createElement("div"); line.className = "shelfline";
-          shelved.slice(s*22, (s+1)*22).forEach((b, k) => {
+          books.forEach((b, k) => {
             const idx = s*22 + k;
             if (idx === w.latchIdx) line.appendChild(makeLatch());
             const el = document.createElement("button"); el.className = "tome";
             if (b.paper) el.classList.add("paper");
             if (b.lean) el.classList.add("lean");
             if (b.folio) el.classList.add("folio");
-            if (q() && !matchBook(b, q())) el.classList.add("dim");
+            if (sifting() && !passes(b)) el.classList.add("dim");
             // 들인 지 한 해가 넘도록 안 읽은 책에는 먼지가 앉는다 —
             // 오래 기다린 책이 눈에 띄어야 언젠가 뽑힌다
             const dusty = b.st === "안 읽음" && b.year
@@ -251,8 +309,16 @@
             line.appendChild(el);
           });
           panel.appendChild(line);
-          const pk = document.createElement("div"); pk.className = "plank"; panel.appendChild(pk);
-        }
+          const pk = document.createElement("div"); pk.className = "plank";
+          if (label) {
+            pk.classList.add("labeled");
+            const tag = document.createElement("span");
+            tag.className = "planklabel";
+            tag.textContent = label;
+            pk.appendChild(tag);
+          }
+          panel.appendChild(pk);
+        });
       }
       box.appendChild(panel);
       sec.appendChild(box);
@@ -584,11 +650,37 @@
       : 0;
     const num = $("census-n"), bar = $("census-bar");
     if (!num) return;
-    num.textContent = n ? `${n.toLocaleString()}권 입고` : "아직 비어 있음";
+    const done = shelves.reduce((s, w) => s + (w.books || []).filter(b => b.st === "읽음").length, 0);
+    num.textContent = stFilter ? `읽은 ${done.toLocaleString()}권`
+      : n ? `${n.toLocaleString()}권 입고` : "아직 비어 있음";
     if (bar) bar.style.width = readPct.toFixed(1) + "%";
     const box = $("census");
-    if (box) box.title = n ? `읽음 ${Math.round(readPct)}% — 막대는 읽어 낸 만큼 차오릅니다` : "";
+    if (box) {
+      box.setAttribute("aria-pressed", stFilter ? "true" : "false");
+      box.title = !n ? ""
+        : stFilter ? "누르면 서재 전체로 돌아갑니다"
+          : `읽음 ${Math.round(readPct)}% — 누르면 읽어 낸 ${done.toLocaleString()}권만 남습니다`;
+    }
+    // 같은 문이 두 자리에 있다 — 위쪽 막대(넓은 화면)와 현관의 단추(좁은 화면)
+    const rp = $("readpath");
+    if (rp) {
+      rp.setAttribute("aria-pressed", stFilter ? "true" : "false");
+      rp.textContent = stFilter ? `읽은 ${done.toLocaleString()}권` : "읽은 책만";
+      rp.hidden = !done;
+    }
   }
+  /* 거름망을 켜고 끈다 — 모든 보기가 같은 규칙을 쓰므로 다시 그리기만 하면 된다 */
+  function toggleReadPath() {
+    stFilter = stFilter ? null : "읽음";
+    if (curView === "walls") {
+      // 벽은 접힌 채로 다시 그려지므로, 걸러 낸 결과가 보이도록 목록으로 안내한다
+      const any = allBooks().some((b) => b.st === "읽음");
+      if (stFilter && any) setView("list");
+    }
+    renderAll();
+  }
+  $("census")?.addEventListener("click", toggleReadPath);
+  $("readpath")?.addEventListener("click", toggleReadPath);
 
   /* 책상 위 오늘의 책 — 아직 열어보지 않은 책 중에서 날짜로 고른다.
      그냥 첫 권을 집으면 1,300권이 있어도 매일 같은 책이다.
@@ -671,10 +763,7 @@
       .toLowerCase().includes(query);
   }
   window.PostLibrosMatch = matchBook;
-  function filteredBooks() {
-    const query = q();
-    return allBooks().filter(b => !query || matchBook(b, query));
-  }
+  function filteredBooks() { return allBooks().filter(passes); }
   function setView(v) {
     curView = v;
     document.querySelectorAll(".viewseg button").forEach(b => {
@@ -761,8 +850,11 @@
     const shown = Math.min(coversShown, list.length);
     $("cover-note").textContent = shown < list.length
       ? `— 등불이 닿는 ${shown.toLocaleString()}권까지 — 어둠 속에 ${(list.length - shown).toLocaleString()}권이 더 있다 —`
-      : (q() ? `"${$("q").value.trim()}" — ${list.length}권 응답`
-             : (list.length ? `${list.length.toLocaleString()}권 전부` : "아직 꽂힌 책이 없습니다."));
+      : stFilter ? (list.length
+        ? `이 서재가 읽어 낸 ${list.length.toLocaleString()}권${q() ? ` 중 "${$("q").value.trim()}"` : ""}`
+        : "아직 읽어 낸 책이 없습니다.")
+        : (q() ? `"${$("q").value.trim()}" — ${list.length}권 응답`
+          : (list.length ? `${list.length.toLocaleString()}권 전부` : "아직 꽂힌 책이 없습니다."));
     const more = $("covermore");
     more.hidden = shown >= list.length;
     more.textContent = `등불을 옮긴다 (${(list.length - shown).toLocaleString()}권 남음)`;
@@ -873,9 +965,12 @@
       ? `${list.length.toLocaleString()}권`
         + (grouping && flat.length < list.length ? ` · 시리즈는 접혀 있습니다 — 줄을 눌러 펼칩니다` : "")
         + (shown < flat.length ? ` · ${shown.toLocaleString()}줄 표시` : "")
+        + (stFilter ? ` · 읽은 책만 보는 중` : "")
         + (q() ? ` (검색어: "${$("q").value.trim()}")` : "")
         + (sortKey ? ` · ${sortAsc ? "오름차순" : "내림차순"}` : "")
-      : (q() ? `"${$("q").value.trim()}" — 찾지 못했습니다` : "아직 꽂힌 책이 없습니다.");
+      : stFilter && q() ? `읽은 책 중에 "${$("q").value.trim()}" 은 없습니다`
+        : stFilter ? "아직 읽어 낸 책이 없습니다."
+          : (q() ? `"${$("q").value.trim()}" — 찾지 못했습니다` : "아직 꽂힌 책이 없습니다.");
     const more = $("listmore");
     more.hidden = shown >= flat.length;
     more.textContent = `더 본다 (${(flat.length - shown).toLocaleString()}줄 남음)`;
@@ -1697,6 +1792,7 @@
       }
       syncBookmarkRow(b);
       syncReadYearRow(b);
+      syncOpenNowRow(b);
       renderLinks(b);
       // 시리즈 잇기 단추 — 같은 무리가 두 권 넘으면 이음 줄 밑에 뜬다
       const sbtn = $("x-serieslink");
@@ -1830,6 +1926,7 @@
       saveBook(patch, (b) => { b.st = st; if (ry) b.readYear = ry; });
       syncBookmarkRow(openBook && { ...openBook, st });
       syncReadYearRow(openBook && { ...openBook, st, readYear: ry || openBook.readYear });
+      syncOpenNowRow(openBook && { ...openBook, st });
     });
   });
 
@@ -1966,6 +2063,31 @@
       ? `전체 ${b.pages.toLocaleString()}쪽`
       : "읽다 만 자리를 적어 둡니다";
   }
+  /* ── 지금 펼친다 ─────────────────────────────────────────
+     책상 위 더미, 갈피, 읽기 리듬은 모두 「읽는 중」을 먹고 사는 기능인데,
+     읽는 중으로 바꾸려면 상태를 누르고 갈피를 따로 적어야 했다. 두 걸음을
+     한 걸음으로 줄인다 — 펼친 책은 1쪽에 갈피를 꽂고 책상 위로 올라간다. */
+  function syncOpenNowRow(b) {
+    const btn = $("x-opennow");
+    if (!btn) return;
+    btn.hidden = !b || b.st !== "안 읽음";
+  }
+  $("x-opennow")?.addEventListener("click", () => {
+    if (!openBook) return;
+    const at = new Date().toISOString();
+    const page = openBook.bookmark || 1;
+    document.querySelectorAll("#x-status button").forEach((o) =>
+      o.setAttribute("aria-selected", o.dataset.st === "읽는 중" ? "true" : "false"));
+    saveBook(
+      { read_status: "읽는 중", bookmark_page: page, bookmark_at: at },
+      (b) => { b.st = "읽는 중"; b.bookmark = page; b.bookmarkAt = at; },
+    );
+    // 저장은 비동기다 — 화면의 줄들은 바뀔 모습을 미리 그려 둔다
+    const after = { ...openBook, st: "읽는 중", bookmark: page, bookmarkAt: at };
+    syncBookmarkRow(after);
+    syncReadYearRow(after);
+    syncOpenNowRow(after);
+  });
   $("x-bm").addEventListener("change", () => {
     const raw = $("x-bm").value.trim();
     const page = raw ? Math.max(1, parseInt(raw, 10) || 0) || null : null;

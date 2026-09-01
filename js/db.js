@@ -155,6 +155,33 @@
       return count;
     },
 
+    /* 오늘 알라딘에 물어본 권수 — 하루 호출 한도(5,000건)의 계기판 재료.
+       알라딘의 하루는 한국 시간 자정에 갈리므로 그 경계로 센다. */
+    async countTriedToday() {
+      const now = new Date();
+      // 한국 시간 오늘 0시를 UTC 로 환산한다 (KST = UTC+9)
+      const kst = new Date(now.getTime() + 9 * 3600 * 1000);
+      const midnightUtc = new Date(Date.UTC(
+        kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), 0, 0, 0,
+      ).valueOf() - 9 * 3600 * 1000);
+      const { count, error } = await client.from("books")
+        .select("id", { count: "exact", head: true })
+        .gte("enrich_tried_at", midnightUtc.toISOString());
+      if (error) throw error;
+      return count ?? 0;
+    },
+
+    /* 지은이가 비어 있는 책들 — 「이름 없는 책들」 작업대의 재료 */
+    async listAuthorless(limit = 200) {
+      const { data, error } = await client.from("books")
+        .select("id, title, author, isbn, category, wall, cover_url")
+        .or("author.is.null,author.eq.")
+        .order("title")
+        .limit(limit);
+      if (error) throw error;
+      return data ?? [];
+    },
+
     /* ── 요약: 없으면 만들지 않고 null 을 돌려준다 ──
        실제 생성은 Edge Function 이 맡는다. 열어본 책에만 비용이 든다. */
     async getSummary(bookId) {
@@ -182,6 +209,29 @@
         client.functions.invoke("enrich-books", { body: { limit } }),
         180000,
         "서지 채우기",
+      ).then(tellWhy);
+    },
+
+    /* 알라딘이 지금 응답하는지 한 번 묻는다 — 계기판의 눈금은 어림이지만
+       이것은 사실이다. 한도를 넘겨 키가 막히면 errorCode 가 돌아온다. */
+    async aladinAlive() {
+      const { data, error } = await guard(
+        client.functions.invoke("enrich-books", { body: { probe: "책" } }),
+        20000,
+        "알라딘 상태",
+      ).then(tellWhy);
+      if (error) throw error;
+      const why = data?.shape?.오류 ?? null;
+      return { alive: !why, why };
+    },
+
+    /* 갈래 채우기 — 문학 벽의 단을 가를 세부 갈래를 받아온다.
+       ISBN 을 아는 책만 고르므로 권당 조회 1회 — 서지 채우기보다 훨씬 싸다. */
+    async fillGenres(limit = 40) {
+      return guard(
+        client.functions.invoke("enrich-books", { body: { genre: true, limit } }),
+        180000,
+        "갈래 채우기",
       ).then(tellWhy);
     },
 
