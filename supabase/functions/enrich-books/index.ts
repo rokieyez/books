@@ -67,14 +67,14 @@ function catOf(path: string): string | null {
   return null;   // 알아볼 수 없으면 원래 분류를 그대로 둔다
 }
 
-async function aladin(key: string, query: string) {
+async function aladin(key: string, query: string, target = "Book", queryType = "Keyword") {
   const params = new URLSearchParams({
     ttbkey: key,
     Query: query,
-    QueryType: "Keyword",
+    QueryType: queryType,
     MaxResults: "5",
     start: "1",
-    SearchTarget: "Book",
+    SearchTarget: target,
     output: "js",
     Version: "20131101",
   });
@@ -84,16 +84,50 @@ async function aladin(key: string, query: string) {
   return { ok: res.ok, status: res.status, text };
 }
 
+/* 제목 끝의 권수 — 「백야행 1」의 1, 「13계단 029」의 029 */
+function volOf(t: string): string | null {
+  const m = norm(t).match(/(\d+)$/);
+  return m ? String(Number(m[1])) : null;
+}
+
+/* 두 제목이 같은 책인지 점수를 매긴다.
+   편집거리만 쓰면 「백야행 1」과 「백야행 1 - 하얀 어둠 속을 걷다」처럼
+   부제가 긴 판본이 남남으로 나온다 — 포함 관계를 후하게 쳐 주되,
+   권수가 어긋나면(1권과 2권) 크게 깎는다. */
+function matchScore(mine: string, theirs: string): number {
+  const a = norm(mine), b = norm(theirs);
+  if (!a || !b) return 0;
+  let s: number;
+  if (a === b) s = 1;
+  else if (b.startsWith(a) || a.startsWith(b)) s = 0.85;
+  else if (a.length >= 4 && b.includes(a)) s = 0.8;
+  else s = similar(mine, theirs);
+  const va = volOf(mine), vb = volOf(theirs);
+  if (va && vb && va === vb) s += 0.1;
+  else if ((va || vb) && va !== vb) s -= 0.2;
+  return s;
+}
+
+/* 다섯 결과 중 가장 닮은 것을 고른다 — 첫 번째가 늘 정답은 아니다 */
+function pickBest(items: Array<Record<string, unknown>>, title: string) {
+  let best = null, bestScore = 0;
+  for (const it of items) {
+    const sc = matchScore(title, decode(String(it.title ?? "")));
+    if (sc > bestScore) { best = it; bestScore = sc; }
+  }
+  return { best, score: bestScore };
+}
+
 /* 쪽수는 검색(ItemSearch)에는 없고 조회(ItemLookUp)의 subInfo 에 온다.
    ISBN 을 알아낸 뒤 한 번 더 물어야 한다. 조회에는 출판사·표지도 같이
    오므로, ISBN 만 있고 나머지가 빈 책을 마저 채우는 데도 쓴다.
    OptResult=packing 을 붙이면 실물 크기(mm)도 온다 — 책등을 진짜
    판형대로 그리는 데 쓴다 (subInfo.packing.sizeHeight/sizeDepth). */
-async function aladinLookup(key: string, isbn: string) {
+async function aladinLookup(key: string, id: string, idType?: string) {
   const params = new URLSearchParams({
     ttbkey: key,
-    ItemId: isbn,
-    ItemIdType: isbn.length === 13 ? "ISBN13" : "ISBN",
+    ItemId: id,
+    ItemIdType: idType || (id.length === 13 ? "ISBN13" : "ISBN"),
     OptResult: "packing",
     output: "js",
     Version: "20131101",
@@ -125,6 +159,32 @@ async function aladinLookup(key: string, isbn: string) {
   } catch {
     return null;
   }
+}
+
+/* 마지막 수단 — 알라딘 웹사이트 검색.
+   API 검색이 놓치는 책도 사이트 검색에는 잡히는 일이 있다. HTML 에서는
+   ItemId 만 줍고, 서지는 반드시 조회 API 로 받는다 — 화면 구조가 바뀌어도
+   깨지는 것은 발견뿐이고, 데이터가 더러워지지는 않는다. */
+async function webFallback(key: string, title: string, author: string | null) {
+  try {
+    const q = encodeURIComponent([title, author].filter(Boolean).join(" "));
+    const res = await fetch(
+      `https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=All&SearchWord=${q}`,
+      { headers: { "User-Agent": "Mozilla/5.0" } },
+    );
+    const html = await res.text();
+    // 앞머리 광고·배너에도 ItemId 가 있어, 점수로 걸러낸다
+    const ids = [...new Set(
+      [...html.matchAll(/wproduct\.aspx\?ItemId=(\d+)/g)].map((m) => m[1]),
+    )].slice(0, 5);
+    for (const id of ids) {
+      const info = await aladinLookup(key, id, "ItemId");
+      if (info?.title && matchScore(title, info.title) >= 0.5) {
+        return { info, score: matchScore(title, info.title) };
+      }
+    }
+  } catch { /* 사이트가 막혀도 채우기 전체는 계속 돈다 */ }
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -268,53 +328,90 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const q = [b.title, b.author].filter(Boolean).join(" ");
-    let found;
-    try {
-      const r = await aladin(ttb, q);
-      const j = JSON.parse(r.text.replace(/;$/, ""));
-      found = (j.item ?? [])[0];
-    } catch {
-      missed++;   // 통신이 어긋난 것일 수 있다 — 표식 없이 다음 차례를 기다린다
+    /* 검색 사다리 — 한 번 못 찾았다고 포기하지 않는다.
+       1) 국내도서, 제목+지은이 키워드
+       2) 국내도서, 권수 뗀 제목만 (「13계단 029」→「13계단」)
+       3) 외서 — ZERO K 나 High-Rise 는 국내도서 검색에 안 잡힌다
+       4) 알라딘 웹사이트 검색 (ItemId 만 줍고 서지는 API 조회로) */
+    const stripped = b.title.replace(/[\s·-]+\d{1,3}$/, "").trim();
+    const ladder: Array<[string, string, string]> = [
+      [[b.title, b.author].filter(Boolean).join(" "), "Book", "Keyword"],
+      [stripped && stripped !== b.title ? stripped : b.title, "Book", "Title"],
+      [[b.title, b.author].filter(Boolean).join(" "), "Foreign", "Keyword"],
+    ];
+    let found = null, score = 0, netFail = false;
+    for (const [q2, target, qt] of ladder) {
+      try {
+        const r = await aladin(ttb, q2, target, qt);
+        const j = JSON.parse(r.text.replace(/;$/, ""));
+        const p = pickBest(j.item ?? [], b.title);
+        if (p.best && p.score >= 0.5) { found = p.best; score = p.score; break; }
+      } catch { netFail = true; }
+    }
+
+    /* API 가 끝내 모르면 사이트 검색 — 서지는 조회 API 가 준다 */
+    let hit: Record<string, unknown> | null = null;
+    if (found) {
+      hit = {
+        title: decode(String(found.title ?? "")).trim(),
+        author: found.author ? decode(String(found.author)).split(/[,(]/)[0].trim() : null,
+        isbn: found.isbn13 || found.isbn ? String(found.isbn13 || found.isbn) : null,
+        publisher: found.publisher ? decode(String(found.publisher)) : null,
+        cover: found.cover ? String(found.cover) : null,
+        year: /^\d{4}/.test(String(found.pubDate ?? "")) ? Number(String(found.pubDate).slice(0, 4)) : null,
+        category: catOf(String(found.categoryName ?? "")),
+        pages: null, sizeHeight: null, sizeDepth: null,
+      };
+      if (hit.isbn) {
+        // 쪽수·크기는 조회 API 에만 있다 — ISBN 을 알았으니 한 번 더 묻는다
+        const info = await aladinLookup(ttb, String(hit.isbn));
+        if (info) { hit.pages = info.pages; hit.sizeHeight = info.sizeHeight; hit.sizeDepth = info.sizeDepth; }
+      }
+    } else {
+      const web = await webFallback(ttb, stripped || b.title, b.author);
+      if (web) {
+        const i = web.info;
+        hit = {
+          title: i.title, author: i.author, isbn: i.isbn13,
+          publisher: i.publisher, cover: i.cover, year: i.year,
+          category: i.category, pages: i.pages,
+          sizeHeight: i.sizeHeight, sizeDepth: i.sizeDepth,
+        };
+        score = web.score;
+      }
+    }
+
+    if (!hit) {
+      missed++;
+      // 통신이 어긋났을 뿐이면 표식 없이 다음 차례를 기다린다
+      if (!netFail) await markTried(b.id);
       continue;
     }
-    if (!found) { missed++; await markTried(b.id); continue; }
-
-    const sim = similar(b.title, String(found.title ?? ""));
-    // 전혀 다른 책이 잡힌 것이다 — 건드리지 않는다
-    if (sim < 0.5) { missed++; await markTried(b.id); continue; }
 
     const patch: Record<string, unknown> = {};
-    if (found.isbn13 || found.isbn) {
-      patch.isbn = String(found.isbn13 || found.isbn);
-      // 쪽수·크기는 조회 API 에만 있다 — ISBN 을 알았으니 한 번 더 묻는다
-      const info = await aladinLookup(ttb, String(patch.isbn));
-      if (info?.pages) patch.page_count = info.pages;
-      if (info?.sizeHeight) patch.size_height = info.sizeHeight;
-      if (info?.sizeDepth) patch.size_depth = info.sizeDepth;
-    }
-    if (found.publisher) patch.publisher = decode(String(found.publisher));
-    if (found.cover) patch.cover_url = String(found.cover);
-    const yr = String(found.pubDate ?? "").slice(0, 4);
-    if (/^\d{4}$/.test(yr)) patch.published_year = Number(yr);
-
+    if (hit.isbn) patch.isbn = hit.isbn;
+    if (hit.pages) patch.page_count = hit.pages;
+    if (hit.sizeHeight) patch.size_height = hit.sizeHeight;
+    if (hit.sizeDepth) patch.size_depth = hit.sizeDepth;
+    if (hit.publisher) patch.publisher = hit.publisher;
+    if (hit.cover) patch.cover_url = hit.cover;
+    if (hit.year) patch.published_year = hit.year;
     // 알라딘의 분류가 AI 의 짐작보다 정확하다 — 알아볼 수 있으면 바꿔 단다
-    const cat = catOf(String(found.categoryName ?? ""));
-    if (cat) patch.category = cat;
+    if (hit.category) patch.category = hit.category;
 
     /* 제목은 자동으로 갈아치우지 않는다.
        「죽음의 한 연구 상」을 검색하면 단권본 「죽음의 한 연구」가 잡힌다.
        닮았다고 고쳐 버리면 상·하 구분이 사라지고, 둘 다 같은 제목이 되어
        서로 부딪힌다. 잘못 읽힌 것 같으면 알려만 주고 판단은 사람에게 남긴다. */
-    const aladinTitle = decode(String(found.title ?? "")).trim();
-    const suggest = (sim >= 0.72 && sim < 1 && aladinTitle && norm(aladinTitle) !== norm(b.title))
+    const aladinTitle = String(hit.title || "");
+    const suggest = (score >= 0.72 && aladinTitle && norm(aladinTitle) !== norm(b.title))
       ? { 지금: b.title, 알라딘: aladinTitle } : null;
 
     // 지은이는 고친다 — 「박상룡」처럼 한 글자 틀린 것이 대부분이고,
     // 권 구분 같은 정보를 잃을 위험이 없다.
     let fixed = null;
-    if (found.author && sim >= 0.72) {
-      const a = decode(String(found.author)).split(/[,(]/)[0].trim();
+    if (hit.author && score >= 0.72) {
+      const a = String(hit.author);
       if (a && norm(a) !== norm(b.author || "")) {
         patch.author = a;
         fixed = { 제목: b.title, 지은이전: b.author || "(없음)", 지은이후: a };
