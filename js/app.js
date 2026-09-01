@@ -798,9 +798,16 @@
       t.textContent = "책상이 비어 있다";
       s.textContent = "아직 꽂힌 책이 없습니다 — 사진을 들이는 것부터 시작합니다";
       btn.hidden = true;
+      // 펼칠 책이 없으면 물건도 이름도 내린다 — 주사위는 뽑을 책이 없다
+      const acts0 = document.querySelector(".deskacts"), hint0 = $("deskhint");
+      if (acts0) acts0.hidden = true;
+      if (hint0) hint0.hidden = true;
       return;
     }
     btn.hidden = false;
+    const acts = document.querySelector(".deskacts"), hint = $("deskhint");
+    if (acts) acts.hidden = false;
+    if (hint) { hint.hidden = false; syncDeskHint(null); }
     t.textContent = pick.t;
     const marks = [`오늘의 책 · ${pick.a}`];
     if (pick.st === "읽는 중") {
@@ -3174,6 +3181,26 @@
   });
   $("today-open").addEventListener("click", () => {
     if (todayBook) openExlibris(todayBook, bookWall(todayBook));
+  });
+
+  /* 책상의 두 물건에는 글자가 없다 — 손이 닿는 순간 밑줄이 이름을 말한다.
+     제목까지 넣어 「무엇을 펼치는지」가 누르기 전에 보이게 한다. */
+  const DESK_IDLE = "책을 펼치거나, 주사위를 굴린다";
+  function syncDeskHint(which) {
+    const el = $("deskhint");
+    if (!el) return;
+    el.textContent =
+      which === "open"
+        ? (todayBook ? `램프 아래에서 「${todayBook.t}」을 펼친다` : "램프 아래에서 펼친다")
+      : which === "dice" ? "주사위를 굴린다 — 안 읽은 책 중에서 한 권"
+      : DESK_IDLE;
+  }
+  [["today-open", "open"], ["today-rand", "dice"]].forEach(([id, which]) => {
+    const b = $(id);
+    if (!b) return;
+    // 마우스와 키보드가 같은 말을 듣는다
+    ["mouseenter", "focus"].forEach((e) => b.addEventListener(e, () => syncDeskHint(which)));
+    ["mouseleave", "blur"].forEach((e) => b.addEventListener(e, () => syncDeskHint(null)));
   });
 
   /* 주사위 — "다음에 뭘 읽지"는 서재가 답한다. 안 읽은 책을 우선 뽑는다.

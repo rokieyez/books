@@ -264,15 +264,23 @@
   <p id="today-sub">오늘의 책을 고르는 중</p>
   <!-- 읽는 중인 책들이 책상 위에 실제로 쌓인다 -->
   <div class="deskpile" id="deskpile"></div>
-  <button class="open-today" id="today-open">램프 아래에서 펼친다</button>
-  <!-- "다음에 뭘 읽지"는 서재가 답한다 — 안 읽은 책 중 아무거나.
-       글자 대신 주사위 그림 하나. 눈 아홉 칸 중 면에 맞는 것만 켜진다 -->
-  <button class="dicebtn" id="today-rand" title="주사위를 굴린다 — 안 읽은 책 중에서 한 권"
-          aria-label="주사위를 굴린다 — 안 읽은 책 중에서 한 권을 뽑는다">
-    <span class="die" id="die" data-face="5" aria-hidden="true">
-      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-    </span>
-  </button>
+  <!-- 책상 위의 두 물건 — 글자 단추가 아니라 집어 드는 물건이다.
+       펼친 책과 주사위가 같은 무게로 나란히 선다.
+       무엇인지는 밑의 한 줄이 손이 닿는 순간 말해 준다 -->
+  <div class="deskacts">
+    <button class="deskbtn openbtn" id="today-open"
+            title="램프 아래에서 펼친다" aria-label="오늘의 책을 램프 아래에서 펼친다">
+      <span class="bookicon" aria-hidden="true"><i></i><i></i><em></em></span>
+    </button>
+    <button class="deskbtn dicebtn" id="today-rand"
+            title="주사위를 굴린다 — 안 읽은 책 중에서 한 권"
+            aria-label="주사위를 굴린다 — 안 읽은 책 중에서 한 권을 뽑는다">
+      <span class="die" id="die" data-face="5" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </span>
+    </button>
+  </div>
+  <p class="deskhint" id="deskhint" role="status">책을 펼치거나, 주사위를 굴린다</p>
 </div>
 
 <!-- 콜로폰 — 책의 판권장처럼. 누가 지었고, 무엇으로 지었고, 언제 자랐는지 -->

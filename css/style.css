@@ -1052,7 +1052,7 @@
 
   /* ── 바닥: 책상과 램프, 오늘의 책 ─────────────────────── */
   .desk {
-    position: relative; margin-top: 64px; padding: 58px 18px 84px;
+    position: relative; margin-top: 64px; padding: 58px 18px 126px;
     text-align: center; scroll-margin-top: 64px;
     background: linear-gradient(180deg, var(--dark) 0%, #100A04 100%);
   }
@@ -1150,8 +1150,8 @@
     .desk { padding-bottom: 96px; }
     .desk .candlestick { left: 18px; transform: none; }
     .desk .candlewax { left: 29px; transform: none; }
-    .desk .open-today { padding: 10px 16px; font-size: 13px; letter-spacing: .08em; }
-    .desk .dicebtn { margin-left: 8px; padding: 6px; }
+    .desk { padding-bottom: 132px; }
+    .deskacts { gap: 16px; }
   }
   .desk .lampline {
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .22em;
@@ -1162,15 +1162,83 @@
     font-size: 22px; letter-spacing: .1em; text-wrap: balance;
   }
   .desk p { margin: 0 0 18px; font-size: 12.5px; color: var(--parchment-dim); }
-  .desk .open-today {
-    appearance: none; cursor: pointer; position: relative; z-index: 1;
-    font-family: "Gowun Batang", serif; font-weight: 700; font-size: 14px; letter-spacing: .14em;
-    color: var(--brass); background: none; border: 1px solid var(--brass-dim);
-    padding: 10px 28px;
+  /* ── 책상 위의 두 물건 ─────────────────────────────────
+     예전에는 「램프 아래에서 펼친다」라는 글자 단추가 촛대와 펼친 책 그림
+     **위에 겹쳐** 있었다 (촛불이 「램」 자를 뚫고 나왔다). 주사위는 그 옆에
+     매달려 혼자 다른 높이에 떠 있었다.
+     이제 둘은 같은 크기의 물건으로 나란히 서고, 소품은 그 아래 책상 위에
+     그대로 놓인다 (.desk 의 아래 여백을 늘려 자리를 비웠다). */
+  .deskacts {
+    display: flex; gap: 22px; justify-content: center; align-items: flex-end;
+    position: relative; z-index: 2;
   }
-  .desk .open-today:hover, .desk .open-today:focus-visible {
-    background: rgba(224,177,94,.12); outline: none;
-    box-shadow: 0 0 22px rgba(224,177,94,.35);
+  /* display:flex 는 [hidden] 을 이긴다 — 숨기려면 여기서 다시 못 박아야 한다 */
+  .deskacts[hidden] { display: none; }
+  .deskbtn {
+    appearance: none; cursor: pointer; background: none; border: none;
+    padding: 8px; line-height: 0; border-radius: 4px;
+    display: grid; place-items: center; min-width: 58px; min-height: 58px;
+  }
+  .deskbtn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  /* 펼친 책 — 책상 위의 그림과 같은 재료로, 손에 들 만한 크기로 */
+  .bookicon {
+    position: relative; display: block; width: 50px; height: 37px;
+    filter: drop-shadow(0 5px 7px rgba(0,0,0,.55));
+  }
+  /* 램프 아래에 놓인 책이라는 것이 이 빛무리 하나로 읽힌다 —
+     책상 위에 그려진 소품과 구별되는 표이기도 하다 */
+  .bookicon::after {
+    content: ""; position: absolute; left: 50%; top: 46%;
+    width: 74px; height: 54px; transform: translate(-50%, -50%);
+    background: radial-gradient(ellipse at 50% 40%, rgba(224,177,94,.34) 0%, rgba(224,177,94,0) 70%);
+    pointer-events: none; z-index: -1;
+    transition: opacity .22s ease;
+  }
+  .openbtn:hover .bookicon::after, .openbtn:focus-visible .bookicon::after { opacity: 1; }
+  .bookicon::before {            /* 밑에 깔린 가죽 표지 */
+    content: ""; position: absolute; left: 1px; right: 1px; bottom: 0; height: 9px;
+    background: linear-gradient(180deg, #4A3218, #33220E);
+    border-radius: 3px 3px 6px 6px;
+  }
+  .bookicon i {                  /* 좌우 페이지 — 가운데 골로 말려 들어간다 */
+    position: absolute; bottom: 4px; width: 23px; height: 29px;
+    background-image:
+      repeating-linear-gradient(180deg, rgba(0,0,0,.07) 0 2px, transparent 2px 6px),
+      linear-gradient(90deg, #D6C6A0 0%, #F2E9D0 55%, #C9B98E 92%, #8F7C58 100%);
+    box-shadow: 0 2px 0 #C9B98E, 0 4px 0 -1px #A8946C;
+    transition: transform .22s ease;
+  }
+  .bookicon i:first-child {
+    left: 1px; border-radius: 7px 2px 2px 4px;
+    transform: perspective(60px) rotateY(9deg);
+  }
+  .bookicon i:last-of-type {
+    right: 1px; border-radius: 2px 7px 4px 2px;
+    transform: perspective(60px) rotateY(-9deg) scaleX(-1);
+  }
+  .bookicon em {                 /* 책갈피 리본 */
+    position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%) rotate(4deg);
+    width: 6px; height: 14px; z-index: 1;
+    background: linear-gradient(180deg, #A0392C, #6E2118);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
+  }
+  /* 손이 닿으면 램프가 켜지듯 책이 조금 더 열린다 */
+  .openbtn:hover .bookicon, .openbtn:focus-visible .bookicon {
+    filter: drop-shadow(0 5px 7px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(224,177,94,.6));
+  }
+  .openbtn:hover .bookicon i:first-child, .openbtn:focus-visible .bookicon i:first-child {
+    transform: perspective(60px) rotateY(17deg) translateX(-1px);
+  }
+  .openbtn:hover .bookicon i:last-of-type, .openbtn:focus-visible .bookicon i:last-of-type {
+    transform: perspective(60px) rotateY(-17deg) scaleX(-1) translateX(-1px);
+  }
+
+  /* 물건에는 글자가 없으니, 손이 닿는 순간 이 줄이 이름을 말해 준다 */
+  .deskhint {
+    margin: 12px 0 0 !important; min-height: 1.5em; position: relative; z-index: 2;
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .16em;
+    color: var(--brass-dim); transition: color .2s ease;
   }
 
   /* ── 이음의 항로도 ───────────────────────────────────── */
@@ -1635,12 +1703,7 @@
   /* ── 주사위 — 「다음에 뭘 읽지」에 서재가 답하는 단추 ──
      글자를 걷고 상아 주사위 하나만 남긴다. 눈은 3×3 아홉 칸 중
      면에 맞는 자리만 켜서 그린다 — 그림 파일이 필요 없다. */
-  .desk .dicebtn {
-    appearance: none; cursor: pointer; background: none; border: 0; padding: 8px;
-    margin-left: 14px; position: relative; z-index: 1; line-height: 0;
-    vertical-align: middle;
-  }
-  .desk .dicebtn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  /* 자리·여백은 이제 .deskbtn 이 정한다 — 주사위는 눈 그림만 맡는다 */
   .die {
     display: grid; width: 42px; height: 42px; padding: 5px; box-sizing: border-box;
     grid-template: repeat(3, 1fr) / repeat(3, 1fr);
