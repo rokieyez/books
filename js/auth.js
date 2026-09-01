@@ -230,8 +230,13 @@
         // 등록되지 않은 주소면 Supabase 가 가입 거절로 답한다 — 이 서재의 주인이 아니라는 뜻이다
         const notOwner = error.code === "otp_disabled" ||
           /signup|not allowed|disabled/i.test(error.message || "");
+        // 기본 메일 서비스는 시간당 몇 통뿐이다 — 원문 그대로 두면 무슨 말인지 알 수 없다
+        const tooMany = error.status === 429 ||
+          /rate limit/i.test(error.message || "");
         say(notOwner
           ? "이 서재의 주인이 아닙니다 — 열쇠는 등록된 주소로만 갑니다."
+          : tooMany
+          ? "메일을 너무 자주 보냈습니다. 한 시간쯤 뒤에 다시 청하세요 — 이미 들어와 있는 기기가 있다면 거기서 비밀번호를 정하는 편이 빠릅니다."
           : "열쇠를 보내지 못했습니다: " + error.message, "bad");
         return;
       }
