@@ -136,7 +136,12 @@
           const el = document.createElement("button");
           el.className = "tome" + (b.paper ? " paper" : "");
           el.style.cssText = `background-color:${b.c};height:${Math.round(b.h*.85)}px;width:${Math.max(17, b.w2)}px;font-size:10.5px;`;
-          el.textContent = b.t;
+          if (b.spineImg) {
+            el.classList.add("realspine");
+            el.style.backgroundImage = `url("${b.spineImg}")`;
+          } else {
+            el.textContent = b.t;
+          }
           el.title = `${b.t} — ${b.a}`;
           el.addEventListener("click", () => openExlibris(b, w));
           line.appendChild(el);
@@ -217,7 +222,13 @@
             if (b.folio) el.classList.add("folio");
             if (q() && !((b.t+" "+b.a).toLowerCase().includes(q()))) el.classList.add("dim");
             el.style.cssText = `background-color:${b.c};height:${b.h}px;width:${b.w2}px;`;
-            el.textContent = b.t;
+            // 사진에서 오려 낸 실물 책등이 있으면 그것을 입는다 — 글자는 그림 안에 이미 있다
+            if (b.spineImg) {
+              el.classList.add("realspine");
+              el.style.backgroundImage = `url("${b.spineImg}")`;
+            } else {
+              el.textContent = b.t;
+            }
             el.title = `${b.t} — ${b.a}`;
             el.addEventListener("click", (e) => {
               e.stopPropagation();
@@ -291,6 +302,9 @@
         title: cand.title, author: cand.author || null, category,
         wall: photo.wall || window.PostLibrosWallOf?.(category) || "문학",
         shelf: photo.shelf ?? null,
+        // 궤짝에서 꽂아도 사진 속 자리를 잃지 않는다 — 실물 책등을 오릴 재료
+        spine_photo_id: c.photo_id || null,
+        spine_box: c.spine_box || null,
       };
     };
 
@@ -318,6 +332,8 @@
           + (dup ? ` · 이미 꽂혀 있던 ${dup}권은 접었습니다` : "")
           + (bad ? ` · ${bad}권은 실패했습니다 — 남아 있습니다` : "");
         await window.PostLibrosRefresh?.();
+        // 꽂힌 책들의 실물 책등을 이어서 오려 붙인다
+        try { await window.PostLibrosCropSpines?.(); } catch (e) { console.error(e); }
       });
       box.appendChild(bulk);
     }

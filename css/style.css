@@ -271,6 +271,16 @@
   }
 
   .shelfline { display: flex; align-items: flex-end; justify-content: center; gap: 2px; flex-wrap: wrap; }
+  /* 실물 책등 — 사진에서 오려 낸 조각. 글자는 그림 안에 이미 있다.
+     채도를 살짝 눌러 어두운 서가에 스며들게 한다 */
+  .tome.realspine {
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    color: transparent;
+    text-shadow: none;
+    filter: saturate(.92) brightness(.94);
+  }
+  .tome.realspine:hover, .tome.realspine:focus-visible { filter: saturate(1) brightness(1.04); }
   .tome {
     appearance: none; border: none; cursor: pointer; flex: none;
     writing-mode: vertical-rl; position: relative;

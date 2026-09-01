@@ -105,12 +105,19 @@
   async function loadRealLibrary() {
     // 쪽 단위로 끝까지 읽는다 — 상한은 db.js 의 기본값(5,000)에 맡긴다
     const books = await db.listBooks();
+
+    // 실물 책등 조각의 서명 주소 — 비공개 버킷이라 한 번에 받아 둔다
+    let spineSigned = new Map();
+    try {
+      spineSigned = await db.signSpineUrls(books.map((b) => b.spine_url).filter(Boolean));
+    } catch (e) { console.error("[서재] 책등 조각 주소를 받지 못했습니다:", e); }
+
     const byWall = {
       "역사": [], "문학": [], "과학": [], "예술사회": [],
     };
     books.forEach((b) => {
       const key = (b.category === "예술" || b.category === "사회") ? "예술사회" : b.category;
-      (byWall[key] || byWall["문학"]).push(shapeForShelf(b));
+      (byWall[key] || byWall["문학"]).push(shapeForShelf(b, spineSigned));
     });
 
     WALLS.forEach((w) => {
@@ -163,10 +170,16 @@
      - 두께: 실제 등두께(mm)가 있으면 그것을 (1.1px/mm), 없으면 쪽수로 어림,
        그것도 없으면 제목 해시로 물러난다 — 항상 같은 모습이 되도록 결정적으로. */
   const CLOTH = ["#5C3A22", "#6E2A1E", "#2E4630", "#28323E", "#4A2E3A", "#77522A", "#3A3A30"];
-  function shapeForShelf(b) {
+  function shapeForShelf(b, spineSigned) {
     let h = 0;
     for (let i = 0; i < b.title.length; i++) h = (h * 31 + b.title.charCodeAt(i)) >>> 0;
+    // 사진에서 오려 낸 실물 책등 — 있으면 그것이 곧 이 책의 얼굴이다
+    const spineImg = (b.spine_url && spineSigned?.get(b.spine_url)) || null;
+    const boxRatio = (spineImg && b.spine_box && b.spine_box.h > 0)
+      ? b.spine_box.w / b.spine_box.h : null;
     return {
+      spineImg,
+      boxRatio,
       id: b.id,
       t: b.title,
       a: b.author || "지은이 미상",
@@ -175,7 +188,11 @@
       h: b.size_height
         ? Math.max(70, Math.min(130, Math.round(b.size_height * 0.52)))
         : 78 + (h % 40),
-      w2: b.size_depth
+      // 실물 조각이 있으면 폭은 사진 속 비율을 따른다 — 조각이 일그러지지 않게
+      w2: boxRatio
+        ? Math.max(10, Math.min(48, Math.round(
+            (b.size_height ? Math.max(70, Math.min(130, Math.round(b.size_height * 0.52))) : 78 + (h % 40)) * boxRatio)))
+        : b.size_depth
         ? Math.max(12, Math.min(36, Math.round(b.size_depth * 1.1)))
         : b.page_count
         ? Math.max(13, Math.min(34, Math.round(8 + b.page_count / 28)))

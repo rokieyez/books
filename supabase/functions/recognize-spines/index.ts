@@ -56,8 +56,20 @@ const TOOL = {
               type: "number",
               description: "0~1. 글자가 또렷하고 제목이 확실할수록 1에 가깝게.",
             },
+            box: {
+              type: "object",
+              description:
+                "이 책등이 사진에서 차지하는 자리. 사진 전체를 가로세로 0~1000 으로 보고, x·y 는 왼쪽 위 모서리, w·h 는 너비·높이.",
+              properties: {
+                x: { type: "number" },
+                y: { type: "number" },
+                w: { type: "number" },
+                h: { type: "number" },
+              },
+              required: ["x", "y", "w", "h"],
+            },
           },
-          required: ["title", "author", "volume", "category", "spine_color", "confidence"],
+          required: ["title", "author", "volume", "category", "spine_color", "confidence", "box"],
         },
       },
     },
@@ -74,7 +86,9 @@ const PROMPT = `이 사진은 개인 서재의 책장을 찍은 것입니다. �
 - 전집이라면 권 번호를 volume 에 따로 적습니다.
 - 책이 아닌 물건(액자, 소품 등)은 넣지 않습니다.
 - 글자가 전혀 보이지 않는 책은 넣지 않습니다.
-- 추측으로 지어내지 마세요. 확실하지 않으면 confidence 를 낮추는 것이 낫습니다.`;
+- 추측으로 지어내지 마세요. 확실하지 않으면 confidence 를 낮추는 것이 낫습니다.
+- box 에는 그 책등 하나가 차지하는 자리를 적습니다 (0~1000 비율 좌표).
+  옆 책이 섞이지 않게 그 책등만 타이트하게 잡되, 위아래는 책 전체 높이를 담습니다.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -157,8 +171,12 @@ Deno.serve(async (req) => {
   const keyOf = (t: string, a: string) =>
     `${t}|${a}`.toLowerCase().replace(/[^0-9a-z가-힣]/g, "");
 
-  const { data: owned } = await db.from("books").select("title, author, wall");
+  const { data: owned } = await db.from("books").select("id, title, author, wall, spine_box");
   const already = new Set((owned ?? []).map((b) => keyOf(b.title ?? "", b.author ?? "")));
+  // 이미 꽂힌 책의 자리 소급용 — 열쇠로 id 와 자리 유무를 찾는다
+  const ownedByKey = new Map(
+    (owned ?? []).map((b) => [keyOf(b.title ?? "", b.author ?? ""), { id: b.id, hasBox: !!b.spine_box }]),
+  );
 
   // 벽마다 몇 권이 있는지 세어 두면 새 책이 앉을 자리를 이어서 매길 수 있다
   const filled = new Map<string, number>();
@@ -174,7 +192,18 @@ Deno.serve(async (req) => {
 
   const shelved: Array<Record<string, unknown>> = [];
   const doubtful: Array<Record<string, unknown>> = [];
+  const backfills: Array<{ id: string; box: Record<string, number> }> = [];
   let dup = 0;
+
+  /* 모델이 준 자리 상자를 검사한다 — 0~1000 비율, 폭·높이가 말이 되는지 */
+  const boxOf = (b: Record<string, unknown>) => {
+    const raw = b.box as Record<string, unknown> | undefined;
+    if (!raw) return null;
+    const x = Number(raw.x), y = Number(raw.y), w = Number(raw.w), h = Number(raw.h);
+    if (![x, y, w, h].every(Number.isFinite)) return null;
+    if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > 1000 || y + h > 1000) return null;
+    return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+  };
 
   books.forEach((b) => {
     const title = String(b.title ?? "").trim();
@@ -184,10 +213,17 @@ Deno.serve(async (req) => {
     const full = vol ? `${title} ${vol}` : title;
     const author = String(b.author ?? "").trim();
     const cat = String(b.category ?? "문학");
+    const box = boxOf(b);
 
-    // 같은 사진 안에 두 번 나온 것도 한 번만 센다
+    // 같은 사진 안에 두 번 나온 것도 한 번만 센다.
+    // 이미 꽂힌 책이라면 — 자리 상자가 없을 때 소급해 채운다 (「다시 읽는다」의 보람)
     const key = keyOf(full, author);
-    if (already.has(key)) { dup++; return; }
+    if (already.has(key)) {
+      dup++;
+      const prev = ownedByKey.get(key);
+      if (prev && !prev.hasBox && box) backfills.push({ id: prev.id, box });
+      return;
+    }
     already.add(key);
 
     if (conf >= SURE) {
@@ -203,6 +239,8 @@ Deno.serve(async (req) => {
         wall,
         shelf: photo.shelf ?? Math.floor(n / 30) + 1,
         slot: (n % 30) + 1,
+        spine_photo_id: photo_id,
+        spine_box: box,
       });
     } else {
       doubtful.push({
@@ -210,9 +248,17 @@ Deno.serve(async (req) => {
         raw_text: full,
         confidence: conf,
         candidates: [{ title: full, author, category: cat }],
+        spine_box: box,
       });
     }
   });
+
+  // 자리 소급 — 이미 꽂힌 책에 사진 속 자리를 붙인다
+  for (const f of backfills) {
+    await db.from("books")
+      .update({ spine_photo_id: photo_id, spine_box: f.box })
+      .eq("id", f.id).is("spine_box", null);
+  }
 
   let put = 0;
   if (shelved.length) {

@@ -290,6 +290,48 @@
       return data.signedUrl;
     },
 
+    /* ── 실물 책등 조각 ──
+       인식 때 받은 자리 상자(spine_box)로 사진에서 그 책등만 오려 낸다.
+       조각은 covers 버킷 <uid>/spines/<책id>.webp 로 산다. */
+    async listUncroppedSpines() {
+      const { data, error } = await client
+        .from("books")
+        .select("id, spine_photo_id, spine_box, intake_photos(storage_path)")
+        .not("spine_box", "is", null)
+        .not("spine_photo_id", "is", null)
+        .is("spine_url", null);
+      if (error) throw error;
+      return data;
+    },
+
+    async uploadSpineCrop(bookId, blob) {
+      const user = await this.currentUser();
+      if (!user) throw new Error("주인만 오려 붙일 수 있습니다");
+      const path = `${user.id}/spines/${bookId}.webp`;
+      const { error: upErr } = await client.storage
+        .from("covers")
+        .upload(path, blob, { contentType: "image/webp", upsert: true });
+      if (upErr) throw upErr;
+      const { error } = await client.from("books")
+        .update({ spine_url: path }).eq("id", bookId);
+      if (error) throw error;
+      return path;
+    },
+
+    /* 서가를 그릴 때 조각들의 서명 주소를 한 번에 받는다 */
+    async signSpineUrls(paths, seconds = 7200) {
+      if (!paths.length) return new Map();
+      const { data, error } = await client.storage
+        .from("covers")
+        .createSignedUrls(paths, seconds);
+      if (error) throw error;
+      const map = new Map();
+      (data || []).forEach((d, i) => {
+        if (d?.signedUrl && !d.error) map.set(paths[i], d.signedUrl);
+      });
+      return map;
+    },
+
     /* 책등 읽기 — 사진 한 장을 Edge Function 에 넘긴다.
        AI 키는 그 안에만 있다. 사진 한 장에 수십 권이라 오래 걸릴 수 있어
        시간제한을 넉넉히 둔다. */

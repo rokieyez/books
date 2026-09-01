@@ -258,6 +258,8 @@
         // 새로 꽂힌 책이 서가에 보이도록 다시 그린다
         try { await window.PostLibrosRefresh?.(); } catch (e) { console.error(e); }
         await renderShelf();
+        // 읽자마자 실물 책등도 오려 붙인다 — 자리 상자를 받은 책이 있으면
+        try { await cropSpines(note); } catch (e) { console.error("[책등 조각]", e); }
       });
 
       // 비공개 버킷이라 서명된 주소를 받아 와야 보인다
@@ -302,6 +304,64 @@
       ev.preventDefault();
       if (!queueBusy && ev.dataTransfer?.files?.length) take(ev.dataTransfer.files);
     });
+
+    /* ── 실물 책등 오려 붙이기 ──
+       인식이 준 자리 상자(0~1000 비율)로 책장 사진에서 그 책등만 오려
+       작은 webp 로 저장한다. 서가는 이 조각을 진짜 책등으로 그린다.
+       사진 한 장은 한 번만 내려받고, 그 안의 책들을 전부 오린다. */
+    async function cropSpines(msgEl) {
+      const list = await db.listUncroppedSpines();
+      if (!list.length) return 0;
+      if (msgEl) msgEl.textContent = `실물 책등을 오리는 중… 0 / ${list.length}`;
+
+      // 사진별로 묶는다 — 큰 사진을 책마다 다시 받지 않도록
+      const byPhoto = new Map();
+      list.forEach((b) => {
+        const path = b.intake_photos?.storage_path;
+        if (!path) return;
+        if (!byPhoto.has(path)) byPhoto.set(path, []);
+        byPhoto.get(path).push(b);
+      });
+
+      let done = 0, failed = 0;
+      for (const [path, books] of byPhoto) {
+        let bmp;
+        try {
+          const url = await db.photoUrl(path);
+          const blob = await (await fetch(url)).blob();
+          bmp = await createImageBitmap(blob);
+        } catch (e) { failed += books.length; console.error("[책등 조각] 사진 열기 실패:", e); continue; }
+
+        for (const b of books) {
+          try {
+            const { x, y, w, h } = b.spine_box;
+            // 상자 가장자리를 조금 넉넉히 — 모델의 상자가 딱 맞지 않을 수 있다
+            const pad = 3; // 0~1000 기준
+            const sx = Math.max(0, (x - pad)) / 1000 * bmp.width;
+            const sy = Math.max(0, (y - pad)) / 1000 * bmp.height;
+            const sw = Math.min(1000, w + pad * 2) / 1000 * bmp.width;
+            const sh = Math.min(1000, h + pad * 2) / 1000 * bmp.height;
+            const scale = Math.min(1, 260 / sh);   // 조각 높이 260px 이면 충분하다
+            const cv = document.createElement("canvas");
+            cv.width = Math.max(8, Math.round(sw * scale));
+            cv.height = Math.max(24, Math.round(sh * scale));
+            cv.getContext("2d").drawImage(bmp, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+            const piece = await new Promise((ok) => cv.toBlob(ok, "image/webp", 0.82));
+            if (!piece) throw new Error("webp 변환 실패");
+            await db.uploadSpineCrop(b.id, piece);
+            done++;
+          } catch (e) { failed++; console.error("[책등 조각]", e); }
+          if (msgEl) msgEl.textContent = `실물 책등을 오리는 중… ${done + failed} / ${list.length}`;
+        }
+        bmp.close?.();
+      }
+      if (msgEl) {
+        msgEl.textContent = `실물 책등 ${done}권을 오려 붙였습니다` + (failed ? ` · ${failed}권 실패` : "");
+      }
+      if (done) { try { await window.PostLibrosRefresh?.(); } catch (e) { console.error(e); } }
+      return done;
+    }
+    window.PostLibrosCropSpines = cropSpines;
 
     /* ── 바코드 입고 ──
        모바일 크롬의 BarcodeDetector 로 EAN-13 을 읽는다 (978/979 = ISBN).
