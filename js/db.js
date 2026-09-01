@@ -46,6 +46,19 @@
     return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
   }
 
+  /* Edge Function 이 4xx/5xx 로 답하면 supabase-js 는 몸통을 버리고
+     "Edge Function returned a non-2xx status code" 라고만 말한다.
+     몸통 안의 진짜 이유({error: "알라딘에서 찾지 못했습니다 …"})를 꺼내 되살린다. */
+  async function tellWhy(r) {
+    if (r?.error && typeof r.error.context?.json === "function") {
+      try {
+        const body = await r.error.context.json();
+        if (body?.error) r.error = { ...r.error, message: body.error };
+      } catch { /* 몸통이 JSON 이 아니면 원래 말 그대로 둔다 */ }
+    }
+    return r;
+  }
+
   const db = {
     client,
 
@@ -169,7 +182,7 @@
         client.functions.invoke("enrich-books", { body: { limit } }),
         180000,
         "서지 채우기",
-      );
+      ).then(tellWhy);
     },
 
     /* 궤짝 확정 — 확신이 낮아 궤짝에 담긴 후보를 알라딘에 물어,
@@ -180,7 +193,19 @@
         client.functions.invoke("enrich-books", { body: { crate: true, limit } }),
         180000,
         "궤짝 확정",
-      );
+      ).then(tellWhy);
+    },
+
+    /* 궤짝 수동 검색 — 자동 확정이 못 정한 후보를, 사람이 고쳐 쓴 글자로
+       알라딘에 다시 물어 꽂는다 (문턱 0.5) */
+    async confirmCandidate(candidateId, query) {
+      return guard(
+        client.functions.invoke("enrich-books", {
+          body: { candidate_id: candidateId, query },
+        }),
+        30000,
+        "궤짝 검색",
+      ).then(tellWhy);
     },
 
     /* 바코드 입고 — ISBN 하나로 서지가 완성된 책을 꽂는다 */
@@ -189,7 +214,7 @@
         client.functions.invoke("enrich-books", { body: { add_isbn: isbn } }),
         30000,
         "바코드 입고",
-      );
+      ).then(tellWhy);
     },
 
     /* 한 권만 서지를 받아온다 — 서표의 단추.
@@ -202,7 +227,7 @@
         }),
         30000,
         "서지 받아오기",
-      );
+      ).then(tellWhy);
     },
 
     /* 책을 뺀다 — 잘못 읽힌 것을 지운다.
@@ -227,17 +252,24 @@
         client.functions.invoke("summarize-book", { body: { book_id: bookId } }),
         120000,
         "기록 짓기",
-      );
+      ).then(tellWhy);
     },
 
     /* ── 책 사이 이음 — 방향 없는 연결 (A↔B 한 줄) ── */
     async listLinks(bookId) {
       const { data, error } = await client
         .from("book_links")
-        .select("id, book_id, linked_book_id")
+        .select("id, book_id, linked_book_id, note")
         .or(`book_id.eq.${bookId},linked_book_id.eq.${bookId}`);
       if (error) throw error;
       return data;
+    },
+
+    /* 이음의 까닭을 적는다 — 「같은 번역가」 「인용됨」 같은 한 줄 */
+    async updateLink(linkId, note) {
+      const { error } = await client
+        .from("book_links").update({ note: note || null }).eq("id", linkId);
+      if (error) throw error;
     },
 
     /* 이미 이어져 있으면(뒤집힌 방향 포함, 23505) { dup: true } 로 알린다 */
@@ -263,7 +295,7 @@
       for (let from = 0; from < 5000; from += 500) {
         const { data, error } = await client
           .from("book_links")
-          .select("id, book_id, linked_book_id")
+          .select("id, book_id, linked_book_id, note")
           .order("id")
           .range(from, from + 499);
         if (error) throw error;
@@ -414,7 +446,7 @@
         client.functions.invoke("recognize-spines", { body: { photo_id: photoId } }),
         180000,
         "책등 읽기",
-      );
+      ).then(tellWhy);
     },
 
     async removeIntakePhoto(photo) {

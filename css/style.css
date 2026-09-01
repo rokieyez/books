@@ -1546,3 +1546,95 @@
   .sugrow::before { content: "✦ "; color: var(--brass-dim); }
   .sugrow:hover, .sugrow:focus-visible { border-color: var(--brass-dim); outline: none; }
   .sugrow:disabled { color: var(--parchment-dim); cursor: default; }
+
+  /* ── 이 달의 진열장 — 표지 여섯을 액자처럼 ── */
+  .showcase { margin-top: 26px; }
+  .showgrid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 14px; margin-top: 12px;
+  }
+  .showframe {
+    appearance: none; cursor: pointer; padding: 8px 8px 6px;
+    background: var(--wall); border: 1px solid var(--wood3); border-radius: 2px;
+    box-shadow: 0 8px 18px rgba(0,0,0,.45);
+    display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  }
+  .showframe img {
+    width: 100%; aspect-ratio: 7 / 10; object-fit: cover;
+    border: 1px solid rgba(0,0,0,.4); background: var(--dark); display: block;
+  }
+  .showframe span {
+    font-size: 11px; color: var(--parchment-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+  }
+  .showframe:hover, .showframe:focus-visible {
+    outline: none; border-color: var(--brass-dim);
+    box-shadow: 0 8px 22px rgba(224,177,94,.25);
+  }
+
+  /* ── 읽기 리듬 — 91일 밭 ── */
+  #rhythmgrid {
+    display: grid; grid-template-columns: repeat(13, 1fr);
+    grid-auto-flow: column; grid-template-rows: repeat(7, 14px);
+    gap: 3px; max-width: 320px;
+  }
+  #rhythmgrid .rcell {
+    width: 14px; height: 14px; border-radius: 2px;
+    background: rgba(226,213,184,.07); border: 1px solid rgba(74,58,34,.5);
+  }
+  #rhythmgrid .rcell[data-n="1"] { background: rgba(62,138,95,.45); }
+  #rhythmgrid .rcell[data-n="2"] { background: rgba(62,138,95,.7); }
+  #rhythmgrid .rcell[data-n="3"] { background: var(--st-done); }
+
+  /* ── 먼지 — 한 해 넘게 안 읽힌 책 ── */
+  .tome.dusty { filter: saturate(.55) brightness(.82); }
+  .tome.dusty::after {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 7px;
+    background: linear-gradient(rgba(163,148,122,.5), rgba(163,148,122,0));
+    pointer-events: none;
+  }
+
+  /* ── 이음의 까닭 ── */
+  .linknote { font-size: 10.5px; color: var(--parchment-dim); padding: 0 2px; }
+  .linknote:empty { display: none; }
+  .linkchip .pen { font-size: 11px; }
+  .linknote-in {
+    font: inherit; font-size: 11px; width: 130px;
+    background: rgba(23,16,9,.7); color: var(--parchment);
+    border: 1px solid var(--line); border-radius: 2px; padding: 2px 6px;
+  }
+
+  /* ── 궤짝 수동 검색 ── */
+  .candask { display: flex; gap: 6px; flex-basis: 100%; }
+  .candask input {
+    font: inherit; font-size: 12px; flex: 1; min-width: 120px; max-width: 260px;
+    background: rgba(23,16,9,.6); color: var(--parchment);
+    border: 1px solid var(--line); border-radius: 2px; padding: 4px 8px;
+  }
+  .candask input:focus-visible { outline: none; border-color: var(--brass-dim); }
+
+  /* ── 회고 카드 단추 ── */
+  .cardbtn {
+    appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+    margin-top: 10px; padding: 7px 12px;
+    border: 1px solid var(--brass-dim); border-radius: 2px;
+    background: none; color: var(--brass);
+  }
+  .cardbtn:hover, .cardbtn:focus-visible {
+    outline: none; background: rgba(224,177,94,.1);
+  }
+
+  /* ── 표본 안내 — 방문자에게만 첫눈에 ── */
+  .samplenote {
+    display: none; margin: 10px 0 0;
+    font-size: 12px; letter-spacing: .06em; color: var(--brass-dim);
+    border: 1px dashed var(--line); border-radius: 2px;
+    padding: 6px 14px; width: fit-content; margin-inline: auto;
+  }
+  body:not(.owner) .samplenote { display: block; }
+
+  /* ── 작가의 별자리 ── */
+  #authorweb { display: block; max-width: 100%; cursor: pointer; }
+
+  /* 표지 주소 입력칸 — 주소는 길다 */
+  .x-edit #x-cover-url { width: auto; flex: 1; min-width: 180px; }

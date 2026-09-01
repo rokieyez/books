@@ -112,11 +112,23 @@
       spineSigned = await db.signSpineUrls(books.map((b) => b.spine_url).filter(Boolean));
     } catch (e) { console.error("[서재] 책등 조각 주소를 받지 못했습니다:", e); }
 
+    // 종교의 벽 — 주인의 요청으로 생긴 다섯째 벽. 표본(방문자)에는 없어서
+    // 실제 장서를 실을 때 끼워 넣는다 (기록의 벽 앞자리).
+    if (!WALLS.some((w) => w.cat === "종교")) {
+      const at = WALLS.findIndex((w) => w.cat === "archive");
+      WALLS.splice(at < 0 ? WALLS.length : at, 0,
+        { nm: "종교의 벽", cat: "종교", n: 0, desc: "경전과 신학의 방", read: 0, books: [], featured: [], latchIdx: -1 });
+    }
+
     const byWall = {
-      "역사": [], "문학": [], "과학": [], "예술사회": [],
+      "역사": [], "문학": [], "과학": [], "예술사회": [], "종교": [],
     };
     books.forEach((b) => {
-      const key = (b.category === "예술" || b.category === "사회") ? "예술사회" : b.category;
+      // 자리(wall)를 적어 두었으면 그것이 우선이다 — 서표에서 옮긴 자리가
+      // 화면에도 보여야 한다. 없으면 분류가 벽을 정한다 (원래 규칙).
+      const catWall = (b.category === "예술" || b.category === "사회") ? "예술사회"
+        : b.category === "종교" ? "종교" : b.category;
+      const key = b.wall || catWall;
       (byWall[key] || byWall["문학"]).push(shapeForShelf(b, spineSigned));
     });
 

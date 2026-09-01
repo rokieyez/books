@@ -230,6 +230,11 @@
             if (b.lean) el.classList.add("lean");
             if (b.folio) el.classList.add("folio");
             if (q() && !matchBook(b, q())) el.classList.add("dim");
+            // 들인 지 한 해가 넘도록 안 읽은 책에는 먼지가 앉는다 —
+            // 오래 기다린 책이 눈에 띄어야 언젠가 뽑힌다
+            const dusty = b.st === "안 읽음" && b.year
+              && (new Date().getFullYear() - b.year) >= 1;
+            if (dusty) el.classList.add("dusty");
             el.style.cssText = `background-color:${b.c};height:${b.h}px;width:${b.w2}px;`;
             // 사진에서 오려 낸 실물 책등이 있으면 그것을 입는다 — 글자는 그림 안에 이미 있다
             if (b.spineImg) {
@@ -238,7 +243,7 @@
             } else {
               el.textContent = b.t;
             }
-            el.title = `${b.t} — ${b.a}`;
+            el.title = `${b.t} — ${b.a}` + (dusty ? " · 오래 기다린 책" : "");
             el.addEventListener("click", (e) => {
               e.stopPropagation();
               openExlibris(b, w);
@@ -459,6 +464,55 @@
         }
       });
       cands.appendChild(drop);
+      // 알라딘도 자동으로는 못 정한 책 — 사람이 글자를 고쳐 다시 묻는다
+      if (c.id && window.PostLibrosDB?.confirmCandidate) {
+        const ask = document.createElement("div");
+        ask.className = "candask";
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.value = c.raw_text || "";
+        inp.setAttribute("aria-label", "알라딘에 물을 제목 — 고쳐서 다시 검색");
+        const go = document.createElement("button");
+        go.type = "button";
+        go.className = "cand";
+        go.textContent = "고쳐 묻는다";
+        const fire = async () => {
+          const q2 = inp.value.trim();
+          if (!q2) return;
+          go.disabled = true; inp.disabled = true;
+          go.textContent = "묻는 중…";
+          try {
+            const { data, error } = await window.PostLibrosDB.confirmCandidate(c.id, q2);
+            if (error || data?.error) throw new Error(data?.error || error.message);
+            if (data.못정함) {
+              go.textContent = "다시 묻는다";
+              go.disabled = false; inp.disabled = false;
+              guess.title = data.말;
+              const note2 = document.createElement("i");
+              note2.className = "guessconf";
+              note2.textContent = data.말;
+              guess.appendChild(note2);
+              return;
+            }
+            renderCrate._msg = data.겹침
+              ? `이미 꽂혀 있던 책이라 접었습니다 — ${data.제목}`
+              : `알라딘이 확정했습니다 — ${data.제목}`;
+            item.classList.add("resolved");
+            await window.PostLibrosRefresh?.();
+            try { await window.PostLibrosCropSpines?.(); } catch (e) { console.error(e); }
+          } catch (err) {
+            go.textContent = "다시 묻는다";
+            go.disabled = false; inp.disabled = false;
+            console.error("[궤짝] 검색으로 못 꽂았습니다:", err);
+          }
+        };
+        go.addEventListener("click", fire);
+        inp.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter") { ev.preventDefault(); fire(); }
+        });
+        ask.append(inp, go);
+        cands.appendChild(ask);
+      }
       item.append(guess, cands);
       box.appendChild(item);
     });
@@ -1009,14 +1063,181 @@
             + years.slice(1, 4).map(([yy, v]) => `${yy}년 ${v}권`).join(", ") + " —";
           rp.appendChild(past);
         }
+        // 회고를 그림 한 장으로 — 공유하거나 남겨 두거나
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "cardbtn";
+        card.textContent = "그림 한 장으로 내려받는다";
+        card.addEventListener("click", () => downloadRecapCard(y, ofYear, pages));
+        rp.appendChild(card);
+      }
+    }
+
+    /* ── 읽기 리듬 — 최근 91일, 갈피가 움직인 날들 ── */
+    const rg = $("rhythmgrid"), rs = $("ps-rhythm");
+    if (rg && rs) {
+      rg.innerHTML = "";
+      const stamps = books.filter((b) => b.bookmarkAt).map((b) => b.bookmarkAt);
+      if (!stamps.length) {
+        rs.textContent = "갈피를 적으면 그 날들이 여기 찍힙니다";
+        rg.innerHTML = `<p class="statempty">읽다 만 자리를 서표에 적어 두면, 읽은 날들이 밭처럼 남습니다.</p>`;
+      } else {
+        const byDay = new Map();
+        stamps.forEach((iso) => {
+          const k = String(iso).slice(0, 10);
+          byDay.set(k, (byDay.get(k) || 0) + 1);
+        });
+        rs.textContent = `최근 91일 · 갈피가 움직인 ${byDay.size}일`;
+        // 13주 × 7칸 — 오늘이 오른쪽 끝
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        for (let i = 90; i >= 0; i--) {
+          const day = new Date(today.getTime() - i * 86400000);
+          const k = day.toISOString().slice(0, 10);
+          const n = byDay.get(k) || 0;
+          const cell = document.createElement("i");
+          cell.className = "rcell";
+          cell.dataset.n = String(Math.min(n, 3));
+          cell.title = `${k}${n ? ` · ${n}권의 갈피` : ""}`;
+          rg.appendChild(cell);
+        }
       }
     }
 
     renderLinkWeb(books);   // 이음의 별자리 — 데이터를 따로 받아와 그린다
+    renderAuthorWeb(books); // 작가의 별자리 — 같은 작가의 책이 한 성좌로
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       grow.forEach(([el, prop, val]) => el.style[prop] = val);
     }));
+  }
+
+  /* ── 작가의 별자리 — 같은 작가의 책들이 한 성좌로 모인다 ──
+     이음(book_links)과 달리 손대지 않아도 뜬다: 지은이가 같으면 한 무리다.
+     가운데 작가 이름, 둘레에 그 작가의 책들 — 별을 누르면 서표가 열린다. */
+  function renderAuthorWeb(books) {
+    const cvs = $("authorweb"), ps = $("ps-authorweb");
+    if (!cvs || !ps) return;
+    // 두 권 이상 모은 작가만, 많이 모은 순으로 여덟까지
+    const byAuthor = new Map();
+    books.forEach((b) => {
+      if (!b.a || b.a === "지은이 미상") return;
+      if (!byAuthor.has(b.a)) byAuthor.set(b.a, []);
+      byAuthor.get(b.a).push(b);
+    });
+    const tops = [...byAuthor.entries()]
+      .filter(([, list]) => list.length >= 2)
+      .sort((x, y) => y[1].length - x[1].length)
+      .slice(0, 8);
+    if (!tops.length) {
+      ps.textContent = "같은 작가의 책이 두 권 넘게 모이면 성좌가 뜹니다";
+      cvs.hidden = true;
+      return;
+    }
+    ps.textContent = `${tops.length}명의 작가 — 별을 누르면 그 책이 펼쳐진다`;
+
+    const Wd = cvs.parentElement?.clientWidth ? cvs.parentElement.clientWidth - 2 : 600;
+    const perRow = Math.max(1, Math.floor(Wd / 210));
+    const Ht = Math.max(170, Math.ceil(tops.length / perRow) * 165 + 10);
+    cvs.hidden = false;
+    cvs.width = Wd * 2; cvs.height = Ht * 2;   // 레티나
+    cvs.style.width = Wd + "px"; cvs.style.height = Ht + "px";
+    const c = cvs.getContext("2d");
+    c.scale(2, 2);
+    c.clearRect(0, 0, Wd, Ht);
+    c.textAlign = "center";
+
+    const stars = [];   // [x, y, book] — 누른 자리에서 가장 가까운 별을 찾는다
+    tops.forEach(([name, list], i) => {
+      const cx = 105 + (i % perRow) * 210, cy = 80 + Math.floor(i / perRow) * 165;
+      const shown = list.slice(0, 14);   // 전집 작가는 열넷까지만 — 원이 붐빈다
+      const r = Math.min(56, 24 + shown.length * 2.4);
+      // 가운데 이름
+      c.fillStyle = "#E2D5B8";
+      c.font = "700 12px 'Gowun Batang', serif";
+      c.fillText(name.length > 9 ? name.slice(0, 9) + "…" : name, cx, cy + 4);
+      c.fillStyle = "rgba(163,148,122,.9)";
+      c.font = "10px sans-serif";
+      c.fillText(`${list.length}권`, cx, cy + 18);
+      // 둘레의 책들 — 이름에서 별로 실을 잇는다
+      shown.forEach((b, k) => {
+        const a = (k / shown.length) * Math.PI * 2 - Math.PI / 2;
+        const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+        c.strokeStyle = "rgba(151,116,47,.35)";
+        c.lineWidth = 1;
+        c.beginPath(); c.moveTo(cx, cy); c.lineTo(x, y); c.stroke();
+        c.fillStyle = b.st === "읽음" ? "#E0B15E" : "rgba(226,213,184,.55)";
+        c.beginPath(); c.arc(x, y, 2.4, 0, Math.PI * 2); c.fill();
+        stars.push([x, y, b]);
+      });
+    });
+    cvs.onclick = (ev) => {
+      const r = cvs.getBoundingClientRect();
+      const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+      let hit = null, best = 16 * 16;
+      for (const [x, y, b] of stars) {
+        const d = (x - mx) ** 2 + (y - my) ** 2;
+        if (d < best) { best = d; hit = b; }
+      }
+      if (hit) openExlibris(hit, bookWall(hit));
+    };
+  }
+
+  /* ── 회고 카드 — 「그 해의 서재」를 그림 한 장으로 굽는다 ──
+     화면 스타일을 canvas 에 손으로 다시 그린다. 공유용이라 세로가 길다. */
+  function downloadRecapCard(year, ofYear, pages) {
+    const W = 1080, H = 1350;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const c = cv.getContext("2d");
+    // 바탕과 겹테 — 서재의 어둠과 놋쇠
+    c.fillStyle = "#171009"; c.fillRect(0, 0, W, H);
+    c.strokeStyle = "#97742F"; c.lineWidth = 3;
+    c.strokeRect(40, 40, W - 80, H - 80);
+    c.strokeStyle = "rgba(151,116,47,.4)"; c.lineWidth = 1;
+    c.strokeRect(52, 52, W - 104, H - 104);
+    c.textAlign = "center";
+    // 머리
+    c.fillStyle = "#A3947A"; c.font = "28px Georgia, serif";
+    c.fillText("P O S T   L I B R O S", W / 2, 150);
+    c.fillStyle = "#E2D5B8"; c.font = "700 64px 'Gowun Batang', serif";
+    c.fillText("서가 뒤의 방", W / 2, 230);
+    // 해
+    c.fillStyle = "#E0B15E"; c.font = "700 110px 'Gowun Batang', serif";
+    c.fillText(`${year}년의 서재`, W / 2, 430);
+    // 셈 — 권과 쪽
+    c.fillStyle = "#E2D5B8"; c.font = "700 150px Georgia, serif";
+    c.fillText(ofYear.length.toLocaleString(), W / 2 - 220, 660);
+    c.fillText(pages.toLocaleString(), W / 2 + 220, 660);
+    c.fillStyle = "#A3947A"; c.font = "34px 'Gowun Batang', serif";
+    c.fillText("읽어낸 권", W / 2 - 220, 720);
+    c.fillText("읽어낸 쪽", W / 2 + 220, 720);
+    // 갈래
+    const cats = tally(ofYear, (b) => b.cat).sort((x, y) => y[1] - x[1]).slice(0, 3);
+    c.fillStyle = "#E0B15E"; c.font = "40px 'Gowun Batang', serif";
+    c.fillText(cats.map(([k, v]) => `${k} ${v}권`).join("   ·   "), W / 2, 850);
+    // 가장 아낀 책 — 여백에 글이 남은 책을 우선, 없으면 첫 권
+    const dear = ofYear.find((b) => b.memo) || ofYear[0];
+    if (dear) {
+      c.fillStyle = "#A3947A"; c.font = "30px 'Gowun Batang', serif";
+      c.fillText("그 해의 한 권", W / 2, 990);
+      c.fillStyle = "#E2D5B8"; c.font = "700 48px 'Gowun Batang', serif";
+      const t = dear.t.length > 18 ? dear.t.slice(0, 18) + "…" : dear.t;
+      c.fillText(`「${t}」`, W / 2, 1050);
+      c.fillStyle = "#A3947A"; c.font = "32px 'Gowun Batang', serif";
+      c.fillText(dear.a || "", W / 2, 1100);
+    }
+    // 발
+    c.fillStyle = "#97742F"; c.font = "26px Georgia, serif";
+    c.fillText("rokiz.net/books", W / 2, H - 90);
+    cv.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `서가뒤의방-${year}-회고.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }, "image/png");
   }
 
   /* ── 이음의 별자리 — 이어 둔 책들이 성좌를 이룬다 ──
@@ -1346,6 +1567,7 @@
     $("x-enrich-note").textContent = "ISBN·표지·쪽수를 이 책만 다시 채웁니다";
     $("x-enrich").disabled = false;
     $("x-isbn").value = b.isbn || "";
+    $("x-cover-url").value = b.cover || "";
     syncBookmarkRow(b);
     syncReadYearRow(b);
     renderLinks(b);
@@ -1489,6 +1711,40 @@
       go.textContent = other ? other.t : "(서가에 없는 책)";
       if (other) go.addEventListener("click", () => openExlibris(other, bookWall(other)));
       else go.disabled = true;
+      // 이은 까닭 — 있으면 띠 안에 작게, ✎ 로 적거나 고친다
+      const why = document.createElement("i");
+      why.className = "linknote";
+      why.textContent = l.note || "";
+      const pen = document.createElement("button");
+      pen.type = "button";
+      pen.className = "unlink pen";
+      pen.textContent = "✎";
+      pen.setAttribute("aria-label", "이은 까닭 적기");
+      pen.addEventListener("click", () => {
+        if (chip.querySelector("input")) return;   // 이미 적는 중
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.className = "linknote-in";
+        inp.value = l.note || "";
+        inp.placeholder = "까닭 — 같은 번역가, 인용…";
+        inp.setAttribute("aria-label", "이은 까닭");
+        const save = async () => {
+          const v = inp.value.trim();
+          try {
+            await db.updateLink(l.id, v || null);
+            l.note = v || null;
+          } catch (err) { console.error("[이음] 까닭을 적지 못했습니다:", err); }
+          why.textContent = l.note || "";
+          inp.remove();
+        };
+        inp.addEventListener("blur", save);
+        inp.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter") { ev.preventDefault(); inp.blur(); }
+          if (ev.key === "Escape") { ev.stopPropagation(); inp.value = l.note || ""; inp.blur(); }
+        });
+        chip.insertBefore(inp, pen);
+        inp.focus();
+      });
       const del = document.createElement("button");
       del.type = "button";
       del.className = "unlink";
@@ -1498,7 +1754,7 @@
         try { await db.removeLink(l.id); renderLinks(b); }
         catch (err) { console.error("[이음] 풀지 못했습니다:", err); }
       });
-      chip.append(go, del);
+      chip.append(go, why, pen, del);
       host.appendChild(chip);
     });
   }
@@ -1558,6 +1814,73 @@
     const raw = $("x-shelf").value.trim();
     const shelf = raw ? Number(raw) : null;
     saveBook({ shelf }, (b) => { b.shelfNo = shelf; b.loc = [b.wall, shelf ? shelf + "단" : null].filter(Boolean).join(" ") || "자리 미정"; });
+  });
+
+  /* ── 표지 고치기·지우기 — 알라딘이 엉뚱한 판본 표지를 준 책의 출구 ── */
+  function applyCover(url) {
+    const b = openBook;
+    saveBook({ cover_url: url }, (x) => { x.cover = url; });
+    // 서표 머리의 그림도 그 자리에서 바꾼다
+    const cv = $("x-cover");
+    const face = url || b?.spineImg;
+    if (face) {
+      cv.src = face;
+      cv.classList.toggle("spine", !url);
+      cv.hidden = false;
+    } else {
+      cv.hidden = true;
+      cv.removeAttribute("src");
+    }
+  }
+  $("x-cover-url").addEventListener("change", () => {
+    const v = $("x-cover-url").value.trim();
+    if (!openBook) return;
+    if (v && !/^https?:\/\//.test(v)) {
+      $("x-saved").textContent = "http(s):// 로 시작하는 주소여야 합니다";
+      $("x-saved").hidden = false;
+      return;
+    }
+    applyCover(v || null);
+  });
+  $("x-cover-del").addEventListener("click", () => {
+    if (!openBook) return;
+    $("x-cover-url").value = "";
+    applyCover(null);
+  });
+
+  /* ── 서지 지우기 — 엉뚱한 책의 서지가 입혀졌을 때 통째로 벗긴다 ──
+     제목·지은이·메모·읽음 상태는 남긴다. 표식(enrich_tried_at)도 걷어
+     「끝까지 채운다」가 다시 묻게 한다. */
+  $("x-meta-del").addEventListener("click", () => {
+    const btn = $("x-meta-del"), b = openBook;
+    if (!b || !b.id) return;
+    if (!btn.dataset.sure) {
+      btn.dataset.sure = "1";
+      btn.classList.add("warn");
+      btn.textContent = "정말 지웁니다";
+      setTimeout(() => {
+        if (!btn.dataset.sure) return;
+        delete btn.dataset.sure;
+        btn.classList.remove("warn");
+        btn.textContent = "서지를 지운다";
+      }, 4000);
+      return;
+    }
+    delete btn.dataset.sure;
+    btn.classList.remove("warn");
+    btn.textContent = "서지를 지운다";
+    saveBook({
+      isbn: null, publisher: null, cover_url: null, published_year: null,
+      page_count: null, size_height: null, size_depth: null,
+      enrich_tried_at: null,
+    }, (x) => {
+      x.isbn = null; x.pub = null; x.cover = null; x.pubYear = null; x.pages = null;
+    });
+    $("x-isbn").value = "";
+    $("x-cover-url").value = "";
+    const cv = $("x-cover");
+    if (openBook?.spineImg) { cv.src = openBook.spineImg; cv.classList.add("spine"); }
+    else { cv.hidden = true; cv.removeAttribute("src"); }
   });
 
   /* ── 서가에서 뺀다 — 되돌릴 수 없으므로 한 번 더 묻는다 ── */
@@ -1718,12 +2041,53 @@
   });
   $("heightsort")?.setAttribute("aria-pressed", sortHeight ? "true" : "false");
 
+  /* ── 이 달의 진열장 — 표지가 있는 책 여섯을 액자처럼 건다 ──
+     달을 씨앗으로 쓰면 한 달 동안은 같은 여섯, 달이 바뀌면 저절로 바뀐다.
+     표지가 세 권도 안 되면 구획째 숨긴다 — 빈 액자를 걸 수는 없다. */
+  function renderShowcase() {
+    const sec = $("showcase"), grid = $("showgrid");
+    if (!sec || !grid) return;
+    const covered = allBooks().filter((b) => b.cover);
+    if (covered.length < 3) { sec.hidden = true; return; }
+    const d = new Date();
+    let seed = (d.getFullYear() * 12 + d.getMonth()) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    // 씨앗 섞기 — 같은 달에는 늘 같은 순서
+    const pool = [...covered];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const picks = pool.slice(0, 6);
+    sec.hidden = false;
+    $("showcase-sub").textContent =
+      `${d.getMonth() + 1}월 — 표지가 있는 ${covered.length.toLocaleString()}권에서 여섯을 걸었다`;
+    grid.innerHTML = "";
+    picks.forEach((b) => {
+      const f = document.createElement("button");
+      f.type = "button";
+      f.className = "showframe";
+      const img = document.createElement("img");
+      img.src = b.cover;
+      img.alt = `${b.t} 표지`;
+      img.loading = "lazy";
+      img.addEventListener("error", () => f.remove());   // 죽은 표지는 액자째 내린다
+      const cap = document.createElement("span");
+      cap.textContent = b.t;
+      f.append(img, cap);
+      f.title = `${b.t} — ${b.a}`;
+      f.addEventListener("click", () => openExlibris(b, bookWall(b)));
+      grid.appendChild(f);
+    });
+  }
+
   /* 데이터가 바뀌면 서가만이 아니라 셈과 책상도 함께 다시 그린다 —
      한 군데만 갱신하면 옛 숫자가 남아 찌꺼기처럼 보인다 */
   function renderAll() {
     renderWalls();
     renderCensus();
     renderToday();
+    renderShowcase();
     // 주인 앞에서는 진짜 장서다 — 「데이터는 예시」를 걷는다
     document.querySelector(".colophon").textContent =
       document.body.classList.contains("owner")

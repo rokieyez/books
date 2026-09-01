@@ -17,9 +17,9 @@
      3000px 를 넘을 때만 줄이고, 그 이하는 손대지 않는다. */
   const MAX_EDGE = 3000;
   const QUALITY = 0.88;
-  const WALLS = ["역사", "문학", "과학", "예술사회"];
+  const WALLS = ["역사", "문학", "과학", "예술사회", "종교"];
   /* 분류가 곧 벽이다 — Edge Function 의 wallFor, DB 의 wall_for_category 와 같은 규칙 */
-  const WALL_OF = { 역사: "역사", 문학: "문학", 과학: "과학", 예술: "예술사회", 사회: "예술사회" };
+  const WALL_OF = { 역사: "역사", 문학: "문학", 과학: "과학", 예술: "예술사회", 사회: "예술사회", 종교: "종교" };
   /* 궤짝(app.js)도 같은 규칙으로 꽂아야 한다 — 규칙을 네 벌로 만들지 않는다 */
   window.PostLibrosWallOf = (cat) => WALL_OF[cat] || "문학";
 
@@ -90,6 +90,7 @@
         <option value="과학">과학</option>
         <option value="예술">예술</option>
         <option value="사회">사회</option>
+        <option value="종교">종교</option>
       </select>
       <button type="submit" class="byhand-go">꽂는다</button>
       <span class="byhand-msg" id="bh-msg"></span>

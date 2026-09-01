@@ -44,6 +44,8 @@
   <h1>서가 뒤의 방</h1>
   <p class="sub">이 서재의 벽은 전부 책이다 — 그런데 벽마다 방이 하나씩 숨어 있다.</p>
   <p class="secret">비뚤게 꽂힌 책을 당기면 문이 열린다 · 사다리를 타고 내려가면 책상이 나온다</p>
+  <!-- 방문자에게만 — 표본임을 첫눈에 알린다 (하단 콜로폰만으로는 놓친다) -->
+  <p class="samplenote">지금 보이는 서가는 표본입니다 — 주인이 열쇠로 들어오면 실제 장서로 바뀝니다</p>
   <div class="viewrow">
     <div class="viewseg" role="tablist" aria-label="보기 방식">
       <button data-v="walls" aria-selected="true">서가</button>
@@ -55,6 +57,14 @@
     <button class="heightsort" id="heightsort" aria-pressed="false"
             title="실물 키 순서로 꽂아 본다">키 순서</button>
   </div>
+</div>
+
+<div class="wrap">
+  <!-- 이 달의 진열장 — 표지가 있는 책 여섯을 액자처럼, 달이 바뀌면 저절로 교체 -->
+  <section class="showcase" id="showcase" hidden>
+    <div class="sec-label"><b>이 달의 진열장</b><span class="desc" id="showcase-sub"></span></div>
+    <div class="showgrid" id="showgrid"></div>
+  </section>
 </div>
 
 <div class="wrap" id="walls"></div>
@@ -127,11 +137,21 @@
         <p class="ps" id="ps-recap"></p>
         <div id="recapbody"></div>
       </div>
+      <div class="statpanel wide" id="rhythm-panel">
+        <h4>읽기 리듬</h4>
+        <p class="ps" id="ps-rhythm"></p>
+        <div id="rhythmgrid"></div>
+      </div>
       <div class="statpanel wide" id="linkweb-panel">
         <h4>이음의 별자리</h4>
         <p class="ps" id="ps-linkweb">이어 둔 책들이 성좌를 이룹니다</p>
         <canvas id="linkweb" height="240"></canvas>
         <div id="linksuggest"></div>
+      </div>
+      <div class="statpanel wide" id="authorweb-panel">
+        <h4>작가의 별자리</h4>
+        <p class="ps" id="ps-authorweb">같은 작가의 책들이 한 성좌로 모입니다</p>
+        <canvas id="authorweb" height="240"></canvas>
       </div>
       <div class="statpanel wide">
         <h4>여백의 기록</h4>
@@ -248,6 +268,7 @@
         <option value="문학">문학</option>
         <option value="과학">과학</option>
         <option value="예술사회">예술과 사회</option>
+        <option value="종교">종교</option>
       </select>
       <input type="number" id="x-shelf" min="1" max="12" placeholder="단" aria-label="단">
       <span class="x-saved" id="x-saved" hidden>적었습니다</span>
@@ -267,6 +288,17 @@
                aria-label="이을 책 검색">
         <div class="x-linkpick" id="x-linkpick"></div>
       </div>
+    </div>
+    <div class="x-row">
+      <span class="x-lb">표지</span>
+      <input type="text" id="x-cover-url" placeholder="표지 그림 주소(URL)를 붙여넣는다"
+             aria-label="표지 그림 주소">
+      <button type="button" class="x-enrich" id="x-cover-del">표지를 지운다</button>
+    </div>
+    <div class="x-row">
+      <span class="x-lb">지운다</span>
+      <button type="button" class="x-remove" id="x-meta-del">서지를 지운다</button>
+      <span class="x-hint">ISBN·쪽수·크기·표지·펴낸곳·펴낸해를 비웁니다 — 제목·지은이·메모는 남습니다</span>
     </div>
     <div class="x-row">
       <span class="x-lb">뺀다</span>

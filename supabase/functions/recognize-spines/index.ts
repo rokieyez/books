@@ -48,7 +48,7 @@ const TOOL = {
             volume: { type: "string", description: "전집의 권 번호. 없으면 빈 문자열" },
             category: {
               type: "string",
-              enum: ["역사", "문학", "과학", "예술", "사회"],
+              enum: ["역사", "문학", "과학", "예술", "사회", "종교"],
               description: "제목으로 미루어 짐작한 분류",
             },
             spine_color: { type: "string", description: "책등 바탕색 (#RRGGBB)" },
@@ -188,6 +188,7 @@ Deno.serve(async (req) => {
     cat === "역사" ? "역사"
     : cat === "과학" ? "과학"
     : (cat === "예술" || cat === "사회") ? "예술사회"
+    : cat === "종교" ? "종교"
     : "문학";
 
   const shelved: Array<Record<string, unknown>> = [];

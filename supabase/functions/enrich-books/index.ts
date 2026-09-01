@@ -63,7 +63,8 @@ function catOf(path: string): string | null {
   if (/역사|인물|고전/.test(p)) return "역사";
   if (/과학|공학|컴퓨터|모바일|의학|수학/.test(p)) return "과학";
   if (/예술|대중문화|만화|건축|사진|음악|미술/.test(p)) return "예술";
-  if (/사회|정치|경제|경영|법|교육|자기계발|인문학|철학|종교/.test(p)) return "사회";
+  if (/종교|기독교|불교|천주교|가톨릭|신학|성경|이슬람|힌두/.test(p)) return "종교";
+  if (/사회|정치|경제|경영|법|교육|자기계발|인문학|철학/.test(p)) return "사회";
   return null;   // 알아볼 수 없으면 원래 분류를 그대로 둔다
 }
 
@@ -187,6 +188,49 @@ async function webFallback(key: string, title: string, author: string | null) {
   return null;
 }
 
+/* 후보 하나를 알라딘 서지로 꽂는다 — 궤짝 확정과 수동 검색이 같이 쓴다.
+   겹치면(23505) 후보를 접고, 성공하면 확정으로 표시한다. */
+// deno-lint-ignore no-explicit-any
+async function plantCandidate(db: any, ttb: string, c: any, best: Record<string, unknown>) {
+  const isbn = best.isbn13 || best.isbn ? String(best.isbn13 || best.isbn) : null;
+  const info = isbn ? await aladinLookup(ttb, isbn) : null;
+  const guess = (c.candidates as Array<Record<string, unknown>> | null)?.[0] ?? {};
+  const category = catOf(String(best.categoryName ?? "")) || String(guess.category || "문학");
+  const photo = (c.intake_photos ?? {}) as { wall?: string | null; shelf?: number | null };
+  let wall = photo.wall || null;
+  if (!wall) {
+    const { data: w } = await db.rpc("wall_for_category", { cat: category });
+    wall = (w as string | null) || "문학";
+  }
+  const title = decode(String(best.title ?? "")).trim();
+  const { data: made, error: e2 } = await db.from("books").insert({
+    title,
+    author: best.author ? decode(String(best.author)).split(/[,(]/)[0].trim() : null,
+    category, isbn,
+    publisher: info?.publisher ?? (best.publisher ? decode(String(best.publisher)) : null),
+    cover_url: info?.cover ?? (best.cover ? String(best.cover) : null),
+    published_year: info?.year ?? null,
+    page_count: info?.pages ?? null,
+    size_height: info?.sizeHeight ?? null,
+    size_depth: info?.sizeDepth ?? null,
+    wall,
+    shelf: photo.shelf ?? null,
+    spine_photo_id: c.photo_id ?? null,
+    spine_box: c.spine_box ?? null,
+    enrich_tried_at: new Date().toISOString(),
+  }).select("id").single();
+  if (e2) {
+    if (e2.code === "23505") {   // 이미 꽂혀 있다 — 후보만 접는다
+      await db.from("intake_candidates").update({ status: "버림" }).eq("id", c.id);
+      return { dup: true, title };
+    }
+    return { fail: String(e2.message ?? e2), title };
+  }
+  await db.from("intake_candidates")
+    .update({ status: "확정", resolved_book_id: made.id }).eq("id", c.id);
+  return { id: made.id as string, title };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -196,8 +240,44 @@ Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth) return reply({ error: "열쇠가 없습니다" }, 401);
 
-  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string; crate?: boolean } = {};
+  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string; crate?: boolean; candidate_id?: string; query?: string } = {};
   try { body = await req.json(); } catch { /* 빈 몸통도 허용 */ }
+
+  /* ── 궤짝 수동 검색 — 자동 확정(0.75)이 못 정한 후보를 사람이 살린다 ──
+     사람이 글자를 고쳐 물었으므로 문턱을 0.5로 낮춘다. 그래도 서지는
+     조회 API 로 완성해서 꽂는다 — 데이터가 더러워지는 길은 없다. */
+  if (body.candidate_id && body.query) {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: auth } } },
+    );
+    const { data: c, error: e0 } = await db.from("intake_candidates")
+      .select("*, intake_photos(wall, shelf)")
+      .eq("id", body.candidate_id).single();
+    if (e0 || !c) return reply({ error: "후보를 찾지 못했습니다" }, 404);
+    const q = String(body.query).trim();
+    if (!q) return reply({ error: "검색어가 비었습니다" }, 400);
+
+    let best = null, score = 0;
+    const tries: Array<[string, string]> = [["Book", "Keyword"], ["Book", "Title"], ["Foreign", "Keyword"]];
+    for (const [target, qt] of tries) {
+      try {
+        const r = await aladin(ttb, q, target, qt);
+        const j = JSON.parse(r.text.replace(/;$/, ""));
+        const p = pickBest(j.item ?? [], q);
+        if (p.best && p.score > score) { best = p.best; score = p.score; }
+        if (score >= 0.9) break;
+      } catch { /* 다음 사다리로 */ }
+    }
+    if (!best || score < 0.5) {
+      return reply({ 못정함: true, 말: "알라딘에서도 찾지 못했습니다 — 다른 표기로 적어 보세요" });
+    }
+    const r2 = await plantCandidate(db, ttb, c, best);
+    if (r2.dup) return reply({ 겹침: true, 제목: r2.title });
+    if (r2.fail) return reply({ error: "꽂지 못했습니다: " + r2.fail }, 500);
+    return reply({ 확정: 1, 제목: r2.title, 점수: Math.round(score * 100) });
+  }
 
   /* ── 궤짝을 알라딘에 묻는다 — 흐린 후보를 서지로 확정한다 ──
      확신이 낮아 궤짝에 담긴 책들: 글씨는 흐렸어도 책은 진짜다.
@@ -242,43 +322,11 @@ Deno.serve(async (req) => {
       }
       if (!best || score < 0.75) { skip++; continue; }
 
-      const isbn = best.isbn13 || best.isbn ? String(best.isbn13 || best.isbn) : null;
-      const info = isbn ? await aladinLookup(ttb, isbn) : null;
-      const category = catOf(String(best.categoryName ?? "")) || String(guess.category || "문학");
-      const photo = (c.intake_photos ?? {}) as { wall?: string | null; shelf?: number | null };
-      let wall = photo.wall || null;
-      if (!wall) {
-        const { data: w } = await db.rpc("wall_for_category", { cat: category });
-        wall = (w as string | null) || "문학";
-      }
-      const title = decode(String(best.title ?? "")).trim();
-      const { data: made, error: e2 } = await db.from("books").insert({
-        title,
-        author: best.author ? decode(String(best.author)).split(/[,(]/)[0].trim() : null,
-        category, isbn,
-        publisher: info?.publisher ?? (best.publisher ? decode(String(best.publisher)) : null),
-        cover_url: info?.cover ?? (best.cover ? String(best.cover) : null),
-        published_year: info?.year ?? null,
-        page_count: info?.pages ?? null,
-        size_height: info?.sizeHeight ?? null,
-        size_depth: info?.sizeDepth ?? null,
-        wall,
-        shelf: photo.shelf ?? null,
-        spine_photo_id: c.photo_id ?? null,
-        spine_box: c.spine_box ?? null,
-        enrich_tried_at: new Date().toISOString(),
-      }).select("id").single();
-      if (e2) {
-        if (e2.code === "23505") {   // 이미 꽂혀 있다 — 후보만 접는다
-          await db.from("intake_candidates").update({ status: "버림" }).eq("id", c.id);
-          dup++; continue;
-        }
-        skip++; continue;
-      }
-      await db.from("intake_candidates")
-        .update({ status: "확정", resolved_book_id: made.id }).eq("id", c.id);
+      const r2 = await plantCandidate(db, ttb, c, best);
+      if (r2.dup) { dup++; continue; }
+      if (r2.fail) { skip++; continue; }
       ok++;
-      확정목록.push({ 읽은것: raw, 알라딘: title });
+      확정목록.push({ 읽은것: raw, 알라딘: r2.title });
     }
 
     const { count } = await db.from("intake_candidates")
@@ -339,7 +387,7 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: auth } } },
     );
     const info = await aladinLookup(ttb, isbn);
-    if (!info?.title) return reply({ error: "알라딘에서 찾지 못했습니다 (" + isbn + ")" }, 404);
+    if (!info?.title) return reply({ error: "알라딘에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
 
     const category = info.category || "문학";
     const { data: wall } = await db.rpc("wall_for_category", { cat: category });
