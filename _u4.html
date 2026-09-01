@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8">
+<script>
+  // 진짜 세션처럼 생긴 값을 넣고 최상위로 이동한다
+  try {
+    localStorage.setItem("sb-gaeumegwhxxnfvrhbknp-auth-token",
+      JSON.stringify({access_token:"x", token_type:"bearer", expires_at: 4102444800,
+                      refresh_token:"y", user:{id:"00000000-0000-0000-0000-000000000000"}}));
+  } catch(e){}
+  location.replace("/");
+</script>

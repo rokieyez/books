@@ -783,5 +783,37 @@
   }
   window.PostLibrosRenderAll = renderAll;
 
-  renderAll();
+  /* 들어와 있는 사람이면 표본을 아예 그리지 않는다.
+     세션 확인은 서버를 다녀와야 하는데, 그 사이에 표본을 그려 두면
+     새로고침할 때마다 남의 책이 0.3초쯤 스쳤다가 사라진다.
+     브라우저에 저장된 세션은 곧바로 읽을 수 있으므로, 그것만 보고
+     "곧 진짜 장서가 온다"고 판단해 빈 서가로 기다린다. */
+  function hasStoredSession() {
+    try {
+      return Object.keys(localStorage).some(
+        (k) => k.startsWith("sb-") && k.includes("auth-token") && localStorage.getItem(k));
+    } catch { return false; }
+  }
+
+  let sampleShown = false;
+  function showSample() {
+    if (sampleShown) return;
+    sampleShown = true;
+    document.body.classList.remove("waking");
+    renderAll();
+  }
+  /* 세션이 없다고 판명되면(로그인 안 됨) 그때 표본을 그린다 — auth.js 가 부른다 */
+  window.PostLibrosShowSample = showSample;
+
+  // 어느 길로 시작했는지 남겨 둔다 — 표본이 스치는 문제를 다시 볼 때 단서가 된다
+  if (hasStoredSession()) {
+    document.documentElement.dataset.boot = "waiting";
+    document.body.classList.add("waking");
+    $("walls").innerHTML = `<p class="waking-note">서재를 여는 중…</p>`;
+    $("census-n").textContent = "장서를 세는 중";
+  } else {
+    document.documentElement.dataset.boot = "sample";
+    showSample();
+  }
+
   addEventListener("load", () => { layoutLadder(); updateLadder(); });

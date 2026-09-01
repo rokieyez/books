@@ -146,6 +146,8 @@
       console.error("[서재] 궤짝을 불러오지 못했습니다:", err);
     }
 
+    // 진짜 장서가 도착했으니 기다리던 상태를 푼다
+    document.body.classList.remove("waking");
     // 서가만 다시 그리면 상단의 셈과 책상에 옛 숫자가 남는다
     (window.PostLibrosRenderAll || renderWalls)();
     return books.length;
@@ -205,6 +207,10 @@
       keyBtn.textContent = "열쇠";
       keyBtn.classList.remove("in");
       document.body.classList.remove("owner");
+      // 여기서는 표본을 그리지 않는다. onAuthStateChange 는 세션을 읽는
+      // 도중에도 null 로 한 번 울릴 수 있어서, 그 소리에 표본을 그리면
+      // 새로고침할 때마다 남의 책이 스친다. 판정은 아래 mount 에서
+      // 딱 한 번 내린다.
     }
   }
 
@@ -324,7 +330,14 @@
 
     if (!db) return;
     db.client.auth.onAuthStateChange((_evt, session) => reflect(session?.user ?? null));
-    db.currentUser().then(reflect);
+    // 표본을 그릴지 말지는 여기서 한 번만 정한다 (저장된 세션을 직접 읽는다)
+    db.currentUser().then((u) => {
+      reflect(u);
+      if (!u) window.PostLibrosShowSample?.();
+    }).catch((err) => {
+      console.error("[열쇠] 세션을 확인하지 못했습니다:", err);
+      window.PostLibrosShowSample?.();   // 확인이 안 되면 표본이라도 보여준다
+    });
   }
 
   if (document.readyState === "loading") {

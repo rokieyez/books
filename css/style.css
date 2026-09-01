@@ -846,6 +846,19 @@
   .x-remove:disabled { opacity: .45; cursor: default; }
   .x-hint { font-size: 10.5px; color: var(--parchment-dim); font-style: italic; }
 
+  /* 서재를 여는 동안 — 표본을 스치듯 보여주지 않으려고 비워 둔다 */
+  .waking-note {
+    margin: 80px 0; text-align: center;
+    font-family: "Gowun Batang", serif; font-size: 14px;
+    color: var(--parchment-dim); letter-spacing: .08em;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .waking-note { animation: wakeglow 2.2s ease-in-out infinite; }
+    @keyframes wakeglow { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
+  }
+  /* 기다리는 동안에는 궤짝과 책상도 감춘다 — 표본이 남아 있는 자리다 */
+  body.waking .crate, body.waking .desk { visibility: hidden; }
+
   /* 셈이 설 수 없을 때 — 가짜 숫자 대신 사정을 적는다 */
   .statempty {
     margin: 8px 0 0; font-size: 12px; line-height: 1.7;
