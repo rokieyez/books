@@ -1344,11 +1344,23 @@
       try { links = await db.listAllLinks(); }
       catch (e) { console.warn("[별자리] 이음을 읽지 못했습니다:", e); }
     }
-    const es = links.filter((l) => byId.has(l.book_id) && byId.has(l.linked_book_id));
+    /* 같은 시리즈끼리의 이음(서표의 「시리즈로 잇는다」가 만든 사슬)은
+       컬렉션이 아니다 — 성좌에서는 숨긴다. 이음 자체는 남아 있어
+       서표의 이음 줄에는 그대로 보인다. */
+    const seriesKeyOf = (b) => {
+      if (b.series) return "손␟" + b.series;
+      const m = b.t.match(SERIES_RE);
+      return m ? m[1].trim().toLowerCase() + "␟" + (b.a || "") : null;
+    };
+    const es = links.filter((l) => {
+      if (!byId.has(l.book_id) || !byId.has(l.linked_book_id)) return false;
+      const ka = seriesKeyOf(byId.get(l.book_id));
+      return !(ka && ka === seriesKeyOf(byId.get(l.linked_book_id)));
+    });
 
     const Wd = cvs.parentElement?.clientWidth ? cvs.parentElement.clientWidth - 2 : 600;
     if (!es.length) {
-      ps.textContent = "책을 이어 두면 성좌가 뜹니다 — 서표의 「이음」 줄에서";
+      ps.textContent = "서로 다른 책을 이어 두면 성좌가 뜹니다 — 서표의 「이음」 줄에서";
       cvs.hidden = true;
     } else {
       // 연결 성분을 찾는다 — 성좌 하나가 성분 하나
