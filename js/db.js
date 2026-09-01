@@ -13,28 +13,17 @@
     return;
   }
 
-  /* 탭 사이의 자물쇠 — 기다리다 갇히지 않게 한다.
-     supabase-js 는 여러 탭이 동시에 토큰을 고치지 못하도록 자물쇠를 걸고,
-     기본값은 "얻을 때까지 무한정 기다림"이다. 다른 탭이 쥔 채 멈춰 있으면
-     로그아웃조차 영영 돌아오지 않는다.
-     5초만 기다리고, 못 얻으면 그냥 진행한다. 갇히는 것보다 낫다 —
-     혼자 쓰는 서재라 두 탭이 같은 순간에 토큰을 고칠 일이 드물다. */
-  async function tabLock(name, _acquireTimeout, fn) {
-    if (typeof navigator === "undefined" || !navigator.locks) return fn();
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
-    try {
-      return await navigator.locks.request(name, { signal: ctrl.signal }, fn);
-    } catch (e) {
-      console.warn("[서재] 다른 탭의 자물쇠를 기다리다 포기하고 진행합니다:", name);
-      return fn();
-    } finally {
-      clearTimeout(timer);
-    }
-  }
+  /* 인증 처리의 순서를 지키는 자물쇠.
+     기본값(navigatorLock)은 탭 사이에 자물쇠를 걸고 얻을 때까지 무한정
+     기다린다. 다른 탭이 쥔 채 멈춰 있으면 로그아웃조차 돌아오지 않는다.
+     processLock 은 이 탭 안에서만 순서를 지키고 다른 탭을 기다리지 않는다.
+     혼자 쓰는 서재라 탭 사이 조율을 포기해도 잃는 것이 거의 없다.
+     (직접 만든 자물쇠로 바꿔 봤다가 라이브러리의 재진입 처리를 깨뜨려
+      인증 호출마다 5초씩 잡아먹었다 — 라이브러리 것을 쓴다) */
+  const lock = window.supabase.processLock;
 
   const client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, {
-    auth: { lock: tabLock },
+    auth: lock ? { lock } : {},
   });
 
   /* 인증 요청이 응답 없이 매달리는 일이 있다.
@@ -113,9 +102,14 @@
       }
       return r;
     },
+    /* 지금 들어와 있는 사람.
+       getUser() 는 서버에 물어보는 호출이라 늦거나 막히면 "없음"으로 답하게 되고,
+       그러면 화면이 로그인이 풀린 줄 알고 주인용 자리를 지워 버린다.
+       (사진 올리는 자리가 몇 초 뒤 사라진 것이 이 때문이었다)
+       세션은 브라우저에 저장돼 있으니 그것을 읽는다 — 네트워크를 타지 않는다. */
     async currentUser() {
-      const r = await guard(client.auth.getUser(), 8000, "세션 확인");
-      return r?.data?.user ?? null;
+      const { data } = await client.auth.getSession();
+      return data?.session?.user ?? null;
     },
 
     /* ── 장서 ── */
