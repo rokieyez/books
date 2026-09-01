@@ -199,6 +199,7 @@
         : 17 + ((h >> 5) % 9),
       pages: b.page_count || null,
       bookmark: b.bookmark_page || null,
+      bookmarkAt: b.bookmark_at || null,
       isbn: b.isbn || null,
       pub: b.publisher || null,
       year: b.acquired_on ? Number(b.acquired_on.slice(0, 4)) : null,

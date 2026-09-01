@@ -121,6 +121,15 @@
 
     <div class="enrich">
       <div class="enrich-head">
+        <b>기록을 한꺼번에 짓는다</b>
+        <span>읽음으로 표시한 책 중 기록이 없는 것만 — 한 번에 서른 권까지, 권마다 비용이 듭니다</span>
+      </div>
+      <button type="button" class="enrich-go" id="in-summarize">읽은 책의 기록을 짓는다</button>
+      <div class="enrich-out" id="in-summarize-out"></div>
+    </div>
+
+    <div class="enrich">
+      <div class="enrich-head">
         <b>장서를 베껴 둔다</b>
         <span>1,300권을 한 곳에만 두지 않습니다 — 지금 꽂힌 그대로를 파일로 내려받습니다</span>
       </div>
@@ -607,6 +616,53 @@
         + (dup ? ` · ${dup}권은 다른 책과 겹쳐 접었습니다` : "")
         + (bad ? ` · ${bad}권은 실패했습니다` : "");
       await window.PostLibrosRefresh?.();
+    });
+
+    /* 기록 일괄 짓기 — 읽음 책 중 기록 없는 것만 골라 서른 권까지.
+       권마다 AI 비용이 들므로 상한을 걸고, 언제든 멈출 수 있다.
+       이미 있는 기록은 함수가 그대로 돌려주므로 두 번 물어도 돈이 두 번 들지 않지만,
+       애초에 없는 것만 추려 보내 헛걸음을 줄인다. */
+    let sumStop = false;
+    el("in-summarize").addEventListener("click", async () => {
+      const btn = el("in-summarize"), out = el("in-summarize-out");
+      if (btn.dataset.running) { sumStop = true; btn.textContent = "멈추는 중…"; return; }
+      btn.dataset.running = "1";
+      sumStop = false;
+      out.innerHTML = `<p class="enrich-msg">읽은 책을 세는 중…</p>`;
+      try {
+        const [rows, haveIds] = await Promise.all([
+          db.listBooks({ limit: 5000 }),
+          db.listSummarizedIds(),
+        ]);
+        const have = new Set(haveIds);
+        const todo = rows.filter((r) => r.read_status === "읽음" && !have.has(r.id)).slice(0, 30);
+        const left = rows.filter((r) => r.read_status === "읽음" && !have.has(r.id)).length - todo.length;
+        if (!todo.length) {
+          out.innerHTML = `<p class="enrich-msg good">읽음 책의 기록이 모두 있습니다.</p>`;
+        } else {
+          btn.textContent = "멈춘다";
+          let ok = 0, bad = 0;
+          for (let i = 0; i < todo.length; i++) {
+            if (sumStop) break;
+            out.innerHTML = `<p class="enrich-msg"></p>`;
+            out.querySelector("p").textContent =
+              `짓는 중… ${i + 1} / ${todo.length} — 「${todo[i].title}」`;
+            const { data, error } = await db.summarizeBook(todo[i].id);
+            if (error || data?.error) { bad++; console.error("[기록] 못 지었습니다:", todo[i].title, error || data?.error); }
+            else ok++;
+          }
+          out.innerHTML = `<p class="enrich-msg ${bad ? "bad" : "good"}"></p>`;
+          out.querySelector("p").textContent =
+            `${ok}권의 기록을 지었습니다`
+            + (bad ? ` · ${bad}권은 실패했습니다` : "")
+            + (left > 0 ? ` · 아직 ${left}권이 남았습니다 — 한 번 더 누르면 이어 짓습니다` : "");
+        }
+      } catch (err) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "짓지 못했습니다 — " + (err.message || err);
+      }
+      delete btn.dataset.running;
+      btn.textContent = "읽은 책의 기록을 짓는다";
     });
 
     /* 서지 채우기 — 알라딘에 물어 빈 칸을 메운다.

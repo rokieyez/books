@@ -1513,3 +1513,36 @@
     background: rgba(23,16,9,.5); color: var(--parchment); padding: 4px 9px;
   }
   .linkpickbtn:hover, .linkpickbtn:focus-visible { border-color: var(--brass-dim); outline: none; }
+
+  /* ── 책상 위 더미 — 읽는 중인 책이 눕혀 쌓인다 ── */
+  .deskpile {
+    display: flex; flex-direction: column-reverse; align-items: center;
+    gap: 2px; margin: 14px auto 4px; position: relative; z-index: 1;
+  }
+  .pilebook {
+    appearance: none; cursor: pointer; border: 1px solid rgba(0,0,0,.35);
+    border-radius: 1px; height: 15px; padding: 0 8px;
+    font-size: 9.5px; letter-spacing: .04em; line-height: 13px;
+    color: rgba(242,237,224,.9); text-shadow: 0 1px 1px rgba(0,0,0,.5);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    box-shadow: 0 2px 5px rgba(0,0,0,.4);
+  }
+  .pilebook:nth-child(odd) { transform: rotate(-.7deg) translateX(-4px); }
+  .pilebook:nth-child(even) { transform: rotate(.5deg) translateX(5px); }
+  .pilebook:hover, .pilebook:focus-visible {
+    outline: none; box-shadow: 0 0 12px rgba(224,177,94,.4);
+  }
+
+  /* ── 이음의 별자리 ── */
+  #linkweb { display: block; max-width: 100%; cursor: pointer; }
+  #linksuggest { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  #linksuggest:empty { display: none; }
+  .sugrow {
+    appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+    text-align: left; padding: 7px 11px;
+    border: 1px dashed var(--line); border-radius: 2px;
+    background: rgba(23,16,9,.5); color: var(--parchment);
+  }
+  .sugrow::before { content: "✦ "; color: var(--brass-dim); }
+  .sugrow:hover, .sugrow:focus-visible { border-color: var(--brass-dim); outline: none; }
+  .sugrow:disabled { color: var(--parchment-dim); cursor: default; }

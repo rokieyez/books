@@ -561,11 +561,51 @@
       marks.push(pick.bookmark
         ? `갈피 ${pick.bookmark.toLocaleString()}쪽${pick.pages ? " / " + pick.pages.toLocaleString() + "쪽" : ""}`
         : "읽는 중");
+      // 멈춘 지 얼마나 됐는지 — 갈피를 꽂은 날이 남아 있을 때만
+      const ago = agoOf(pick.bookmarkAt);
+      if (pick.bookmark && ago) marks.push(ago + " 멈춤");
     } else if (pick.year) marks.push(pick.year + " 입고");
     s.textContent = marks.join(" · ");
     todayBook = pick;
+    renderPile(books);
   }
   let todayBook = null;
+
+  /* 며칠 전인지 사람 말로 — "오늘" "사흘 전" "3주 전" "두 달 전" */
+  function agoOf(iso) {
+    if (!iso) return null;
+    const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (!Number.isFinite(d) || d < 0) return null;
+    if (d === 0) return "오늘";
+    if (d < 7) return `${d}일 전`;
+    if (d < 30) return `${Math.floor(d / 7)}주 전`;
+    if (d < 365) return `${Math.floor(d / 30)}달 전`;
+    return `${Math.floor(d / 365)}년 전`;
+  }
+
+  /* 읽는 중인 책들이 책상 위에 실제로 쌓인다 — 눕힌 책등 더미.
+     누르면 그 책의 서표가 열린다. 다섯 권까지만 — 책상이니까. */
+  function renderPile(books) {
+    const host = $("deskpile");
+    if (!host) return;
+    host.innerHTML = "";
+    const reading = books.filter((b) => b.st === "읽는 중").slice(0, 5);
+    if (!reading.length) return;
+    reading.forEach((b) => {
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "pilebook";
+      el.style.background = b.c;
+      // 눕힌 책의 길이는 실물 키를 따른다 — 더미가 들쭉날쭉해야 진짜 같다
+      el.style.width = Math.round(Math.max(96, Math.min(150, b.h * 1.15))) + "px";
+      el.textContent = b.t;
+      el.title = `${b.t} — ${b.a}`
+        + (b.bookmark ? ` · 갈피 ${b.bookmark.toLocaleString()}쪽` : "")
+        + (agoOf(b.bookmarkAt) ? ` · ${agoOf(b.bookmarkAt)} 멈춤` : "");
+      el.addEventListener("click", () => openExlibris(b, bookWall(b)));
+      host.appendChild(el);
+    });
+  }
 
   function bookWall(b) { return WALLS.find(w => w.books && w.books.includes(b)); }
   function allBooks() { return WALLS.filter(w => w.books).flatMap(w => w.books); }
@@ -937,9 +977,170 @@
       }
     }
 
+    /* ── 그 해의 서재 — 읽은 해(read_year)로 여는 회고 ── */
+    const rp = $("recapbody"), rps = $("ps-recap");
+    if (rp && rps) {
+      rp.innerHTML = "";
+      const readable = books.filter((b) => b.readYear);
+      if (!readable.length) {
+        rps.textContent = "읽음으로 표시하면 그 해가 기록됩니다";
+        rp.innerHTML = `<p class="statempty">읽은 해가 쌓이면 연말 회고가 여기 섭니다.</p>`;
+      } else {
+        const years = tally(readable, (b) => b.readYear).sort((x, y) => y[0] - x[0]);
+        const y = years[0][0];   // 가장 최근 해
+        const ofYear = readable.filter((b) => b.readYear === y);
+        const pages = ofYear.reduce((s, b) => s + (b.pages || 0), 0);
+        rps.textContent = `${y}년의 서재`;
+        rp.innerHTML = `
+          <div class="pagenum"><b>${ofYear.length.toLocaleString()}</b><span>읽어낸 권</span></div>
+          <div class="pagenum dim"><b>${pages.toLocaleString()}</b><span>읽어낸 쪽</span></div>`;
+        const catline = document.createElement("p");
+        catline.className = "pagepct";
+        catline.textContent = tally(ofYear, (b) => b.cat)
+          .sort((x, z) => z[1] - x[1]).slice(0, 3)
+          .map(([c, v]) => `${c} ${v}권`).join(" · ");
+        rp.appendChild(catline);
+        if (years.length > 1) {
+          const past = document.createElement("p");
+          past.className = "statempty";
+          past.textContent = "— 그 전에는 "
+            + years.slice(1, 4).map(([yy, v]) => `${yy}년 ${v}권`).join(", ") + " —";
+          rp.appendChild(past);
+        }
+      }
+    }
+
+    renderLinkWeb(books);   // 이음의 별자리 — 데이터를 따로 받아와 그린다
+
     requestAnimationFrame(() => requestAnimationFrame(() => {
       grow.forEach(([el, prop, val]) => el.style[prop] = val);
     }));
+  }
+
+  /* ── 이음의 별자리 — 이어 둔 책들이 성좌를 이룬다 ──
+     이어진 책들만 별로 뜨고, 같은 성분(서로 닿는 무리)은 작은 원으로 모인다.
+     밑에는 「이어 둘까요」 — 시리즈인데 아직 이어지지 않은 무리를 제안한다. */
+  async function renderLinkWeb(books) {
+    const cvs = $("linkweb"), sug = $("linksuggest"), ps = $("ps-linkweb");
+    if (!cvs || !sug || !ps) return;
+    sug.innerHTML = "";
+    const db = window.PostLibrosDB;
+    const byId = new Map(books.filter((b) => b.id).map((b) => [b.id, b]));
+    let links = [];
+    if (db?.listAllLinks && byId.size) {
+      try { links = await db.listAllLinks(); }
+      catch (e) { console.warn("[별자리] 이음을 읽지 못했습니다:", e); }
+    }
+    const es = links.filter((l) => byId.has(l.book_id) && byId.has(l.linked_book_id));
+
+    const Wd = cvs.parentElement?.clientWidth ? cvs.parentElement.clientWidth - 2 : 600;
+    if (!es.length) {
+      ps.textContent = "책을 이어 두면 성좌가 뜹니다 — 서표의 「이음」 줄에서";
+      cvs.hidden = true;
+    } else {
+      // 연결 성분을 찾는다 — 성좌 하나가 성분 하나
+      const adj = new Map();
+      const join = (a, b2) => { if (!adj.has(a)) adj.set(a, new Set()); adj.get(a).add(b2); };
+      es.forEach((l) => { join(l.book_id, l.linked_book_id); join(l.linked_book_id, l.book_id); });
+      const seen = new Set(), comps = [];
+      for (const n of adj.keys()) {
+        if (seen.has(n)) continue;
+        const c = [], st = [n]; seen.add(n);
+        while (st.length) {
+          const x = st.pop(); c.push(x);
+          for (const m of adj.get(x) || []) if (!seen.has(m)) { seen.add(m); st.push(m); }
+        }
+        comps.push(c);
+      }
+      ps.textContent = `이음 ${es.length}개 · 성좌 ${comps.length}자리 — 별을 누르면 그 책이 펼쳐진다`;
+
+      // 성분마다 원으로 배치하고, 줄 수에 맞춰 캔버스 키를 정한다
+      const perRow = Math.max(1, Math.floor(Wd / 175));
+      const Ht = Math.max(150, Math.ceil(comps.length / perRow) * 130 + 10);
+      const pos = new Map();
+      comps.forEach((c, i) => {
+        const cx = 88 + (i % perRow) * 175, cy = 68 + Math.floor(i / perRow) * 130;
+        const r = Math.min(48, 14 + c.length * 5);
+        c.forEach((id, k) => {
+          const a = (k / c.length) * Math.PI * 2 - Math.PI / 2;
+          pos.set(id, c.length === 1
+            ? [cx, cy] : [cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+        });
+      });
+
+      cvs.hidden = false;
+      cvs.width = Wd * 2; cvs.height = Ht * 2;   // 레티나
+      cvs.style.width = Wd + "px"; cvs.style.height = Ht + "px";
+      const c2 = cvs.getContext("2d");
+      c2.scale(2, 2);
+      c2.clearRect(0, 0, Wd, Ht);
+      c2.strokeStyle = "rgba(151,116,47,.5)"; c2.lineWidth = 1;
+      es.forEach((l) => {
+        const p = pos.get(l.book_id), q2 = pos.get(l.linked_book_id);
+        if (!p || !q2) return;
+        c2.beginPath(); c2.moveTo(p[0], p[1]); c2.lineTo(q2[0], q2[1]); c2.stroke();
+      });
+      c2.font = "10px sans-serif"; c2.textAlign = "center";
+      for (const [id, [x, y]] of pos) {
+        c2.fillStyle = "#E0B15E";
+        c2.beginPath(); c2.arc(x, y, 2.6, 0, Math.PI * 2); c2.fill();
+        const t = byId.get(id)?.t || "";
+        c2.fillStyle = "rgba(226,213,184,.72)";
+        c2.fillText(t.length > 9 ? t.slice(0, 9) + "…" : t, x, y + 15);
+      }
+      // 별을 누르면 그 책 — 가장 가까운 별을 찾는다
+      cvs.onclick = (ev) => {
+        const r = cvs.getBoundingClientRect();
+        const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+        let hit = null, best = 18 * 18;
+        for (const [id, [x, y]] of pos) {
+          const d = (x - mx) ** 2 + (y - my) ** 2;
+          if (d < best) { best = d; hit = id; }
+        }
+        const b = hit && byId.get(hit);
+        if (b) openExlibris(b, bookWall(b));
+      };
+    }
+
+    /* 이어 둘까요 — 같은 밑동·지은이의 시리즈인데 이음이 하나도 없는 무리.
+       단추 하나로 이웃 권끼리 사슬처럼 잇는다 (1↔2, 2↔3 …). */
+    if (!db?.addLink) return;
+    const linked = new Set(es.map((l) => [l.book_id, l.linked_book_id].sort().join("|")));
+    const series = new Map();
+    books.forEach((b) => {
+      if (!b.id) return;
+      const m = b.t.match(SERIES_RE);
+      if (!m) return;
+      const key = m[1].trim().toLowerCase() + "|" + (b.a || "");
+      if (!series.has(key)) series.set(key, { base: m[1].trim(), vols: [] });
+      series.get(key).vols.push([Number(m[2]), b]);
+    });
+    let shown = 0;
+    for (const { base, vols } of series.values()) {
+      if (vols.length < 2 || shown >= 5) continue;
+      vols.sort((x, y) => x[0] - y[0]);
+      const pairs = [];
+      for (let i = 1; i < vols.length; i++) {
+        const a = vols[i - 1][1], b = vols[i][1];
+        if (!linked.has([a.id, b.id].sort().join("|"))) pairs.push([a, b]);
+      }
+      if (!pairs.length) continue;
+      shown++;
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "sugrow";
+      row.textContent = `「${base}」 ${vols.length}권을 시리즈로 잇는다`;
+      row.addEventListener("click", async () => {
+        row.disabled = true;
+        row.textContent = `「${base}」 잇는 중…`;
+        for (const [a, b] of pairs) {
+          try { await db.addLink(a.id, b.id); }
+          catch (err) { console.error("[별자리] 잇지 못했습니다:", err); }
+        }
+        renderLinkWeb(books);   // 새 성좌로 다시 그린다
+      });
+      sug.appendChild(row);
+    }
   }
 
   $("listmore").addEventListener("click", () => {
@@ -1341,7 +1542,9 @@
   $("x-bm").addEventListener("change", () => {
     const raw = $("x-bm").value.trim();
     const page = raw ? Math.max(1, parseInt(raw, 10) || 0) || null : null;
-    saveBook({ bookmark_page: page }, (b) => { b.bookmark = page; });
+    // 갈피를 꽂은 날도 같이 적는다 — 멈춘 지 얼마나 됐는지의 재료
+    const at = page ? new Date().toISOString() : null;
+    saveBook({ bookmark_page: page, bookmark_at: at }, (b) => { b.bookmark = page; b.bookmarkAt = at; });
   });
 
   /* ── 자리 (벽·단) ── */

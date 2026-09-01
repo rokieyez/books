@@ -122,6 +122,17 @@
         <p class="ps">서지를 채운 책 기준</p>
         <div id="pubbars"></div>
       </div>
+      <div class="statpanel" id="recap-panel">
+        <h4>그 해의 서재</h4>
+        <p class="ps" id="ps-recap"></p>
+        <div id="recapbody"></div>
+      </div>
+      <div class="statpanel wide" id="linkweb-panel">
+        <h4>이음의 별자리</h4>
+        <p class="ps" id="ps-linkweb">이어 둔 책들이 성좌를 이룹니다</p>
+        <canvas id="linkweb" height="240"></canvas>
+        <div id="linksuggest"></div>
+      </div>
       <div class="statpanel wide">
         <h4>여백의 기록</h4>
         <p class="ps" id="ps-memos"></p>
@@ -181,6 +192,8 @@
   <span class="lampline">바닥 · 책상 위 · 촛불이 켜져 있다</span>
   <h3 id="today-title">난장이가 쏘아올린 작은 공</h3>
   <p id="today-sub">오늘의 책 · 조세희 · 2025.12.01 입고 후 열어본 적 없음</p>
+  <!-- 읽는 중인 책들이 책상 위에 실제로 쌓인다 -->
+  <div class="deskpile" id="deskpile"></div>
   <button class="open-today" id="today-open">램프 아래에서 펼친다</button>
   <!-- "다음에 뭘 읽지"는 서재가 답한다 — 안 읽은 책 중 아무거나 -->
   <button class="open-today rand" id="today-rand" title="안 읽은 책 중에서 뽑는다">주사위를 굴린다</button>

@@ -256,6 +256,39 @@
       if (error) throw error;
     },
 
+    /* 이음 전체 — 별자리 그림과 이음 제안의 재료.
+       PostgREST 상한(1,000줄)을 넘길 수 있어 쪽으로 나눠 읽는다. */
+    async listAllLinks() {
+      const out = [];
+      for (let from = 0; from < 5000; from += 500) {
+        const { data, error } = await client
+          .from("book_links")
+          .select("id, book_id, linked_book_id")
+          .order("id")
+          .range(from, from + 499);
+        if (error) throw error;
+        out.push(...data);
+        if (data.length < 500) break;
+      }
+      return out;
+    },
+
+    /* 기록이 이미 있는 책들의 id — 일괄 짓기에서 빼놓을 목록 */
+    async listSummarizedIds() {
+      const out = [];
+      for (let from = 0; from < 5000; from += 500) {
+        const { data, error } = await client
+          .from("book_summaries")
+          .select("book_id")
+          .order("book_id")
+          .range(from, from + 499);
+        if (error) throw error;
+        out.push(...data.map((r) => r.book_id));
+        if (data.length < 500) break;
+      }
+      return out;
+    },
+
     /* ── 기록의 방 ── */
     async addArchiveItem(item) {
       const { data, error } = await client
