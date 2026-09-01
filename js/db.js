@@ -423,17 +423,14 @@
       return path;
     },
 
-    /* 서가를 그릴 때 조각들의 서명 주소를 한 번에 받는다.
-       토큰 갱신 때 서가를 다시 그리지 않으므로, 주소는 하루를 살아야 한다 */
-    async signSpineUrls(paths, seconds = 86400) {
-      if (!paths.length) return new Map();
-      const { data, error } = await client.storage
-        .from("covers")
-        .createSignedUrls(paths, seconds);
-      if (error) throw error;
+    /* 서가를 그릴 때 조각들의 주소를 만든다.
+       covers 버킷이 공개가 되어(공개 서재 전환) 서명이 필요 없다 —
+       주소만 조립하면 되고 네트워크도 타지 않는다. 방문자도 같은 길을 쓴다. */
+    async signSpineUrls(paths) {
       const map = new Map();
-      (data || []).forEach((d, i) => {
-        if (d?.signedUrl && !d.error) map.set(paths[i], d.signedUrl);
+      paths.forEach((p) => {
+        const { data } = client.storage.from("covers").getPublicUrl(p);
+        if (data?.publicUrl) map.set(p, data.publicUrl);
       });
       return map;
     },

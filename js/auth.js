@@ -112,14 +112,6 @@
       spineSigned = await db.signSpineUrls(books.map((b) => b.spine_url).filter(Boolean));
     } catch (e) { console.error("[서재] 책등 조각 주소를 받지 못했습니다:", e); }
 
-    // 종교의 벽 — 주인의 요청으로 생긴 다섯째 벽. 표본(방문자)에는 없어서
-    // 실제 장서를 실을 때 끼워 넣는다 (기록의 벽 앞자리).
-    if (!WALLS.some((w) => w.cat === "종교")) {
-      const at = WALLS.findIndex((w) => w.cat === "archive");
-      WALLS.splice(at < 0 ? WALLS.length : at, 0,
-        { nm: "종교의 벽", cat: "종교", n: 0, desc: "경전과 신학의 방", read: 0, books: [], featured: [], latchIdx: -1 });
-    }
-
     const byWall = {
       "역사": [], "문학": [], "과학": [], "예술사회": [], "종교": [],
     };
@@ -159,11 +151,13 @@
       console.error("[서재] 기록을 불러오지 못했습니다:", err);
     }
 
-    // 궤짝도 — 표본 예시를 실제 후보로 바꾼다
-    try {
-      window.PostLibrosRenderCrate?.(await db.listPending());
-    } catch (err) {
-      console.error("[서재] 궤짝을 불러오지 못했습니다:", err);
+    // 궤짝은 주인의 작업대 — 방문자 화면에는 없다 (RLS 도 막지만 헛걸음을 않는다)
+    if (sessionUser) {
+      try {
+        window.PostLibrosRenderCrate?.(await db.listPending());
+      } catch (err) {
+        console.error("[서재] 궤짝을 불러오지 못했습니다:", err);
+      }
     }
 
     // 진짜 장서가 도착했으니 기다리던 상태를 푼다
@@ -387,13 +381,17 @@
 
     if (!db) return;
     db.client.auth.onAuthStateChange((_evt, session) => reflect(session?.user ?? null));
-    // 표본을 그릴지 말지는 여기서 한 번만 정한다 (저장된 세션을 직접 읽는다)
-    db.currentUser().then((u) => {
-      reflect(u);
-      if (!u) window.PostLibrosShowSample?.();
-    }).catch((err) => {
+
+    /* 서재는 공개다 — 세션 확인을 기다리지 않고 곧장 장서를 싣는다.
+       주인이 들어오면 reflect 가 궤짝까지 실어 한 번 더 그린다.
+       끝내 못 실으면(통신 장애 등) 빈 벽이라도 보여준다 — 「여는 중」에
+       영원히 갇히는 것이 최악이다. */
+    loadRealLibrary().catch((err) => {
+      console.error("[서재] 장서를 불러오지 못했습니다:", err);
+      window.PostLibrosShowEmpty?.();
+    });
+    db.currentUser().then(reflect).catch((err) => {
       console.error("[열쇠] 세션을 확인하지 못했습니다:", err);
-      window.PostLibrosShowSample?.();   // 확인이 안 되면 표본이라도 보여준다
     });
   }
 

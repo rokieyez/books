@@ -1326,8 +1326,8 @@
     }
 
     /* 이어 둘까요 — 같은 밑동·지은이의 시리즈인데 이음이 하나도 없는 무리.
-       단추 하나로 이웃 권끼리 사슬처럼 잇는다 (1↔2, 2↔3 …). */
-    if (!db?.addLink) return;
+       단추 하나로 이웃 권끼리 사슬처럼 잇는다 (1↔2, 2↔3 …). 잇는 것은 주인만. */
+    if (!db?.addLink || !document.body.classList.contains("owner")) return;
     const linked = new Set(es.map((l) => [l.book_id, l.linked_book_id].sort().join("|")));
     const series = new Map();
     books.forEach((b) => {
@@ -1539,44 +1539,41 @@
     const owner = document.body.classList.contains("owner");
     const db = window.PostLibrosDB;
 
-    // 표본 화면에서는 미리 써 둔 글을 보여준다
-    if (!owner || !db || !b.id) {
-      const cur = CURATED[b.t];
-      $("x-edit").hidden = true;
-      $("x-memoedit").hidden = true;
-      $("x-full").hidden = !cur;
-      $("x-pending").hidden = !!cur;
-      $("x-memo").hidden = false;
-      if (cur) { $("x-summary").textContent = cur.s; $("x-memo").textContent = cur.m; }
-      return;
+    /* 서재는 공개다 — 방문자도 서지·기록·여백을 읽는다.
+       고치는 자리(x-edit)와 「기록을 부탁한다」만 주인의 것이다. */
+    $("x-edit").hidden = !owner;
+    $("x-memoedit").hidden = !owner;
+    $("x-memo").hidden = owner;
+    $("x-saved").hidden = true;
+    if (!owner) {
+      // 여백의 기록은 읽기 전용으로
+      $("x-memo").textContent = b.memo || "아직 여백에 적힌 말이 없다.";
+    } else {
+      $("x-memoedit").value = b.memo || "";
+      document.querySelectorAll("#x-status button").forEach(btn =>
+        btn.setAttribute("aria-selected", btn.dataset.st === b.st ? "true" : "false"));
+      $("x-wall").value = b.wall || "";
+      $("x-shelf").value = b.shelfNo || "";
+      $("x-t").value = b.t || "";
+      $("x-a").value = b.a || "";
+      $("x-enrich-note").textContent = "ISBN·표지·쪽수를 이 책만 다시 채웁니다";
+      $("x-enrich").disabled = false;
+      $("x-isbn").value = b.isbn || "";
+      $("x-cover-url").value = b.cover || "";
+      syncBookmarkRow(b);
+      syncReadYearRow(b);
+      renderLinks(b);
     }
 
-    /* ── 주인의 화면 ── */
-    $("x-edit").hidden = false;
-    $("x-memo").hidden = true;
-    $("x-memoedit").hidden = false;
-    $("x-memoedit").value = b.memo || "";
-    $("x-saved").hidden = true;
-
-    document.querySelectorAll("#x-status button").forEach(btn =>
-      btn.setAttribute("aria-selected", btn.dataset.st === b.st ? "true" : "false"));
-    $("x-wall").value = b.wall || "";
-    $("x-shelf").value = b.shelfNo || "";
-    $("x-t").value = b.t || "";
-    $("x-a").value = b.a || "";
-    $("x-enrich-note").textContent = "ISBN·표지·쪽수를 이 책만 다시 채웁니다";
-    $("x-enrich").disabled = false;
-    $("x-isbn").value = b.isbn || "";
-    $("x-cover-url").value = b.cover || "";
-    syncBookmarkRow(b);
-    syncReadYearRow(b);
-    renderLinks(b);
-
-    // 기록은 있으면 보여주고, 없으면 청할 수 있게 둔다
+    // 기록은 있으면 누구에게나 보여주고, 없을 때 짓는 단추는 주인에게만
     $("x-full").hidden = true;
     $("x-pending").hidden = false;
     $("x-none").textContent = "기록을 찾는 중…";
     $("x-gen").hidden = true;
+    if (!db || !b.id) {
+      $("x-none").textContent = "이 책의 기록은 아직 없습니다.";
+      return;
+    }
 
     db.getSummary(b.id).then((s) => {
       if (openBook !== b) return;          // 그새 다른 책을 폈다면 버린다
@@ -1584,16 +1581,18 @@
         $("x-summary").textContent = s.summary;
         $("x-full").hidden = false;
         $("x-pending").hidden = true;
+        // 방문자에게는 여백(메모)이 x-full 안에 있으니 함께 보인다
+        if (!owner) $("x-memo").hidden = false;
       } else {
         $("x-none").textContent = "이 책의 기록은 아직 없습니다.";
-        $("x-gen").hidden = false;
+        $("x-gen").hidden = !owner;
         $("x-gen").disabled = false;
         $("x-gen").textContent = "지금 기록을 부탁한다";
       }
     }).catch((err) => {
       if (openBook !== b) return;
       $("x-none").textContent = "기록을 읽지 못했습니다: " + (err.message || err);
-      $("x-gen").hidden = false;
+      $("x-gen").hidden = !owner;
     });
   }
 
@@ -2088,11 +2087,7 @@
     renderCensus();
     renderToday();
     renderShowcase();
-    // 주인 앞에서는 진짜 장서다 — 「데이터는 예시」를 걷는다
-    document.querySelector(".colophon").textContent =
-      document.body.classList.contains("owner")
-        ? "서가 뒤의 방 · rokiz.net"
-        : "서가 뒤의 방 — 여기 보이는 것은 표본입니다";
+    document.querySelector(".colophon").textContent = "서가 뒤의 방 · rokiz.net";
     if (curView === "covers") renderCovers();
     if (curView === "list") renderList();
     if (curView === "stats") renderStats();
@@ -2100,37 +2095,16 @@
   }
   window.PostLibrosRenderAll = renderAll;
 
-  /* 들어와 있는 사람이면 표본을 아예 그리지 않는다.
-     세션 확인은 서버를 다녀와야 하는데, 그 사이에 표본을 그려 두면
-     새로고침할 때마다 남의 책이 0.3초쯤 스쳤다가 사라진다.
-     브라우저에 저장된 세션은 곧바로 읽을 수 있으므로, 그것만 보고
-     "곧 진짜 장서가 온다"고 판단해 빈 서가로 기다린다. */
-  function hasStoredSession() {
-    try {
-      return Object.keys(localStorage).some(
-        (k) => k.startsWith("sb-") && k.includes("auth-token") && localStorage.getItem(k));
-    } catch { return false; }
-  }
-
-  let sampleShown = false;
-  function showSample() {
-    if (sampleShown) return;
-    sampleShown = true;
+  /* 서재는 공개다 — 로그인과 무관하게 누구나 실제 장서를 본다.
+     빈 뼈대를 그리지 않고, auth.js 의 loadRealLibrary 가 책을 실어 올 때까지
+     「여는 중」으로 기다린다. (예전의 방문자용 표본 데이터는 지웠다) */
+  document.body.classList.add("waking");
+  $("walls").innerHTML = `<p class="waking-note">서재를 여는 중…</p>`;
+  $("census-n").textContent = "장서를 세는 중";
+  /* 장서를 끝내 못 실었을 때 auth.js 가 부른다 — 빈 벽이라도 보여준다 */
+  window.PostLibrosShowEmpty = () => {
     document.body.classList.remove("waking");
     renderAll();
-  }
-  /* 세션이 없다고 판명되면(로그인 안 됨) 그때 표본을 그린다 — auth.js 가 부른다 */
-  window.PostLibrosShowSample = showSample;
-
-  // 어느 길로 시작했는지 남겨 둔다 — 표본이 스치는 문제를 다시 볼 때 단서가 된다
-  if (hasStoredSession()) {
-    document.documentElement.dataset.boot = "waiting";
-    document.body.classList.add("waking");
-    $("walls").innerHTML = `<p class="waking-note">서재를 여는 중…</p>`;
-    $("census-n").textContent = "장서를 세는 중";
-  } else {
-    document.documentElement.dataset.boot = "sample";
-    showSample();
-  }
+  };
 
   addEventListener("load", () => { layoutLadder(); updateLadder(); });

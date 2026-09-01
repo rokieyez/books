@@ -1455,11 +1455,7 @@
   /* 표본임을 밝히는 표 — 숫자 옆에 나란히 붙는다.
      census 가 세로 flex 라 ::after 를 census 에 걸면 아래로 떨어져 나온다.
      숫자 줄(.cnum)에 걸어야 한 줄에 앉는다. */
-  body:not(.owner) .topbar .cnum::after {
-    content: "표본"; margin-left: 7px;
-    border: 1px solid var(--line); border-radius: 2px;
-    padding: 0 5px; letter-spacing: .1em; color: var(--parchment-dim);
-  }
+
 
   /* ── 키 순서 — 서가 뷰 전용 토글 ── */
   .viewrow { display: flex; align-items: stretch; gap: 8px; }
@@ -1624,17 +1620,12 @@
     outline: none; background: rgba(224,177,94,.1);
   }
 
-  /* ── 표본 안내 — 방문자에게만 첫눈에 ── */
-  .samplenote {
-    display: none; margin: 10px 0 0;
-    font-size: 12px; letter-spacing: .06em; color: var(--brass-dim);
-    border: 1px dashed var(--line); border-radius: 2px;
-    padding: 6px 14px; width: fit-content; margin-inline: auto;
-  }
-  body:not(.owner) .samplenote { display: block; }
 
   /* ── 작가의 별자리 ── */
   #authorweb { display: block; max-width: 100%; cursor: pointer; }
 
   /* 표지 주소 입력칸 — 주소는 길다 */
   .x-edit #x-cover-url { width: auto; flex: 1; min-width: 180px; }
+
+  /* ── 궤짝은 주인의 작업대 — 방문자 화면에는 없다 ── */
+  body:not(.owner) .crate { display: none !important; }
