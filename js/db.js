@@ -172,6 +172,16 @@
       );
     },
 
+    /* 한 권만 서지를 받아온다 — 서표의 단추.
+       이미 물어본 책이어도 다시 묻는다. */
+    async enrichBook(bookId) {
+      return guard(
+        client.functions.invoke("enrich-books", { body: { book_id: bookId } }),
+        30000,
+        "서지 받아오기",
+      );
+    },
+
     /* 책을 뺀다 — 잘못 읽힌 것을 지운다.
        요약은 book_id 를 따라 함께 지워진다 (on delete cascade). */
     async removeBook(id) {
@@ -297,6 +307,15 @@
         .order("created_at");
       if (error) throw error;
       return data;
+    },
+
+    /* 후보가 전부 틀렸을 때 — 책을 만들지 않고 궤짝에서만 내린다 */
+    async dismissCandidate(candidateId) {
+      const { error } = await client
+        .from("intake_candidates")
+        .update({ status: "버림" })
+        .eq("id", candidateId);
+      if (error) throw error;
     },
 
     async resolveCandidate(candidateId, book) {

@@ -551,6 +551,11 @@
     padding: 5px 12px;
   }
   .cand:hover, .cand:focus-visible { border-color: var(--brass-dim); outline: none; }
+  /* 버리는 단추는 고르는 단추와 헷갈리면 안 된다 — 어둡고 붉게 */
+  .cand.drop { color: var(--parchment-dim); border-style: dashed; }
+  .cand.drop:hover, .cand.drop:focus-visible, .cand.drop[data-sure] {
+    color: #C96F5A; border-color: #8E2F23;
+  }
   .crateitem.resolved .cands { opacity: .4; }
   .crateitem.resolved .guess::after { content: " ✓ 꽂았다"; color: var(--brass); }
 
@@ -867,6 +872,17 @@
     color: var(--parchment-dim); background: none;
     border: 1px dashed var(--line); border-radius: 2px;
   }
+  /* 서지 받아오기 — 지우는 단추와 달리 놋빛으로, 위험이 없음을 알린다 */
+  .x-enrich {
+    appearance: none; cursor: pointer; padding: 5px 12px;
+    font: inherit; font-size: 11.5px;
+    color: var(--brass-dim); background: none;
+    border: 1px solid var(--line); border-radius: 2px;
+  }
+  .x-enrich:hover, .x-enrich:focus-visible {
+    color: var(--brass); border-color: var(--brass-dim); outline: none;
+  }
+  .x-enrich:disabled { opacity: .45; cursor: default; }
   .x-remove:hover, .x-remove:focus-visible {
     color: var(--wax); border-color: var(--wax);
     background: rgba(142,47,35,.08); outline: none;

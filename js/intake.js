@@ -20,6 +20,8 @@
   const WALLS = ["역사", "문학", "과학", "예술사회"];
   /* 분류가 곧 벽이다 — Edge Function 의 wallFor, DB 의 wall_for_category 와 같은 규칙 */
   const WALL_OF = { 역사: "역사", 문학: "문학", 과학: "과학", 예술: "예술사회", 사회: "예술사회" };
+  /* 궤짝(app.js)도 같은 규칙으로 꽂아야 한다 — 규칙을 네 벌로 만들지 않는다 */
+  window.PostLibrosWallOf = (cat) => WALL_OF[cat] || "문학";
 
   let queueBusy = false;
 
@@ -295,8 +297,8 @@
       try {
         const rows = await db.listBooks({ limit: 5000 });
         const cols = ["title", "author", "category", "publisher", "isbn", "published_year",
-                      "read_status", "wall", "shelf", "slot", "acquired_on", "memo", "cover_url"];
-        const head = ["제목","지은이","분류","펴낸곳","ISBN","펴낸해",
+                      "page_count", "read_status", "wall", "shelf", "slot", "acquired_on", "memo", "cover_url"];
+        const head = ["제목","지은이","분류","펴낸곳","ISBN","펴낸해","쪽수",
                       "읽음","벽","단","자리","입고","여백","표지"];
         const cell = (v) => {
           const s = v == null ? "" : String(v);
@@ -349,6 +351,7 @@
       };
 
       draw("알라딘에 묻는 중… (스무 권에 1분쯤)");
+      let lastRemain = -1;
       while (!enrichStop) {
         회++;
         const { data, error } = await db.enrichBooks(20);
@@ -357,6 +360,12 @@
                + ` (여기까지 ${채움}권)`, "bad");
           break;
         }
+        // 돌았는데 줄지 않았다 — 통신이 계속 어긋나는 것이니 헛돌지 않는다
+        if (data.남음 === lastRemain && !data.채움) {
+          draw(`앞으로 나아가지 못해 멈췄습니다 — ${채움}권 채움 · ${data.남음}권 남음. 잠시 뒤 다시 눌러 보세요.`, "bad");
+          break;
+        }
+        lastRemain = data.남음;
         채움 += data.채움; 못찾음 += data.못찾음; 겹침 += data.겹침;
         고침.push(...(data.고침 || []));
         살펴볼것.push(...(data.살펴볼것 || []));

@@ -103,7 +103,8 @@
 
   /* ── 서재를 표본에서 진짜 장서로 바꾼다 ── */
   async function loadRealLibrary() {
-    const books = await db.listBooks({ limit: 2000 });
+    // 쪽 단위로 끝까지 읽는다 — 상한은 db.js 의 기본값(5,000)에 맡긴다
+    const books = await db.listBooks();
     const byWall = {
       "역사": [], "문학": [], "과학": [], "예술사회": [],
     };
@@ -156,7 +157,9 @@
   /* 책등을 읽고 나면 서가를 다시 그려야 한다 — intake.js 가 부른다 */
   window.PostLibrosRefresh = loadRealLibrary;
 
-  /* 책등의 크기와 색은 DB 에 없다 — 제목에서 결정적으로 만들어 항상 같은 모습이 되게 한다 */
+  /* 책등의 크기와 색은 DB 에 없다 — 제목에서 결정적으로 만들어 항상 같은 모습이 되게 한다.
+     단, 쪽수를 알면 두께는 진짜를 따른다: 백 쪽짜리 시집은 얇게, 벽돌책은 두껍게.
+     (13~34px — 150쪽 ≈ 13, 400쪽 ≈ 22, 700쪽 이상은 34에서 멈춘다) */
   const CLOTH = ["#5C3A22", "#6E2A1E", "#2E4630", "#28323E", "#4A2E3A", "#77522A", "#3A3A30"];
   function shapeForShelf(b) {
     let h = 0;
@@ -168,7 +171,10 @@
       cat: b.category || "문학",
       c: b.spine_color || CLOTH[h % CLOTH.length],
       h: 78 + (h % 40),
-      w2: 17 + ((h >> 5) % 9),
+      w2: b.page_count
+        ? Math.max(13, Math.min(34, Math.round(8 + b.page_count / 28)))
+        : 17 + ((h >> 5) % 9),
+      pages: b.page_count || null,
       year: b.acquired_on ? Number(b.acquired_on.slice(0, 4)) : null,
       st: b.read_status,
       // 서표에서 고칠 때 쓰는 원본 값들 — 화면용 loc 만으로는 되돌릴 수 없다
@@ -184,6 +190,11 @@
   }
 
   /* ── 세션 상태를 화면에 반영 ── */
+  /* 마지막으로 장서를 실어 온 사람 — 같은 사람이면 다시 싣지 않는다.
+     onAuthStateChange 는 토큰이 갱신될 때마다(한 시간에 한 번쯤) 울리는데,
+     그때마다 서가를 통째로 다시 그리면 보던 화면이 벌컥 뒤집힌다. */
+  let loadedFor = null;
+
   async function reflect(user) {
     const mark = document.querySelector(".topbar .mark");
     sessionUser = user ?? null;
@@ -193,7 +204,9 @@
       keyBtn.classList.add("in");
       document.body.classList.add("owner");
       el("gate-who").textContent = user.email;
+      if (loadedFor === user.id) return;   // 토큰 갱신일 뿐 — 서가는 그대로 둔다
       try {
+        loadedFor = user.id;
         const n = await loadRealLibrary();
         // 비밀번호를 정하는 중이라면 닫지 않는다 — 방금 띄운 안내가 사라진다
         // (setPassword 도 USER_UPDATED 로 여기까지 온다)
@@ -202,9 +215,11 @@
           mark.setAttribute("title", "아직 꽂힌 책이 없습니다 — 궤짝에 책을 넣어 시작하세요");
         }
       } catch (err) {
+        loadedFor = null;   // 못 실었다 — 다음 울림에 다시 싣는다
         console.error("[서재] 장서를 불러오지 못했습니다:", err);
       }
     } else {
+      loadedFor = null;
       keyBtn.textContent = "열쇠";
       keyBtn.classList.remove("in");
       document.body.classList.remove("owner");
