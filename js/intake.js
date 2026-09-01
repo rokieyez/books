@@ -161,12 +161,30 @@
         <div class="ph"></div>
         <figcaption>${where}<span class="pst">${p.status}</span></figcaption>
         <button class="phdel" aria-label="이 사진을 버린다">버린다</button>
-        <button class="phread">${done ? "다시 읽는다" : "책등을 읽는다"}</button>
+        <button class="phread${done ? " again" : ""}">${done ? "↻ 다시 읽는다" : "책등을 읽는다"}</button>
         <p class="phnote">${p.note ? p.note : ""}</p>`;
       grid.appendChild(card);
 
       card.querySelector(".phread").addEventListener("click", async (ev) => {
         const btn = ev.currentTarget;
+
+        /* 이미 읽은 사진을 다시 읽으면 같은 책이 한 번 더 꽂힌다.
+           되돌리기가 없으므로 한 번 더 묻는다 — 실수로 눌렀을 때
+           빠져나갈 자리를 준다. */
+        if (btn.classList.contains("again") && !btn.dataset.sure) {
+          btn.dataset.sure = "1";
+          btn.classList.add("warn");
+          btn.textContent = "정말? 같은 책이 또 꽂힙니다";
+          setTimeout(() => {
+            if (!btn.dataset.sure) return;
+            delete btn.dataset.sure;
+            btn.classList.remove("warn");
+            btn.textContent = "↻ 다시 읽는다";
+          }, 4000);
+          return;
+        }
+        delete btn.dataset.sure;
+        btn.classList.remove("warn");
         btn.disabled = true;
         const note = card.querySelector(".phnote");
         note.textContent = "책등을 읽는 중… (수십 권이면 1분쯤 걸립니다)";
