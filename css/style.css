@@ -23,6 +23,14 @@
   * { box-sizing: border-box; }
   /* 브라우저 스크롤바 숨김 — 사다리가 위치를 알려준다 */
   html { scrollbar-width: none; }
+
+  /* 가로 넘침 주의: 스크롤바를 숨겨 두었기 때문에 무언가 옆으로 조금만
+     넘쳐도 모바일에서는 화면이 축소되며 "좌우 여백이 넓어진" 것처럼 보이고,
+     정작 원인은 보이지 않는다.
+     html/body 에 overflow-x: clip 을 걸어 한 번에 막으려 해봤지만 통하지
+     않는다 — 뿌리 요소의 overflow 는 뷰포트로 전파되어 clip 이 무시된다
+     (직접 재본 결과). hidden 은 통하더라도 상단 막대의 position: sticky 를
+     깨뜨리므로 쓰지 말 것. 넘치는 요소를 하나씩 잡는 수밖에 없다. */
   html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; }
   body {
     background: var(--dark); color: var(--parchment);
@@ -456,6 +464,9 @@
   .cratelid::before { left: -3px; border-radius: 16px 2px 8px 2px; }
   .cratelid::after { right: -3px; border-radius: 2px 16px 2px 8px; }
   .cratewrap.open .cratelid { transform: rotateX(104deg); opacity: 0; pointer-events: none; }
+  /* 다 열린 뒤 — 투명하게 두지 않고 아예 치운다 (app.js 가 붙인다).
+     젖혀진 판이 자리에 남으면 모바일에서 가로 넘침으로 계산될 수 있다. */
+  .cratewrap.shut .cratelid { display: none; }
   .cratelid:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
   .cratelid .strap { /* 녹슬어 어두워진 무쇠 띠 — 리벳도 세월에 바랬다 */
     position: absolute; top: -3px; bottom: -3px; width: 38px;
@@ -595,7 +606,9 @@
   }
   .intake-queue .qs {
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
-    color: var(--brass-dim); white-space: nowrap; letter-spacing: .06em;
+    color: var(--brass-dim); letter-spacing: .06em;
+    /* 실패 사유가 길 수 있다 — 한 줄로 붙들면 좁은 화면에서 넘친다 */
+    text-align: right; overflow-wrap: anywhere;
   }
   .intake-queue li.done .qs { color: var(--st-done); }
   .intake-queue li.bad .qs { color: var(--wax); }

@@ -341,7 +341,21 @@
 
   /* ── 궤짝: 자물쇠 → 뚜껑 열림 ─────────────────────────── */
   $("cratelid").addEventListener("click", () => {
-    $("cratewrap").classList.add("open");
+    const wrap = $("cratewrap");
+    wrap.classList.add("open");
+
+    /* 다 열린 뚜껑은 화면에서 아예 치운다.
+       투명해지기만 하면 3D 로 젖혀진 판이 자리에는 그대로 남아, 일부
+       모바일 브라우저에서 가로로 삐져나온 것으로 계산된다. 그러면 화면이
+       축소되며 좌우 여백만 넓어진 것처럼 보인다.
+       transitionend 를 기다리되, 모션을 끈 환경에서는 그 신호가 오지
+       않으므로 시간제한을 함께 둔다. */
+    const tuck = () => wrap.classList.add("shut");
+    const lid = $("cratelid");
+    lid.addEventListener("transitionend", (e) => {
+      if (e.propertyName === "transform") tuck();
+    }, { once: true });
+    setTimeout(tuck, 1300);
   });
   document.querySelectorAll(".cand").forEach(c => {
     c.addEventListener("click", () => {
