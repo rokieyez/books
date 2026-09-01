@@ -157,9 +157,11 @@
   /* 책등을 읽고 나면 서가를 다시 그려야 한다 — intake.js 가 부른다 */
   window.PostLibrosRefresh = loadRealLibrary;
 
-  /* 책등의 크기와 색은 DB 에 없다 — 제목에서 결정적으로 만들어 항상 같은 모습이 되게 한다.
-     단, 쪽수를 알면 두께는 진짜를 따른다: 백 쪽짜리 시집은 얇게, 벽돌책은 두껍게.
-     (13~34px — 150쪽 ≈ 13, 400쪽 ≈ 22, 700쪽 이상은 34에서 멈춘다) */
+  /* 책등의 크기와 색은 되도록 실물을 따른다.
+     - 키: 알라딘이 알려준 실제 높이(mm)가 있으면 그것을 (0.52px/mm, 70~130px).
+       사륙판 188mm ≈ 98px, 신국판 225mm ≈ 117px, 문고판 148mm ≈ 77px.
+     - 두께: 실제 등두께(mm)가 있으면 그것을 (1.1px/mm), 없으면 쪽수로 어림,
+       그것도 없으면 제목 해시로 물러난다 — 항상 같은 모습이 되도록 결정적으로. */
   const CLOTH = ["#5C3A22", "#6E2A1E", "#2E4630", "#28323E", "#4A2E3A", "#77522A", "#3A3A30"];
   function shapeForShelf(b) {
     let h = 0;
@@ -170,11 +172,16 @@
       a: b.author || "지은이 미상",
       cat: b.category || "문학",
       c: b.spine_color || CLOTH[h % CLOTH.length],
-      h: 78 + (h % 40),
-      w2: b.page_count
+      h: b.size_height
+        ? Math.max(70, Math.min(130, Math.round(b.size_height * 0.52)))
+        : 78 + (h % 40),
+      w2: b.size_depth
+        ? Math.max(12, Math.min(36, Math.round(b.size_depth * 1.1)))
+        : b.page_count
         ? Math.max(13, Math.min(34, Math.round(8 + b.page_count / 28)))
         : 17 + ((h >> 5) % 9),
       pages: b.page_count || null,
+      bookmark: b.bookmark_page || null,
       year: b.acquired_on ? Number(b.acquired_on.slice(0, 4)) : null,
       st: b.read_status,
       // 서표에서 고칠 때 쓰는 원본 값들 — 화면용 loc 만으로는 되돌릴 수 없다

@@ -277,6 +277,51 @@
     note.textContent = "책등은 읽었지만 어느 책인지 갈립니다 — 하나를 골라주세요.";
     box.appendChild(note);
 
+    // 방금 한꺼번에 꽂은 결과 — 다시 그려도 한 번은 보여준다
+    if (renderCrate._msg) {
+      note.textContent = renderCrate._msg;
+      renderCrate._msg = null;
+    }
+
+    /* 후보를 책으로 바꾼다 — 사진에 적어 둔 벽·단이 우선, 없으면 분류로 */
+    const bookOf = (c, cand) => {
+      const category = cand.category || "문학";
+      const photo = c.intake_photos || {};
+      return {
+        title: cand.title, author: cand.author || null, category,
+        wall: photo.wall || window.PostLibrosWallOf?.(category) || "문학",
+        shelf: photo.shelf ?? null,
+      };
+    };
+
+    /* 후보가 하나뿐인 책은 고를 것이 없다 — 실제 사진에서 궤짝의 거의 전부가
+       이랬다 (85권 중 85권). 하나씩 누르게 하지 않고 한꺼번에 꽂는다.
+       확신이 아주 낮은 것(0.6 미만)은 띠지·오독일 수 있어 손에 남긴다. */
+    const easy = list.filter((c) =>
+      (c.candidates || []).length === 1 && Number(c.confidence ?? 0) >= 0.6);
+    if (easy.length > 1) {
+      const bulk = document.createElement("button");
+      bulk.className = "crate-bulk";
+      bulk.textContent = `믿을 만한 ${easy.length}권을 한꺼번에 꽂는다 — 후보가 하나뿐인 책들`;
+      bulk.addEventListener("click", async () => {
+        bulk.disabled = true;
+        let ok = 0, dup = 0, bad = 0;
+        for (let i = 0; i < easy.length; i++) {
+          bulk.textContent = `꽂는 중… ${i + 1} / ${easy.length}`;
+          try {
+            const r = await window.PostLibrosDB.resolveCandidate(
+              easy[i].id, bookOf(easy[i], easy[i].candidates[0]));
+            if (r?.dup) dup++; else ok++;
+          } catch (err) { bad++; console.error("[궤짝] 꽂지 못했습니다:", err); }
+        }
+        renderCrate._msg = `${ok}권을 꽂았습니다`
+          + (dup ? ` · 이미 꽂혀 있던 ${dup}권은 접었습니다` : "")
+          + (bad ? ` · ${bad}권은 실패했습니다 — 남아 있습니다` : "");
+        await window.PostLibrosRefresh?.();
+      });
+      box.appendChild(bulk);
+    }
+
     list.forEach((c) => {
       const item = document.createElement("div");
       item.className = "crateitem";
@@ -292,14 +337,8 @@
         btn.addEventListener("click", async () => {
           btn.disabled = true;
           try {
-            const category = cand.category || "문학";
-            // 사진에 적어 둔 벽·단이 있으면 그것이 우선이다 — 없으면 분류로 정한다
-            const photo = c.intake_photos || {};
-            await window.PostLibrosDB.resolveCandidate(c.id, {
-              title: cand.title, author: cand.author || null, category,
-              wall: photo.wall || window.PostLibrosWallOf?.(category) || "문학",
-              shelf: photo.shelf ?? null,
-            });
+            const r = await window.PostLibrosDB.resolveCandidate(c.id, bookOf(c, cand));
+            if (r?.dup) renderCrate._msg = "이미 꽂혀 있던 책이라 접었습니다 — 다른 사진에 두 번 찍힌 것입니다.";
             item.classList.add("resolved");
             await window.PostLibrosRefresh?.();
           } catch (err) {
@@ -364,8 +403,10 @@
      날짜를 씨앗으로 쓰면 하루 안에서는 늘 같은 책, 다음 날은 다른 책. */
   function renderToday() {
     const books = allBooks();
-    const unread = books.filter(b => b.st !== "읽음");
-    const pool = unread.length ? unread : books;
+    // 읽다 만 책이 있으면 그 책이 먼저다 — 새 책은 그다음
+    const reading = books.filter(b => b.st === "읽는 중");
+    const unread = books.filter(b => b.st === "안 읽음");
+    const pool = reading.length ? reading : (unread.length ? unread : books);
     const day = new Date().toISOString().slice(0, 10);
     let seed = 0;
     for (let i = 0; i < day.length; i++) seed = (seed * 31 + day.charCodeAt(i)) >>> 0;
@@ -379,7 +420,13 @@
     }
     btn.hidden = false;
     t.textContent = pick.t;
-    s.textContent = `오늘의 책 · ${pick.a}${pick.year ? " · " + pick.year + " 입고" : ""}`;
+    const marks = [`오늘의 책 · ${pick.a}`];
+    if (pick.st === "읽는 중") {
+      marks.push(pick.bookmark
+        ? `갈피 ${pick.bookmark.toLocaleString()}쪽${pick.pages ? " / " + pick.pages.toLocaleString() + "쪽" : ""}`
+        : "읽는 중");
+    } else if (pick.year) marks.push(pick.year + " 입고");
+    s.textContent = marks.join(" · ");
     todayBook = pick;
   }
   let todayBook = null;
@@ -481,30 +528,88 @@
     });
   }
 
+  /* 시리즈 접기 — 「토지 1」…「토지 20」이 스무 줄을 차지하지 않게.
+     제목 끝의 권수를 접고, 같은 밑동·지은이가 두 권 이상이면 시리즈로 본다.
+     정렬이나 검색 중에는 접지 않는다 — 그때는 낱권이 답이다. */
+  const SERIES_RE = /^(.*?)[\s·-]+(\d{1,3})$/;
+  const expandedSeries = new Set();
+  function seriesRows(list) {
+    const groups = new Map(), order = [];
+    list.forEach((b) => {
+      const m = b.t.match(SERIES_RE);
+      if (m) {
+        const key = m[1].trim() + "␟" + b.a;
+        if (!groups.has(key)) { groups.set(key, []); order.push({ g: key, base: m[1].trim() }); }
+        groups.get(key).push(b);
+      } else order.push({ b });
+    });
+    const rows = [];
+    order.forEach((o) => {
+      if (o.b) { rows.push(o); return; }
+      const g = groups.get(o.g);
+      if (g.length < 2) { rows.push({ b: g[0] }); return; }   // 한 권뿐이면 낱권이다
+      rows.push({ series: o.g, base: o.base, books: g });
+    });
+    return rows;
+  }
+
+  function bookRow(b, sub) {
+    const tr = document.createElement("tr");
+    if (sub) tr.className = "subrow";
+    tr.innerHTML = `<td class="t"></td><td></td><td></td>
+      <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${b.st}</td>
+      <td>${b.year ?? ""}</td><td></td>`;
+    tr.children[0].textContent = (sub ? "└ " : "") + b.t;
+    tr.children[1].textContent = b.a;
+    tr.children[2].textContent = b.cat;
+    tr.children[5].textContent = b.loc;
+    tr.addEventListener("click", () => openExlibris(b, bookWall(b)));
+    return tr;
+  }
+
+  function seriesRow(r) {
+    const open = expandedSeries.has(r.series);
+    const read = r.books.filter((x) => x.st === "읽음").length;
+    const tr = document.createElement("tr");
+    tr.className = "seriesrow";
+    tr.innerHTML = `<td class="t"><i class="fold">${open ? "▾" : "▸"}</i> <b></b> <span class="cnt">${r.books.length}권</span></td>
+      <td></td><td></td><td>읽음 ${read}/${r.books.length}</td><td></td><td></td>`;
+    tr.querySelector("b").textContent = r.base;
+    tr.children[1].textContent = r.books[0].a;
+    tr.children[2].textContent = r.books[0].cat;
+    tr.children[5].textContent = r.books[0].loc;
+    tr.addEventListener("click", () => {
+      if (open) expandedSeries.delete(r.series); else expandedSeries.add(r.series);
+      renderList();
+    });
+    return tr;
+  }
+
   function renderList() {
     const body = $("listbody"); body.innerHTML = "";
     const list = sortedBooks();
-    list.slice(0, listShown).forEach(b => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td class="t"></td><td></td><td></td>
-        <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${b.st}</td>
-        <td>${b.year}</td><td></td>`;
-      tr.children[0].textContent = b.t;
-      tr.children[1].textContent = b.a;
-      tr.children[2].textContent = b.cat;
-      tr.children[5].textContent = b.loc;
-      tr.addEventListener("click", () => openExlibris(b, bookWall(b)));
-      body.appendChild(tr);
+    const grouping = !sortKey && !q();
+    const rows = grouping ? seriesRows(list) : list.map((b) => ({ b }));
+    // 펼친 시리즈는 헤더 밑에 낱권을 늘어놓는다
+    const flat = [];
+    rows.forEach((r) => {
+      flat.push(r);
+      if (r.series && expandedSeries.has(r.series)) r.books.forEach((b) => flat.push({ b, sub: true }));
     });
-    const shown = Math.min(listShown, list.length);
+    flat.slice(0, listShown).forEach((r) => {
+      body.appendChild(r.series ? seriesRow(r) : bookRow(r.b, r.sub));
+    });
+    const shown = Math.min(listShown, flat.length);
     $("listnote").textContent = list.length
-      ? `${list.length.toLocaleString()}권 중 ${shown.toLocaleString()}권 표시`
+      ? `${list.length.toLocaleString()}권`
+        + (grouping && flat.length < list.length ? ` · 시리즈는 접혀 있습니다 — 줄을 눌러 펼칩니다` : "")
+        + (shown < flat.length ? ` · ${shown.toLocaleString()}줄 표시` : "")
         + (q() ? ` (검색어: "${$("q").value.trim()}")` : "")
         + (sortKey ? ` · ${sortAsc ? "오름차순" : "내림차순"}` : "")
       : (q() ? `"${$("q").value.trim()}" — 찾지 못했습니다` : "아직 꽂힌 책이 없습니다.");
     const more = $("listmore");
-    more.hidden = shown >= list.length;
-    more.textContent = `더 본다 (${(list.length - shown).toLocaleString()}권 남음)`;
+    more.hidden = shown >= flat.length;
+    more.textContent = `더 본다 (${(flat.length - shown).toLocaleString()}줄 남음)`;
   }
 
   /* 통계 뷰 — 숫자는 전부 지금 꽂혀 있는 책에서 센다.
@@ -523,7 +628,8 @@
     const books = allBooks();
     const n = books.length;
 
-    ["catbars", "yearcols", "statusbar", "authorbars"].forEach((id) => $(id).innerHTML = "");
+    ["catbars", "yearcols", "statusbar", "authorbars", "pagesum", "wallbars", "memolist"]
+      .forEach((id) => { const el = $(id); if (el) el.innerHTML = ""; });
     $("statuslegend").innerHTML = "";
 
     // 빈 서가에 가짜 숫자를 세우지 않는다
@@ -596,6 +702,63 @@
       grow.push([el.querySelector(".fill"), "width", Math.round(v/amax*100) + "%"]);
       ab.appendChild(el);
     });
+    /* ── 읽어낸 쪽수 — 권수보다 정직한 숫자 ── */
+    const paged = books.filter((b) => b.pages);
+    const totalPages = paged.reduce((s, b) => s + b.pages, 0);
+    const readPages = paged.reduce((s, b) =>
+      s + (b.st === "읽음" ? b.pages : (b.st === "읽는 중" && b.bookmark ? Math.min(b.bookmark, b.pages) : 0)), 0);
+    const pp = $("ps-pages"), ps = $("pagesum");
+    if (pp && ps) {
+      if (!paged.length) {
+        pp.textContent = "쪽수를 아는 책이 아직 없습니다";
+        ps.innerHTML = `<p class="statempty">서지를 채우면 알라딘이 쪽수를 알려줍니다.</p>`;
+      } else {
+        pp.textContent = `쪽수를 아는 ${paged.length.toLocaleString()}권 기준`;
+        const pct = totalPages ? Math.round(readPages / totalPages * 100) : 0;
+        ps.innerHTML = `
+          <div class="pagenum"><b>${readPages.toLocaleString()}</b><span>읽어낸 쪽</span></div>
+          <div class="pagenum dim"><b>${totalPages.toLocaleString()}</b><span>서가 전체 쪽</span></div>
+          <div class="pagebar"><i style="width:${pct}%"></i></div>
+          <p class="pagepct">${pct}% — 읽는 중인 책은 갈피까지 센다</p>`;
+      }
+    }
+
+    /* ── 벽별 읽음률 ── */
+    const wb = $("wallbars");
+    if (wb) {
+      WALLS.filter((w) => w.cat !== "archive" && w.n).forEach((w) => {
+        const el = document.createElement("div"); el.className = "hbar";
+        el.innerHTML = `<span class="lb"></span><span class="track"><span class="fill" style="width:0%;background:var(--st-done)"></span></span><span class="val">${w.read}%</span>`;
+        el.querySelector(".lb").textContent = w.nm.replace("의 벽", "");
+        el.title = `${w.nm} ${w.n.toLocaleString()}권 중 ${w.read}% 읽음`;
+        grow.push([el.querySelector(".fill"), "width", w.read + "%"]);
+        wb.appendChild(el);
+      });
+      if (!wb.children.length) wb.innerHTML = `<p class="statempty">벽에 책이 꽂히면 셈이 섭니다.</p>`;
+    }
+
+    /* ── 여백의 기록 — 흩어진 메모를 한자리에 ── */
+    const ml = $("memolist"), pm = $("ps-memos");
+    if (ml && pm) {
+      const memos = books.filter((b) => b.memo);
+      pm.textContent = memos.length
+        ? `${memos.length.toLocaleString()}권의 여백에 글이 있습니다`
+        : "서표의 여백에 적으면 여기 모입니다";
+      memos.slice(0, 12).forEach((b) => {
+        const el = document.createElement("button"); el.className = "memorow";
+        el.innerHTML = `<b></b><span></span>`;
+        el.querySelector("b").textContent = b.t;
+        el.querySelector("span").textContent = b.memo;
+        el.addEventListener("click", () => openExlibris(b, bookWall(b)));
+        ml.appendChild(el);
+      });
+      if (memos.length > 12) {
+        const more = document.createElement("p"); more.className = "statempty";
+        more.textContent = `— 그 밖에 ${memos.length - 12}권의 여백이 더 있다 —`;
+        ml.appendChild(more);
+      }
+    }
+
     requestAnimationFrame(() => requestAnimationFrame(() => {
       grow.forEach(([el, prop, val]) => el.style[prop] = val);
     }));
@@ -773,6 +936,7 @@
     $("x-a").value = b.a || "";
     $("x-enrich-note").textContent = "ISBN·표지·쪽수를 이 책만 다시 채웁니다";
     $("x-enrich").disabled = false;
+    syncBookmarkRow(b);
 
     // 기록은 있으면 보여주고, 없으면 청할 수 있게 둔다
     $("x-full").hidden = true;
@@ -859,7 +1023,25 @@
       document.querySelectorAll("#x-status button").forEach((o) =>
         o.setAttribute("aria-selected", o === btn ? "true" : "false"));
       saveBook({ read_status: st }, (b) => { b.st = st; });
+      syncBookmarkRow(openBook && { ...openBook, st });
     });
+  });
+
+  /* ── 갈피 — 읽는 중일 때만 보인다 ── */
+  function syncBookmarkRow(b) {
+    const row = $("x-bm-row");
+    if (!row) return;
+    row.hidden = !b || b.st !== "읽는 중";
+    if (row.hidden) return;
+    $("x-bm").value = b.bookmark || "";
+    $("x-bm-hint").textContent = b.pages
+      ? `전체 ${b.pages.toLocaleString()}쪽`
+      : "읽다 만 자리를 적어 둡니다";
+  }
+  $("x-bm").addEventListener("change", () => {
+    const raw = $("x-bm").value.trim();
+    const page = raw ? Math.max(1, parseInt(raw, 10) || 0) || null : null;
+    saveBook({ bookmark_page: page }, (b) => { b.bookmark = page; });
   });
 
   /* ── 자리 (벽·단) ── */

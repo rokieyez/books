@@ -86,12 +86,15 @@ async function aladin(key: string, query: string) {
 
 /* 쪽수는 검색(ItemSearch)에는 없고 조회(ItemLookUp)의 subInfo 에 온다.
    ISBN 을 알아낸 뒤 한 번 더 물어야 한다. 조회에는 출판사·표지도 같이
-   오므로, ISBN 만 있고 나머지가 빈 책을 마저 채우는 데도 쓴다. */
+   오므로, ISBN 만 있고 나머지가 빈 책을 마저 채우는 데도 쓴다.
+   OptResult=packing 을 붙이면 실물 크기(mm)도 온다 — 책등을 진짜
+   판형대로 그리는 데 쓴다 (subInfo.packing.sizeHeight/sizeDepth). */
 async function aladinLookup(key: string, isbn: string) {
   const params = new URLSearchParams({
     ttbkey: key,
     ItemId: isbn,
     ItemIdType: isbn.length === 13 ? "ISBN13" : "ISBN",
+    OptResult: "packing",
     output: "js",
     Version: "20131101",
   });
@@ -102,8 +105,18 @@ async function aladinLookup(key: string, isbn: string) {
     const it = j.item?.[0];
     if (!it) return null;
     const p = Number(it.subInfo?.itemPage ?? 0);
+    // 크기는 mm — 말이 되는 범위(책 높이 80~400, 등두께 3~150)만 믿는다
+    const mm = (v: unknown, lo: number, hi: number) => {
+      const n = Number(v ?? 0);
+      return n >= lo && n <= hi ? Math.round(n) : null;
+    };
     return {
+      title: it.title ? decode(String(it.title)).trim() : null,
+      author: it.author ? decode(String(it.author)).split(/[,(]/)[0].trim() : null,
+      isbn13: it.isbn13 ? String(it.isbn13) : null,
       pages: p > 0 && p < 32000 ? p : null,
+      sizeHeight: mm(it.subInfo?.packing?.sizeHeight, 80, 400),
+      sizeDepth: mm(it.subInfo?.packing?.sizeDepth, 3, 150),
       publisher: it.publisher ? decode(String(it.publisher)) : null,
       cover: it.cover ? String(it.cover) : null,
       year: /^\d{4}/.test(String(it.pubDate ?? "")) ? Number(String(it.pubDate).slice(0, 4)) : null,
@@ -123,8 +136,47 @@ Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth) return reply({ error: "열쇠가 없습니다" }, 401);
 
-  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string } = {};
+  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string } = {};
   try { body = await req.json(); } catch { /* 빈 몸통도 허용 */ }
+
+  /* ── 바코드 입고 — ISBN 하나로 책을 통째로 들인다 ──
+     뒤표지 바코드(EAN-13)가 곧 ISBN13 이다. 조회해서 서지가 완성된 채로
+     꽂는다. 벽은 DB 의 wall_for_category() 가 정한다 — 규칙을 또 만들지 않는다. */
+  if (body.add_isbn) {
+    const isbn = String(body.add_isbn).replace(/[^0-9Xx]/g, "");
+    if (isbn.length !== 13 && isbn.length !== 10) {
+      return reply({ error: "ISBN 이 아닙니다: " + body.add_isbn }, 400);
+    }
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: auth } } },
+    );
+    const info = await aladinLookup(ttb, isbn);
+    if (!info?.title) return reply({ error: "알라딘에서 찾지 못했습니다 (" + isbn + ")" }, 404);
+
+    const category = info.category || "문학";
+    const { data: wall } = await db.rpc("wall_for_category", { cat: category });
+    const { error: e1 } = await db.from("books").insert({
+      title: info.title,
+      author: info.author,
+      category,
+      isbn: info.isbn13 || isbn,
+      publisher: info.publisher,
+      cover_url: info.cover,
+      published_year: info.year,
+      page_count: info.pages,
+      size_height: info.sizeHeight,
+      size_depth: info.sizeDepth,
+      wall: wall || "문학",
+      enrich_tried_at: new Date().toISOString(),
+    });
+    if (e1) {
+      if (e1.code === "23505") return reply({ 겹침: true, 제목: info.title });
+      return reply({ error: "꽂지 못했습니다: " + e1.message }, 500);
+    }
+    return reply({ 꽂음: true, 제목: info.title, 지은이: info.author, 쪽수: info.pages });
+  }
 
   /* ── 조회 살펴보기 — ItemLookUp 응답 모양을 그대로 돌려준다 ──
      subInfo.itemPage 가 정말 오는지 실물로 확인할 때 쓴다. */
@@ -181,10 +233,10 @@ Deno.serve(async (req) => {
      반복이 같은 스무 권만 영원히 다시 묻는다.
      book_id 가 오면 그 한 권만 — 표식이 있어도 다시 묻는다 (서표의 단추). */
   let sel = db.from("books")
-    .select("id, title, author, isbn, page_count, publisher, cover_url, published_year");
+    .select("id, title, author, isbn, page_count, size_height, size_depth, publisher, cover_url, published_year");
   sel = body.book_id
     ? sel.eq("id", body.book_id)
-    : sel.or("isbn.is.null,page_count.is.null")
+    : sel.or("isbn.is.null,page_count.is.null,size_height.is.null")
         .is("enrich_tried_at", null)
         .order("created_at").limit(limit);
   const { data: books, error } = await sel;
@@ -206,6 +258,8 @@ Deno.serve(async (req) => {
       const info = await aladinLookup(ttb, String(b.isbn));
       const extra: Record<string, unknown> = {};
       if (info?.pages) extra.page_count = info.pages;
+      if (info?.sizeHeight) extra.size_height = info.sizeHeight;
+      if (info?.sizeDepth) extra.size_depth = info.sizeDepth;
       if (info?.publisher && !b.publisher) extra.publisher = info.publisher;
       if (info?.cover && !b.cover_url) extra.cover_url = info.cover;
       if (info?.year && !b.published_year) extra.published_year = info.year;
@@ -233,9 +287,11 @@ Deno.serve(async (req) => {
     const patch: Record<string, unknown> = {};
     if (found.isbn13 || found.isbn) {
       patch.isbn = String(found.isbn13 || found.isbn);
-      // 쪽수는 조회 API 에만 있다 — ISBN 을 알았으니 한 번 더 묻는다
+      // 쪽수·크기는 조회 API 에만 있다 — ISBN 을 알았으니 한 번 더 묻는다
       const info = await aladinLookup(ttb, String(patch.isbn));
       if (info?.pages) patch.page_count = info.pages;
+      if (info?.sizeHeight) patch.size_height = info.sizeHeight;
+      if (info?.sizeDepth) patch.size_depth = info.sizeDepth;
     }
     if (found.publisher) patch.publisher = decode(String(found.publisher));
     if (found.cover) patch.cover_url = String(found.cover);
@@ -281,7 +337,7 @@ Deno.serve(async (req) => {
 
   const { count } = await db.from("books")
     .select("id", { count: "exact", head: true })
-    .or("isbn.is.null,page_count.is.null")
+    .or("isbn.is.null,page_count.is.null,size_height.is.null")
     .is("enrich_tried_at", null);
 
   return reply({

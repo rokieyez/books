@@ -104,6 +104,21 @@
         <p class="ps">전집·시리즈 포함</p>
         <div id="authorbars"></div>
       </div>
+      <div class="statpanel">
+        <h4>읽어낸 쪽수</h4>
+        <p class="ps" id="ps-pages"></p>
+        <div class="pagesum" id="pagesum"></div>
+      </div>
+      <div class="statpanel">
+        <h4>벽별 읽음</h4>
+        <p class="ps">어느 벽을 게을리했는지 보입니다</p>
+        <div id="wallbars"></div>
+      </div>
+      <div class="statpanel wide">
+        <h4>여백의 기록</h4>
+        <p class="ps" id="ps-memos"></p>
+        <div id="memolist"></div>
+      </div>
     </div>
   </section>
 </div>
@@ -185,6 +200,11 @@
         <button data-st="읽는 중">읽는 중</button>
         <button data-st="안 읽음">안 읽음</button>
       </div>
+    </div>
+    <div class="x-row" id="x-bm-row" hidden>
+      <span class="x-lb">갈피</span>
+      <input type="number" id="x-bm" min="1" max="32000" placeholder="몇 쪽까지" aria-label="갈피 — 몇 쪽까지 읽었는지">
+      <span class="x-hint" id="x-bm-hint">읽다 만 자리를 적어 둡니다</span>
     </div>
     <div class="x-row">
       <span class="x-lb">자리</span>

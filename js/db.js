@@ -172,6 +172,15 @@
       );
     },
 
+    /* 바코드 입고 — ISBN 하나로 서지가 완성된 책을 꽂는다 */
+    async addByIsbn(isbn) {
+      return guard(
+        client.functions.invoke("enrich-books", { body: { add_isbn: isbn } }),
+        30000,
+        "바코드 입고",
+      );
+    },
+
     /* 한 권만 서지를 받아온다 — 서표의 단추.
        이미 물어본 책이어도 다시 묻는다. */
     async enrichBook(bookId) {
@@ -318,16 +327,25 @@
       if (error) throw error;
     },
 
+    /* 이미 꽂힌 책과 겹치면(23505) 책을 만들지 않고 후보만 접는다 —
+       다른 사진에 같은 책이 두 번 찍힌 것일 뿐이다. { dup: true } 로 알린다. */
     async resolveCandidate(candidateId, book) {
       const { data: inserted, error: e1 } = await client
         .from("books").insert(book).select("id").single();
-      if (e1) throw e1;
+      if (e1) {
+        if (e1.code === "23505") {
+          await client.from("intake_candidates")
+            .update({ status: "버림" }).eq("id", candidateId);
+          return { dup: true };
+        }
+        throw e1;
+      }
       const { error: e2 } = await client
         .from("intake_candidates")
         .update({ status: "확정", resolved_book_id: inserted.id })
         .eq("id", candidateId);
       if (e2) throw e2;
-      return inserted.id;
+      return { id: inserted.id };
     },
   };
 

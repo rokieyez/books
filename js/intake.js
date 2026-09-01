@@ -95,6 +95,21 @@
       <span class="byhand-msg" id="bh-msg"></span>
     </form>
 
+    <div class="barcode" id="in-barcode">
+      <div class="enrich-head">
+        <b>바코드로 들인다</b>
+        <span>뒤표지의 바코드가 곧 ISBN 입니다 — 비추면 서지가 완성된 채로 꽂힙니다</span>
+      </div>
+      <div class="bc-row">
+        <button type="button" class="enrich-go" id="bc-scan">카메라를 켠다</button>
+        <input type="text" id="bc-isbn" inputmode="numeric" placeholder="또는 ISBN 을 적는다"
+               aria-label="ISBN 직접 입력">
+        <button type="button" class="enrich-go" id="bc-add">꽂는다</button>
+      </div>
+      <video id="bc-video" playsinline muted hidden></video>
+      <div class="enrich-out" id="bc-out"></div>
+    </div>
+
     <div class="enrich">
       <div class="enrich-head">
         <b>서지를 채운다</b>
@@ -288,6 +303,92 @@
       if (!queueBusy && ev.dataTransfer?.files?.length) take(ev.dataTransfer.files);
     });
 
+    /* ── 바코드 입고 ──
+       모바일 크롬의 BarcodeDetector 로 EAN-13 을 읽는다 (978/979 = ISBN).
+       한 권이 꽂히면 잠깐 알리고 계속 비춘다 — 선 채로 여러 권을 들일 수 있다.
+       미지원 브라우저(사파리 등)에서는 손으로 적는 칸만 남는다. */
+    let bcStream = null, bcTimer = null;
+    const bcSeen = new Map();   // 같은 바코드를 연달아 읽지 않게 (isbn → 시각)
+
+    async function addIsbn(isbn) {
+      const out = el("bc-out");
+      out.innerHTML = `<p class="enrich-msg">알라딘에 묻는 중… (${isbn})</p>`;
+      try {
+        const { data, error } = await db.addByIsbn(isbn);
+        if (error || data?.error) throw new Error(data?.error || error.message);
+        if (data.겹침) {
+          out.innerHTML = `<p class="enrich-msg">이미 꽂혀 있습니다 — </p>`;
+          out.querySelector("p").append(data.제목);
+        } else {
+          out.innerHTML = `<p class="enrich-msg good"></p>`;
+          out.querySelector("p").textContent =
+            `꽂았습니다 — ${data.제목}${data.지은이 ? " · " + data.지은이 : ""}${data.쪽수 ? " · " + data.쪽수 + "쪽" : ""}`;
+        }
+        await window.PostLibrosRefresh?.();
+      } catch (err) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "꽂지 못했습니다 — " + (err.message || err);
+      }
+    }
+
+    function stopScan() {
+      clearInterval(bcTimer); bcTimer = null;
+      bcStream?.getTracks().forEach((t) => t.stop()); bcStream = null;
+      el("bc-video").hidden = true;
+      el("bc-scan").textContent = "카메라를 켠다";
+    }
+
+    el("bc-scan").addEventListener("click", async () => {
+      if (bcStream) { stopScan(); return; }
+      const out = el("bc-out");
+      if (!("BarcodeDetector" in window)) {
+        out.innerHTML = `<p class="enrich-msg bad">이 브라우저는 바코드 읽기가 안 됩니다 — 옆 칸에 ISBN 을 적어 주세요.</p>`;
+        return;
+      }
+      try {
+        bcStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+      } catch {
+        out.innerHTML = `<p class="enrich-msg bad">카메라를 열지 못했습니다 — 권한을 확인해 주세요.</p>`;
+        return;
+      }
+      const video = el("bc-video");
+      video.srcObject = bcStream;
+      video.hidden = false;
+      await video.play();
+      el("bc-scan").textContent = "카메라를 끈다";
+      out.innerHTML = `<p class="enrich-msg">뒤표지 바코드를 비춰 주세요…</p>`;
+      const detector = new BarcodeDetector({ formats: ["ean_13"] });
+      bcTimer = setInterval(async () => {
+        if (!bcStream || video.readyState < 2) return;
+        try {
+          const codes = await detector.detect(video);
+          for (const c of codes) {
+            const v = c.rawValue;
+            if (!/^97[89]\d{10}$/.test(v)) continue;          // ISBN 이 아닌 바코드
+            const last = bcSeen.get(v) || 0;
+            if (Date.now() - last < 8000) continue;            // 방금 읽은 책이다
+            bcSeen.set(v, Date.now());
+            await addIsbn(v);
+          }
+        } catch { /* 한 프레임 놓친 것뿐이다 */ }
+      }, 350);
+    });
+
+    el("bc-add").addEventListener("click", () => {
+      const v = el("bc-isbn").value.replace(/[^0-9Xx]/g, "");
+      if (v.length !== 13 && v.length !== 10) {
+        el("bc-out").innerHTML = `<p class="enrich-msg bad">ISBN 은 10자리나 13자리입니다.</p>`;
+        return;
+      }
+      el("bc-isbn").value = "";
+      addIsbn(v);
+    });
+    el("bc-isbn").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); el("bc-add").click(); }
+    });
+
     /* 베껴 두기 — 서재가 사라져도 목록은 손에 남게 한다.
        엑셀이 한글을 깨뜨리지 않도록 BOM 을 앞에 붙인다. */
     el("in-export").addEventListener("click", async () => {
@@ -297,8 +398,9 @@
       try {
         const rows = await db.listBooks({ limit: 5000 });
         const cols = ["title", "author", "category", "publisher", "isbn", "published_year",
-                      "page_count", "read_status", "wall", "shelf", "slot", "acquired_on", "memo", "cover_url"];
-        const head = ["제목","지은이","분류","펴낸곳","ISBN","펴낸해","쪽수",
+                      "page_count", "size_height", "size_depth", "bookmark_page",
+                      "read_status", "wall", "shelf", "slot", "acquired_on", "memo", "cover_url"];
+        const head = ["제목","지은이","분류","펴낸곳","ISBN","펴낸해","쪽수","높이mm","등두께mm","갈피",
                       "읽음","벽","단","자리","입고","여백","표지"];
         const cell = (v) => {
           const s = v == null ? "" : String(v);

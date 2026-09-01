@@ -556,6 +556,16 @@
   .cand.drop:hover, .cand.drop:focus-visible, .cand.drop[data-sure] {
     color: #C96F5A; border-color: #8E2F23;
   }
+  /* 후보가 하나뿐인 책들을 한꺼번에 — 궤짝의 가장 큰 단추 */
+  .crate-bulk {
+    display: block; width: 100%; margin: 4px 0 14px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: .1em;
+    color: var(--brass); background: rgba(224,177,94,.07);
+    border: 1px solid var(--brass-dim); padding: 12px; cursor: pointer;
+    transition: background .2s, color .2s;
+  }
+  .crate-bulk:hover:not(:disabled) { background: rgba(224,177,94,.14); }
+  .crate-bulk:disabled { opacity: .6; cursor: default; }
   .crateitem.resolved .cands { opacity: .4; }
   .crateitem.resolved .guess::after { content: " ✓ 꽂았다"; color: var(--brass); }
 
@@ -894,6 +904,24 @@
   .x-remove:disabled { opacity: .45; cursor: default; }
   .x-hint { font-size: 10.5px; color: var(--parchment-dim); font-style: italic; }
 
+  /* 바코드 입고 */
+  .barcode {
+    margin-top: 14px; padding: 14px 16px;
+    border: 1px solid var(--wood3); background: rgba(36,23,8,.45);
+  }
+  .bc-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  .bc-row input {
+    flex: 1 1 180px; background: #1B1108; color: var(--parchment);
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: 8px 10px; font: inherit; font-size: 13px;
+    font-family: "IBM Plex Mono", monospace; letter-spacing: .08em;
+  }
+  .bc-row input:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+  #bc-video {
+    width: 100%; max-height: 320px; margin-top: 12px;
+    border: 1px solid var(--wood3); background: #000; object-fit: cover;
+  }
+
   /* 서재를 여는 동안 — 표본을 스치듯 보여주지 않으려고 비워 둔다 */
   .waking-note {
     margin: 80px 0; text-align: center;
@@ -1201,10 +1229,57 @@
   }
   .listmore:hover { color: var(--brass); border-color: var(--brass-dim); background: rgba(224,177,94,.05); }
   .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+  /* 시리즈 접기 — 전집이 스무 줄을 차지하지 않게 */
+  .seriesrow .fold { font-style: normal; color: var(--brass-dim); }
+  .seriesrow .cnt {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px;
+    color: var(--brass-dim); letter-spacing: .08em; margin-left: 4px;
+  }
+  .ledger tr.subrow td { color: var(--parchment-dim); }
+  .ledger tr.subrow td.t { font-weight: 400; color: var(--parchment); font-size: 12.5px; }
 
   /* 통계 뷰 */
   .statgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 26px; }
   @media (max-width: 720px) { .statgrid { grid-template-columns: 1fr; } }
+  .statpanel.wide { grid-column: 1 / -1; }
+  @media (max-width: 720px) { .statpanel.wide { grid-column: auto; } }
+
+  /* 읽어낸 쪽수 — 이 서재에서 가장 정직한 숫자라 크게 새긴다 */
+  .pagesum { display: flex; flex-wrap: wrap; gap: 8px 26px; align-items: baseline; }
+  .pagenum b {
+    font-family: "Cormorant", serif; font-weight: 500; font-size: 34px;
+    color: #E8CE93; letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  }
+  .pagenum.dim b { color: var(--parchment-dim); font-size: 24px; }
+  .pagenum span {
+    display: block; font-family: "IBM Plex Mono", monospace; font-size: 10px;
+    letter-spacing: .16em; color: var(--brass-dim); margin-top: -2px;
+  }
+  .pagebar {
+    flex: 1 1 100%; height: 6px; margin-top: 6px;
+    background: rgba(0,0,0,.4); border: 1px solid var(--line); border-radius: 3px; overflow: hidden;
+  }
+  .pagebar i { display: block; height: 100%; background: var(--st-done); transition: width .8s ease; }
+  .pagepct {
+    flex: 1 1 100%; margin: 4px 0 0; font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; color: var(--parchment-dim); letter-spacing: .08em;
+  }
+
+  /* 여백의 기록 — 메모가 있는 책들 */
+  .memorow {
+    appearance: none; background: none; border: none; border-bottom: 1px dashed var(--line);
+    cursor: pointer; display: flex; gap: 12px; align-items: baseline; width: 100%;
+    padding: 8px 2px; text-align: left; font-family: inherit;
+  }
+  .memorow b {
+    flex: 0 0 auto; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: "Gowun Batang", serif; font-size: 13px; color: #E8CE93;
+  }
+  .memorow span {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 12.5px; color: var(--parchment-dim); font-style: italic;
+  }
+  .memorow:hover b, .memorow:focus-visible b { color: var(--brass); }
   .statpanel {
     border: 1px solid var(--wood3); background: linear-gradient(174deg, #2A1B0C, #211508);
     box-shadow: inset 0 0 26px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.4);
