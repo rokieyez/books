@@ -51,6 +51,9 @@
       <button data-v="list" aria-selected="false">목록</button>
       <button data-v="stats" aria-selected="false">통계</button>
     </div>
+    <!-- 실물 높이 자료가 쌓이면 진짜 서가처럼 키 순서로도 볼 수 있다 -->
+    <button class="heightsort" id="heightsort" aria-pressed="false"
+            title="실물 키 순서로 꽂아 본다">키 순서</button>
   </div>
 </div>
 
@@ -179,6 +182,8 @@
   <h3 id="today-title">난장이가 쏘아올린 작은 공</h3>
   <p id="today-sub">오늘의 책 · 조세희 · 2025.12.01 입고 후 열어본 적 없음</p>
   <button class="open-today" id="today-open">램프 아래에서 펼친다</button>
+  <!-- "다음에 뭘 읽지"는 서재가 답한다 — 안 읽은 책 중 아무거나 -->
+  <button class="open-today rand" id="today-rand" title="안 읽은 책 중에서 뽑는다">주사위를 굴린다</button>
 </div>
 
 <footer class="colophon">서가 뒤의 방 · 시안 6 (디벨롭 v3) — 데이터는 예시</footer>
@@ -217,6 +222,11 @@
       <input type="number" id="x-bm" min="1" max="32000" placeholder="몇 쪽까지" aria-label="갈피 — 몇 쪽까지 읽었는지">
       <span class="x-hint" id="x-bm-hint">읽다 만 자리를 적어 둡니다</span>
     </div>
+    <div class="x-row" id="x-ry-row" hidden>
+      <span class="x-lb">읽은 해</span>
+      <input type="number" id="x-ry" min="1900" max="2200" placeholder="몇 년에" aria-label="읽은 해">
+      <span class="x-hint">읽음으로 바꾸면 올해가 저절로 적힙니다</span>
+    </div>
     <div class="x-row">
       <span class="x-lb">자리</span>
       <select id="x-wall" aria-label="벽">
@@ -235,6 +245,15 @@
              aria-label="ISBN — 적으면 이 번호로 정확히 조회합니다">
       <button type="button" class="x-enrich" id="x-enrich">알라딘에서 받아온다</button>
       <span class="x-hint" id="x-enrich-note">ISBN·표지·쪽수를 이 책만 다시 채웁니다</span>
+    </div>
+    <div class="x-row x-link-row" id="x-link-row">
+      <span class="x-lb">이음</span>
+      <div class="x-links">
+        <div class="x-linklist" id="x-linklist"></div>
+        <input type="text" id="x-link-q" placeholder="이을 책을 찾는다 — 제목·지은이"
+               aria-label="이을 책 검색">
+        <div class="x-linkpick" id="x-linkpick"></div>
+      </div>
     </div>
     <div class="x-row">
       <span class="x-lb">뺀다</span>

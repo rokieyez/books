@@ -61,6 +61,11 @@
   }
 
   const wallEls = [];
+  /* 키 순서 — 실물 높이 자료가 쌓이면 진짜 서가처럼 정돈해 볼 수 있다.
+     새로고침해도 유지되도록 기억해 두되, 못 읽는 환경이면 그냥 꺼진 채로 산다. */
+  let sortHeight = false;
+  try { sortHeight = localStorage.getItem("pl-heightsort") === "1"; } catch { /* 사생활 모드 등 */ }
+
   function renderWalls() {
     const host = $("walls"); host.innerHTML = "";
     wallEls.length = 0;
@@ -193,9 +198,13 @@
         /* 벽에는 66권만 그려진다. 검색 중이면 응답한 책을 앞으로 끌어와
            찾는 책이 보이지 않는 뒷줄에 묻히지 않게 한다. */
         const hit = (b) => matchBook(b, q());
-        const shelved = q()
-          ? [...w.books.filter(hit), ...w.books.filter(b => !hit(b))]
+        // 키 순서일 때는 실물 높이(없으면 어림값)로 줄을 세운다 — 검색 앞줄 규칙이 우선
+        const base = sortHeight
+          ? [...w.books].sort((x, y) => y.h - x.h || y.w2 - x.w2)
           : w.books;
+        const shelved = q()
+          ? [...base.filter(hit), ...base.filter(b => !hit(b))]
+          : base;
         /* 걸쇠(비뚤어진 책)는 진짜 책의 자리를 빼앗지 않고 사이에 끼어든다 —
            예전에는 그 자리의 책 한 권이 서가에서 열 수 없게 가려졌다 */
         const makeLatch = () => {
@@ -386,6 +395,7 @@
     list.forEach((c) => {
       const item = document.createElement("div");
       item.className = "crateitem";
+      if (c.id) item.dataset.cid = c.id;   // 나중에 책등 조각을 곁들일 자리표
       const guess = document.createElement("span");
       guess.className = "guess";
       guess.textContent = `"${c.raw_text || "읽지 못함"}"`;
@@ -445,8 +455,58 @@
       item.append(guess, cands);
       box.appendChild(item);
     });
+
+    // 흐린 글자는 사람 눈이 최고다 — 사진 속 그 책등을 곁들여 보여준다
+    decorateCrate(list, box).catch((e) => console.warn("[궤짝] 책등 조각을 못 붙였습니다:", e));
   }
   window.PostLibrosRenderCrate = renderCrate;
+
+  /* 궤짝 항목마다 원본 사진에서 그 책등만 오려 곁들인다.
+     자리 상자(spine_box, 0~1000 비율)와 사진 경로가 있을 때만.
+     사진 한 장에 후보가 여럿이라, 서명 주소와 그림은 장마다 한 번만 받는다. */
+  async function decorateCrate(list, box) {
+    const db = window.PostLibrosDB;
+    if (!db?.photoUrl) return;
+    const withBox = list.filter((c) => c.spine_box && c.intake_photos?.storage_path && c.id);
+    if (!withBox.length) return;
+
+    const urls = new Map();
+    for (const path of new Set(withBox.map((c) => c.intake_photos.storage_path))) {
+      try { urls.set(path, await db.photoUrl(path)); }
+      catch (e) { console.warn("[궤짝] 사진 열쇠를 못 받았습니다:", e); }
+    }
+    const imgs = new Map();
+    const loadImg = (url) => new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+
+    for (const c of withBox) {
+      const el = box.querySelector(`.crateitem[data-cid="${c.id}"]`);
+      if (!el) continue;   // 그새 화면이 다시 그려졌다
+      const url = urls.get(c.intake_photos.storage_path);
+      if (!url) continue;
+      let im = imgs.get(url);
+      if (!im) {
+        try { im = await loadImg(url); imgs.set(url, im); } catch { continue; }
+      }
+      const bx = c.spine_box;
+      const sx = bx.x / 1000 * im.naturalWidth, sy = bx.y / 1000 * im.naturalHeight;
+      const sw = bx.w / 1000 * im.naturalWidth, sh = bx.h / 1000 * im.naturalHeight;
+      if (sw < 2 || sh < 2) continue;
+      const H = 96, W = Math.max(14, Math.min(64, Math.round(sw / sh * H)));
+      const cv = document.createElement("canvas");
+      cv.className = "cratecrop";
+      cv.width = W * 2; cv.height = H * 2;   // 레티나에서도 글자가 뭉개지지 않게
+      cv.style.width = W + "px"; cv.style.height = H + "px";
+      cv.title = "사진 속 그 책등";
+      cv.getContext("2d").drawImage(im, sx, sy, sw, sh, 0, 0, W * 2, H * 2);
+      el.prepend(cv);
+      el.classList.add("hascrop");
+    }
+  }
 
   /* 상단의 입고 수 — 표본이든 실제 장서든 지금 꽂혀 있는 만큼만 말한다.
      정해진 목표치는 없다: 서재는 계속 자라고, 일부만 옮겨 둘 수도 있다.
@@ -519,6 +579,8 @@
     $("walls").hidden = v !== "walls";
     $("crate").hidden = v !== "walls";
     $("desk").hidden = v !== "walls";
+    const hs = $("heightsort");
+    if (hs) hs.hidden = v !== "walls";
     $("v-covers").hidden = v !== "covers";
     $("v-list").hidden = v !== "list";
     $("v-stats").hidden = v !== "stats";
@@ -1035,7 +1097,8 @@
     }
     $("x-title").textContent = b.t;
     $("x-byline").textContent =
-      `${b.a}${b.pages ? " · " + b.pages.toLocaleString() + "쪽" : ""}${b.year ? " · " + b.year + " 입고" : ""}`;
+      `${b.a}${b.pages ? " · " + b.pages.toLocaleString() + "쪽" : ""}${b.year ? " · " + b.year + " 입고" : ""}`
+      + (b.readYear ? ` · ${b.readYear} 읽음` : "");
     $("veil").classList.add("show");
     $("exlibris").classList.add("show");
     // 닫으면 원래 있던 자리로 돌아가도록 표를 남긴다
@@ -1074,6 +1137,8 @@
     $("x-enrich").disabled = false;
     $("x-isbn").value = b.isbn || "";
     syncBookmarkRow(b);
+    syncReadYearRow(b);
+    renderLinks(b);
 
     // 기록은 있으면 보여주고, 없으면 청할 수 있게 둔다
     $("x-full").hidden = true;
@@ -1161,9 +1226,98 @@
       const st = btn.dataset.st;
       document.querySelectorAll("#x-status button").forEach((o) =>
         o.setAttribute("aria-selected", o === btn ? "true" : "false"));
-      saveBook({ read_status: st }, (b) => { b.st = st; });
+      // 읽음으로 바꾸는 순간의 해를 함께 적는다 — 연말에 「그 해에 읽은 책」이 남게.
+      // 이미 적힌 해가 있으면 존중한다 (예전에 읽은 책을 나중에 등재했을 수 있다)
+      const patch = { read_status: st };
+      const ry = st === "읽음" && openBook && !openBook.readYear
+        ? new Date().getFullYear() : null;
+      if (ry) patch.read_year = ry;
+      saveBook(patch, (b) => { b.st = st; if (ry) b.readYear = ry; });
       syncBookmarkRow(openBook && { ...openBook, st });
+      syncReadYearRow(openBook && { ...openBook, st, readYear: ry || openBook.readYear });
     });
+  });
+
+  /* ── 읽은 해 — 읽음일 때만 보인다 ── */
+  function syncReadYearRow(b) {
+    const row = $("x-ry-row");
+    if (!row) return;
+    row.hidden = !b || b.st !== "읽음";
+    if (!row.hidden) $("x-ry").value = b.readYear || "";
+  }
+  $("x-ry").addEventListener("change", () => {
+    const raw = $("x-ry").value.trim();
+    const y = raw ? parseInt(raw, 10) : null;
+    if (y && (y < 1900 || y > 2200)) return;   // DB 제약과 같은 울타리
+    saveBook({ read_year: y }, (b) => { b.readYear = y; });
+  });
+
+  /* ── 책 사이 이음 — 같은 작가 계보, 인용 관계, 이어 읽기 ──
+     이음은 방향이 없다: 어느 쪽에서 열어도 상대가 보인다.
+     띠는 눌러서 그 책의 서표로 건너가고, ×로 푼다. */
+  async function renderLinks(b) {
+    const row = $("x-link-row");
+    if (!row) return;
+    const db = window.PostLibrosDB;
+    if (!db?.listLinks || !b.id) { row.hidden = true; return; }
+    row.hidden = false;
+    const host = $("x-linklist");
+    host.innerHTML = "";
+    $("x-linkpick").innerHTML = "";
+    $("x-link-q").value = "";
+    let links = [];
+    try { links = await db.listLinks(b.id); }
+    catch (err) { console.error("[이음] 읽지 못했습니다:", err); return; }
+    if (openBook !== b) return;   // 그새 다른 책을 폈다
+    links.forEach((l) => {
+      const otherId = l.book_id === b.id ? l.linked_book_id : l.book_id;
+      const other = allBooks().find((x) => x.id === otherId);
+      const chip = document.createElement("span");
+      chip.className = "linkchip";
+      const go = document.createElement("button");
+      go.type = "button";
+      go.textContent = other ? other.t : "(서가에 없는 책)";
+      if (other) go.addEventListener("click", () => openExlibris(other, bookWall(other)));
+      else go.disabled = true;
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "unlink";
+      del.textContent = "×";
+      del.setAttribute("aria-label", (other ? other.t : "이 책") + " 이음을 푼다");
+      del.addEventListener("click", async () => {
+        try { await db.removeLink(l.id); renderLinks(b); }
+        catch (err) { console.error("[이음] 풀지 못했습니다:", err); }
+      });
+      chip.append(go, del);
+      host.appendChild(chip);
+    });
+  }
+  $("x-link-q").addEventListener("input", () => {
+    const pick = $("x-linkpick");
+    pick.innerHTML = "";
+    const b = openBook;
+    const v = $("x-link-q").value.trim().toLowerCase();
+    if (!b || v.length < 2) return;   // 한 글자는 후보가 너무 많다
+    allBooks()
+      .filter((x) => x !== b && x.id && matchBook(x, v))
+      .slice(0, 5)
+      .forEach((x) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "linkpickbtn";
+        btn.textContent = x.t + (x.a ? " — " + x.a : "");
+        btn.addEventListener("click", async () => {
+          try {
+            const r = await window.PostLibrosDB.addLink(b.id, x.id);
+            if (r?.dup) {
+              $("x-saved").textContent = "이미 이어져 있습니다";
+              $("x-saved").hidden = false;
+            }
+          } catch (err) { console.error("[이음] 잇지 못했습니다:", err); }
+          renderLinks(b);
+        });
+        pick.appendChild(btn);
+      });
   });
 
   /* ── 갈피 — 읽는 중일 때만 보인다 ── */
@@ -1332,6 +1486,25 @@
   $("today-open").addEventListener("click", () => {
     if (todayBook) openExlibris(todayBook, bookWall(todayBook));
   });
+
+  /* 주사위 — "다음에 뭘 읽지"는 서재가 답한다. 안 읽은 책을 우선 뽑는다. */
+  $("today-rand")?.addEventListener("click", () => {
+    const all = allBooks();
+    const unread = all.filter((b) => b.st === "안 읽음");
+    const pool = unread.length ? unread : all;
+    if (!pool.length) return;
+    const b = pool[Math.floor(Math.random() * pool.length)];
+    openExlibris(b, bookWall(b));
+  });
+
+  /* 키 순서 토글 — 서가 뷰에서만 보인다 */
+  $("heightsort")?.addEventListener("click", () => {
+    sortHeight = !sortHeight;
+    $("heightsort").setAttribute("aria-pressed", sortHeight ? "true" : "false");
+    try { localStorage.setItem("pl-heightsort", sortHeight ? "1" : "0"); } catch { /* 못 남겨도 그만 */ }
+    renderWalls();
+  });
+  $("heightsort")?.setAttribute("aria-pressed", sortHeight ? "true" : "false");
 
   /* 데이터가 바뀌면 서가만이 아니라 셈과 책상도 함께 다시 그린다 —
      한 군데만 갱신하면 옛 숫자가 남아 찌꺼기처럼 보인다 */

@@ -1460,3 +1460,56 @@
     border: 1px solid var(--line); border-radius: 2px;
     padding: 0 5px; letter-spacing: .1em; color: var(--parchment-dim);
   }
+
+  /* ── 키 순서 — 서가 뷰 전용 토글 ── */
+  .viewrow { display: flex; align-items: stretch; gap: 8px; }
+  .heightsort {
+    appearance: none; cursor: pointer;
+    font-family: "Gowun Batang", serif; font-weight: 700; font-size: 12.5px;
+    letter-spacing: .08em; color: var(--parchment-dim);
+    border: 1px solid var(--wood3); border-radius: 2px;
+    background: rgba(36,23,8,.6); padding: 0 13px;
+    box-shadow: 0 6px 14px rgba(0,0,0,.35);
+  }
+  .heightsort:hover, .heightsort:focus-visible { color: var(--parchment); outline: none; }
+  .heightsort[aria-pressed="true"] { color: var(--brass); border-color: var(--brass-dim); }
+
+  /* ── 주사위 — 오늘의 책 옆의 둘째 단추, 한 걸음 물러난 톤 ── */
+  .desk .open-today.rand {
+    margin-left: 10px; color: var(--parchment-dim); border-color: var(--line);
+  }
+  .desk .open-today.rand:hover, .desk .open-today.rand:focus-visible {
+    color: var(--brass); border-color: var(--brass-dim);
+  }
+
+  /* ── 궤짝의 책등 조각 — 흐린 글자를 사람 눈으로 대조한다 ── */
+  .cratecrop {
+    flex: none; border: 1px solid var(--line); border-radius: 1px;
+    background: var(--dark);
+  }
+
+  /* ── 책 사이 이음 ── */
+  .x-links { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+  .x-linklist { display: flex; gap: 6px; flex-wrap: wrap; }
+  .x-linklist:empty { display: none; }
+  .linkchip {
+    display: inline-flex; align-items: center;
+    border: 1px solid var(--line); border-radius: 2px; background: rgba(23,16,9,.5);
+  }
+  .linkchip button {
+    appearance: none; border: none; background: none; cursor: pointer;
+    font: inherit; font-size: 12px; color: var(--parchment); padding: 4px 2px 4px 8px;
+  }
+  .linkchip button:hover, .linkchip button:focus-visible { color: var(--brass); outline: none; }
+  .linkchip button:disabled { color: var(--parchment-dim); cursor: default; }
+  .linkchip .unlink { color: var(--parchment-dim); padding: 4px 8px 4px 4px; }
+  .linkchip .unlink:hover, .linkchip .unlink:focus-visible { color: var(--wax); }
+  .x-edit #x-link-q { width: auto; flex: 1; min-width: 160px; }
+  .x-linkpick { display: flex; gap: 6px; flex-wrap: wrap; }
+  .x-linkpick:empty { display: none; }
+  .linkpickbtn {
+    appearance: none; font: inherit; font-size: 12px; cursor: pointer;
+    border: 1px dashed var(--line); border-radius: 2px;
+    background: rgba(23,16,9,.5); color: var(--parchment); padding: 4px 9px;
+  }
+  .linkpickbtn:hover, .linkpickbtn:focus-visible { border-color: var(--brass-dim); outline: none; }

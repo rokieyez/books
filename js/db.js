@@ -230,6 +230,32 @@
       );
     },
 
+    /* ── 책 사이 이음 — 방향 없는 연결 (A↔B 한 줄) ── */
+    async listLinks(bookId) {
+      const { data, error } = await client
+        .from("book_links")
+        .select("id, book_id, linked_book_id")
+        .or(`book_id.eq.${bookId},linked_book_id.eq.${bookId}`);
+      if (error) throw error;
+      return data;
+    },
+
+    /* 이미 이어져 있으면(뒤집힌 방향 포함, 23505) { dup: true } 로 알린다 */
+    async addLink(bookId, otherId) {
+      const { error } = await client
+        .from("book_links").insert({ book_id: bookId, linked_book_id: otherId });
+      if (error) {
+        if (error.code === "23505") return { dup: true };
+        throw error;
+      }
+      return { ok: true };
+    },
+
+    async removeLink(linkId) {
+      const { error } = await client.from("book_links").delete().eq("id", linkId);
+      if (error) throw error;
+    },
+
     /* ── 기록의 방 ── */
     async addArchiveItem(item) {
       const { data, error } = await client
@@ -368,7 +394,8 @@
     async listPending() {
       const { data, error } = await client
         .from("intake_candidates")
-        .select("*, intake_photos(wall, shelf)")
+        // storage_path 는 궤짝에서 책등 사진 조각을 곁들여 보여줄 때 쓴다
+        .select("*, intake_photos(wall, shelf, storage_path)")
         .eq("status", "대기")
         .order("created_at");
       if (error) throw error;

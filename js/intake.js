@@ -128,6 +128,19 @@
       <div class="enrich-out" id="in-export-out"></div>
     </div>
 
+    <div class="enrich">
+      <div class="enrich-head">
+        <b>목록을 되들인다</b>
+        <span>내려받은 CSV 를 표계산에서 고쳐 다시 올리면, 아이디가 맞는 책을 그대로 고칩니다</span>
+      </div>
+      <div class="bc-row">
+        <input type="file" id="in-import" accept=".csv,text/csv" hidden>
+        <button type="button" class="enrich-go" id="in-import-pick">CSV 를 고른다</button>
+        <button type="button" class="enrich-go" id="in-import-go" hidden>적용한다</button>
+      </div>
+      <div class="enrich-out" id="in-import-out"></div>
+    </div>
+
     <div class="intake-shelf" id="in-shelfroll"></div>`;
 
   const el = (id) => document.getElementById(id);
@@ -457,11 +470,13 @@
       out.innerHTML = `<p class="enrich-msg">장서를 세는 중…</p>`;
       try {
         const rows = await db.listBooks({ limit: 5000 });
+        // 아이디는 되들이기(수정 왕복)의 열쇠다 — 사람이 읽을 일은 없어 맨 뒤에 둔다
         const cols = ["title", "author", "category", "publisher", "isbn", "published_year",
                       "page_count", "size_height", "size_depth", "bookmark_page",
-                      "read_status", "wall", "shelf", "slot", "acquired_on", "memo", "cover_url"];
+                      "read_status", "read_year", "wall", "shelf", "slot", "acquired_on",
+                      "memo", "cover_url", "id"];
         const head = ["제목","지은이","분류","펴낸곳","ISBN","펴낸해","쪽수","높이mm","등두께mm","갈피",
-                      "읽음","벽","단","자리","입고","여백","표지"];
+                      "읽음","읽은해","벽","단","자리","입고","여백","표지","아이디"];
         const cell = (v) => {
           const s = v == null ? "" : String(v);
           return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -482,6 +497,116 @@
         out.querySelector("p").textContent = "베끼지 못했습니다 — " + (err.message || err);
       }
       btn.disabled = false;
+    });
+
+    /* 되들이기 — 내려받은 CSV 를 고쳐 올리면 아이디로 그 책을 찾아 고친다.
+       아이디 없는 줄은 건드리지 않는다 (새 책은 사진·바코드·손입력으로).
+       파일에 있는 열만 고친다 — 옛 CSV 에 없는 열을 지워 버리지 않기 위해서다.
+       고르기와 적용을 나눈 것은 안전판이다: 몇 줄이 읽혔는지 보고 누른다. */
+    const CSV_COL = {
+      "제목": "title", "지은이": "author", "분류": "category", "펴낸곳": "publisher",
+      "ISBN": "isbn", "펴낸해": "published_year", "쪽수": "page_count",
+      "높이mm": "size_height", "등두께mm": "size_depth", "갈피": "bookmark_page",
+      "읽음": "read_status", "읽은해": "read_year", "벽": "wall", "단": "shelf",
+      "자리": "slot", "입고": "acquired_on", "여백": "memo", "표지": "cover_url",
+      "아이디": "id",
+    };
+    const CSV_NUM = new Set(["published_year", "page_count", "size_height",
+                             "size_depth", "bookmark_page", "read_year", "shelf", "slot"]);
+
+    function parseCSV(text) {
+      const rows = []; let row = [], cell = "", inQ = false;
+      text = text.replace(/^﻿/, "");   // 내보낼 때 붙인 BOM
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQ) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { cell += '"'; i++; } else inQ = false;
+          } else cell += ch;
+        } else if (ch === '"') inQ = true;
+        else if (ch === ",") { row.push(cell); cell = ""; }
+        else if (ch === "\n" || ch === "\r") {
+          if (ch === "\r" && text[i + 1] === "\n") i++;
+          row.push(cell); cell = "";
+          if (row.some((c) => c !== "")) rows.push(row);
+          row = [];
+        } else cell += ch;
+      }
+      row.push(cell);
+      if (row.some((c) => c !== "")) rows.push(row);
+      return rows;
+    }
+
+    let importRows = null;   // 고른 파일에서 만든 [책id, 고칠 것] 목록
+    el("in-import-pick").addEventListener("click", () => el("in-import").click());
+    el("in-import").addEventListener("change", async () => {
+      const out = el("in-import-out"), go = el("in-import-go");
+      const file = el("in-import").files?.[0];
+      el("in-import").value = "";
+      importRows = null; go.hidden = true;
+      if (!file) return;
+      try {
+        const rows = parseCSV(await file.text());
+        if (rows.length < 2) throw new Error("줄이 없습니다");
+        const cols = rows[0].map((h) => CSV_COL[h.trim()] || null);
+        const idAt = cols.indexOf("id");
+        if (idAt < 0) throw new Error("「아이디」 열이 없습니다 — 새로 내려받은 CSV 를 쓰세요");
+        let noId = 0;
+        importRows = [];
+        for (const r of rows.slice(1)) {
+          const id = (r[idAt] || "").trim();
+          if (!id) { noId++; continue; }
+          const patch = {};
+          cols.forEach((c, i) => {
+            if (!c || c === "id") return;
+            const raw = (r[i] ?? "").trim();
+            if (CSV_NUM.has(c)) {
+              const n = raw === "" ? null : Number(raw);
+              patch[c] = Number.isFinite(n) ? n : null;
+            } else if (c === "read_status") {
+              // 상태는 세 값뿐이다 — 이상한 값으로 DB 제약에 부딪히지 않게 거른다
+              if (["읽음", "읽는 중", "안 읽음"].includes(raw)) patch[c] = raw;
+            } else {
+              patch[c] = raw === "" ? null : raw;
+            }
+          });
+          if (Object.keys(patch).length) importRows.push([id, patch]);
+        }
+        if (!importRows.length) throw new Error("고칠 줄이 없습니다");
+        out.innerHTML = `<p class="enrich-msg"></p>`;
+        out.querySelector("p").textContent =
+          `${importRows.length.toLocaleString()}줄을 읽었습니다`
+          + (noId ? ` (아이디 없는 ${noId}줄은 건너뜁니다)` : "")
+          + " — 「적용한다」를 누르면 그대로 고칩니다.";
+        go.hidden = false;
+      } catch (err) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "읽지 못했습니다 — " + (err.message || err);
+      }
+    });
+    el("in-import-go").addEventListener("click", async () => {
+      const out = el("in-import-out"), go = el("in-import-go");
+      if (!importRows?.length) return;
+      go.disabled = true;
+      let ok = 0, dup = 0, bad = 0;
+      for (let i = 0; i < importRows.length; i++) {
+        go.textContent = `고치는 중… ${i + 1} / ${importRows.length}`;
+        const [id, patch] = importRows[i];
+        try { await db.updateBook(id, patch); ok++; }
+        catch (err) {
+          // 제목·지은이를 고치다 이미 있는 책과 같아졌다 — 그 줄만 접는다
+          if (String(err.code || "") === "23505" || String(err.message || "").includes("23505")) dup++;
+          else { bad++; console.error("[되들이기] 못 고쳤습니다:", id, err); }
+        }
+      }
+      importRows = null;
+      go.hidden = true; go.disabled = false; go.textContent = "적용한다";
+      out.innerHTML = `<p class="enrich-msg ${bad ? "bad" : "good"}"></p>`;
+      out.querySelector("p").textContent =
+        `${ok.toLocaleString()}권을 고쳤습니다`
+        + (dup ? ` · ${dup}권은 다른 책과 겹쳐 접었습니다` : "")
+        + (bad ? ` · ${bad}권은 실패했습니다` : "");
+      await window.PostLibrosRefresh?.();
     });
 
     /* 서지 채우기 — 알라딘에 물어 빈 칸을 메운다.
