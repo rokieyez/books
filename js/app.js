@@ -185,9 +185,15 @@
           const pk = document.createElement("div"); pk.className = "plank"; panel.appendChild(pk);
         }
       } else {
+        /* 벽에는 66권만 그려진다. 검색 중이면 응답한 책을 앞으로 끌어와
+           찾는 책이 보이지 않는 뒷줄에 묻히지 않게 한다. */
+        const hit = (b) => (b.t + " " + b.a).toLowerCase().includes(q());
+        const shelved = q()
+          ? [...w.books.filter(hit), ...w.books.filter(b => !hit(b))]
+          : w.books;
         for (let s = 0; s < 3; s++) {
           const line = document.createElement("div"); line.className = "shelfline";
-          w.books.slice(s*22, (s+1)*22).forEach((b, k) => {
+          shelved.slice(s*22, (s+1)*22).forEach((b, k) => {
             const idx = s*22 + k;
             const el = document.createElement("button"); el.className = "tome";
             const latch = idx === w.latchIdx;
@@ -361,11 +367,31 @@
     b.addEventListener("click", () => setView(b.dataset.v));
   });
 
-  /* 표지 뷰 */
+  /* 표지 뷰 — 표지는 그림이라 무겁다. 한 번에 다 깔지 않고,
+     화면에 들어온 것만 실제로 내려받는다. */
+  const COVER_STEP = 60;
+  let coversShown = COVER_STEP;
+  let coverIO = null;
+  function lazyCover(el, url) {
+    if (!("IntersectionObserver" in window)) { el.style.backgroundImage = `url("${url}")`; return; }
+    if (!coverIO) {
+      coverIO = new IntersectionObserver((ens) => {
+        ens.forEach(en => {
+          if (!en.isIntersecting) return;
+          en.target.style.backgroundImage = `url("${en.target.dataset.cover}")`;
+          coverIO.unobserve(en.target);
+        });
+      }, { rootMargin: "300px" });
+    }
+    el.dataset.cover = url;
+    coverIO.observe(el);
+  }
+
   function renderCovers() {
     const box = $("covergrid"); box.innerHTML = "";
+    if (coverIO) { coverIO.disconnect(); coverIO = null; }
     const list = filteredBooks();
-    list.slice(0, 48).forEach(b => {
+    list.slice(0, coversShown).forEach(b => {
       const el = document.createElement("button");
       el.className = "cover";
       el.style.setProperty("--cvr", b.c);
@@ -375,23 +401,48 @@
       // 알라딘에서 받아 온 진짜 표지가 있으면 그것을 깐다
       if (b.cover) {
         el.classList.add("hascover");
-        el.style.backgroundImage = `url("${b.cover}")`;
+        lazyCover(el, b.cover);
       }
       el.addEventListener("click", () => openExlibris(b, bookWall(b)));
       box.appendChild(el);
     });
-    $("cover-note").textContent = list.length > 48
-      ? `— 등불이 닿는 48권까지 — 어둠 속에 ${(list.length - 48).toLocaleString()}권이 더 있다 —`
+    const shown = Math.min(coversShown, list.length);
+    $("cover-note").textContent = shown < list.length
+      ? `— 등불이 닿는 ${shown.toLocaleString()}권까지 — 어둠 속에 ${(list.length - shown).toLocaleString()}권이 더 있다 —`
       : (q() ? `"${$("q").value.trim()}" — ${list.length}권 응답`
-             : (list.length ? "" : "아직 꽂힌 책이 없습니다."));
+             : (list.length ? `${list.length.toLocaleString()}권 전부` : "아직 꽂힌 책이 없습니다."));
+    const more = $("covermore");
+    more.hidden = shown >= list.length;
+    more.textContent = `등불을 옮긴다 (${(list.length - shown).toLocaleString()}권 남음)`;
   }
 
   /* 목록 뷰 */
   const STCOLOR = { "읽음": "var(--st-done)", "읽는 중": "var(--st-doing)", "안 읽음": "var(--st-todo)" };
+  /* 목록은 이 서재를 통째로 훑는 유일한 자리다.
+     1,300권을 스무 줄만 보여주면 나머지는 없는 것과 같아, 넉넉히 펼치고
+     더 볼 수 있게 한다. 정렬도 여기서만 된다. */
+  const LIST_STEP = 120;
+  let listShown = LIST_STEP;
+  let sortKey = null, sortAsc = true;
+
+  const ST_ORDER = { "읽는 중": 0, "안 읽음": 1, "읽음": 2 };
+  function sortedBooks() {
+    const list = filteredBooks();
+    if (!sortKey) return list;
+    const val = (b) => sortKey === "st" ? (ST_ORDER[b.st] ?? 9)
+      : sortKey === "year" ? (b.year ?? 0)
+      : String(b[sortKey] ?? "");
+    return [...list].sort((x, y) => {
+      const a = val(x), b2 = val(y);
+      const c = typeof a === "number" ? a - b2 : a.localeCompare(b2, "ko");
+      return sortAsc ? c : -c;
+    });
+  }
+
   function renderList() {
     const body = $("listbody"); body.innerHTML = "";
-    const list = filteredBooks();
-    list.slice(0, 20).forEach(b => {
+    const list = sortedBooks();
+    list.slice(0, listShown).forEach(b => {
       const tr = document.createElement("tr");
       tr.innerHTML = `<td class="t"></td><td></td><td></td>
         <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${b.st}</td>
@@ -403,8 +454,15 @@
       tr.addEventListener("click", () => openExlibris(b, bookWall(b)));
       body.appendChild(tr);
     });
-    $("listnote").textContent = `${list.length.toLocaleString()}권 일치 — ${Math.min(20, list.length)}권 표시`
-      + (q() ? ` (검색어: "${$("q").value.trim()}")` : " — 검색으로 좁혀보세요");
+    const shown = Math.min(listShown, list.length);
+    $("listnote").textContent = list.length
+      ? `${list.length.toLocaleString()}권 중 ${shown.toLocaleString()}권 표시`
+        + (q() ? ` (검색어: "${$("q").value.trim()}")` : "")
+        + (sortKey ? ` · ${sortAsc ? "오름차순" : "내림차순"}` : "")
+      : (q() ? `"${$("q").value.trim()}" — 찾지 못했습니다` : "아직 꽂힌 책이 없습니다.");
+    const more = $("listmore");
+    more.hidden = shown >= list.length;
+    more.textContent = `더 본다 (${(list.length - shown).toLocaleString()}권 남음)`;
   }
 
   /* 통계 뷰 — 숫자는 전부 지금 꽂혀 있는 책에서 센다.
@@ -501,10 +559,43 @@
     }));
   }
 
+  $("listmore").addEventListener("click", () => {
+    listShown += LIST_STEP;
+    renderList();
+  });
+
+  $("covermore").addEventListener("click", () => {
+    coversShown += COVER_STEP;
+    renderCovers();
+  });
+
+  document.querySelectorAll(".sortbtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.k;
+      // 같은 칸을 다시 누르면 방향만 뒤집는다
+      if (sortKey === k) sortAsc = !sortAsc;
+      else { sortKey = k; sortAsc = true; }
+      document.querySelectorAll(".sortbtn").forEach((o) => {
+        o.classList.toggle("on", o === btn);
+        o.dataset.dir = o === btn ? (sortAsc ? "↑" : "↓") : "";
+      });
+      listShown = LIST_STEP;
+      renderList();
+    });
+  });
+
+  /* 한 글자마다 벽 넷을 통째로 다시 그리면 1,300권에서는 손가락을 따라오지
+     못한다. 타자가 멎은 뒤에 한 번만 그린다. */
+  let searchTimer = null;
   $("q").addEventListener("input", () => {
-    renderWalls();
-    if (curView === "covers") renderCovers();
-    if (curView === "list") renderList();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      listShown = LIST_STEP;   // 검색을 바꾸면 처음부터 다시 센다
+      coversShown = COVER_STEP;
+      renderWalls();
+      if (curView === "covers") renderCovers();
+      if (curView === "list") renderList();
+    }, 140);
   });
 
   /* ── 사다리: 위치 표식 + 고도계 ───────────────────────── */

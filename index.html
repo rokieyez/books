@@ -57,16 +57,25 @@
   <section id="v-covers" hidden>
     <div class="covers" id="covergrid"></div>
     <p class="cover-note" id="cover-note"></p>
+    <button class="listmore" id="covermore" hidden>더 본다</button>
   </section>
 
   <section id="v-list" hidden>
     <div class="listwrap">
       <table class="ledger">
-        <thead><tr><th>제목</th><th>저자</th><th>분류</th><th>상태</th><th>입고</th><th>위치</th></tr></thead>
+        <thead><tr>
+          <th><button class="sortbtn" data-k="t">제목</button></th>
+          <th><button class="sortbtn" data-k="a">저자</button></th>
+          <th><button class="sortbtn" data-k="cat">분류</button></th>
+          <th><button class="sortbtn" data-k="st">상태</button></th>
+          <th><button class="sortbtn" data-k="year">입고</button></th>
+          <th><button class="sortbtn" data-k="loc">위치</button></th>
+        </tr></thead>
         <tbody id="listbody"></tbody>
       </table>
     </div>
     <p class="list-note" id="listnote"></p>
+    <button class="listmore" id="listmore" hidden>더 본다</button>
   </section>
 
   <section id="v-stats" hidden>

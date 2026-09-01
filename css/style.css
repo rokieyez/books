@@ -1152,10 +1152,29 @@
   .ledger td { padding: 8px 16px; border-bottom: 1px dashed var(--line); white-space: nowrap; color: var(--parchment); }
   .ledger td.t { font-family: "Gowun Batang", serif; font-weight: 700; color: #E8CE93; }
   .ledger tbody tr:hover td { background: rgba(224,177,94,.06); cursor: pointer; }
+  /* 머리글을 눌러 정렬한다 — 누른 칸에만 화살표가 남는다 */
+  .ledger th { padding: 0; }
+  .sortbtn {
+    font: inherit; color: inherit; letter-spacing: inherit;
+    background: none; border: 0; cursor: pointer;
+    padding: 11px 16px; width: 100%; text-align: left;
+    transition: color .2s, background .2s;
+  }
+  .sortbtn:hover { color: var(--brass); background: rgba(224,177,94,.05); }
+  .sortbtn.on { color: var(--brass); }
+  .sortbtn::after { content: attr(data-dir); margin-left: 6px; opacity: .8; }
   .list-note {
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
     color: var(--parchment-dim); letter-spacing: .1em; padding: 12px 2px;
   }
+  .listmore {
+    display: block; width: 100%; margin: 2px 0 10px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .16em;
+    color: var(--brass-dim); background: rgba(36,23,8,.55);
+    border: 1px dashed var(--wood3); padding: 13px; cursor: pointer;
+    transition: color .2s, border-color .2s, background .2s;
+  }
+  .listmore:hover { color: var(--brass); border-color: var(--brass-dim); background: rgba(224,177,94,.05); }
   .st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
 
   /* 통계 뷰 */
