@@ -79,8 +79,17 @@ https://www.aladin.co.kr/ttb/api/ItemSearch.aspx
 
 ### 아직 남은 것 (사용자 손이 필요)
 
-- [Leaked Password Protection 켜기](https://supabase.com/dashboard/project/gaeumegwhxxnfvrhbknp/settings/auth) — 보안 린터가 지적하는 유일한 항목
-- 커스텀 SMTP — 기본 메일 서비스는 시간당 몇 통뿐이라 예비 문이 정작 급할 때 안 열릴 수 있다
+- 커스텀 SMTP — 아래 참조
+
+### 메일은 지금 사실상 안 나간다
+
+보안 린터가 남긴 유일한 지적은 Leaked Password Protection 인데 **유료 옵션이라 켜지 않기로 했다.** 다시 제안하지 말 것.
+
+정작 급한 것은 메일이다. Supabase 기본 SMTP 는 **조직 구성원 주소로만** 보내지고 시간당 두 통 제한이라, 비밀번호를 잊었을 때 쓸 예비 문(메일 링크)이 정작 그때 안 열린다. 커스텀 SMTP 를 붙여야 비로소 예비 문이 산다.
+
+- 보낼 곳: Resend (무료 하루 100통) — `smtp.resend.com` / 465 / 사용자 `resend` / 비밀번호는 Resend API 키
+- rokiz.net 에 **MX·TXT 가 하나도 없다** — 메일용 DNS 를 새로 얹어도 웹(A·CNAME)은 건드리지 않는다
+- 도메인 인증을 마치기 전에는 Resend 도 가입한 본인 주소로만 보낸다
 
 ### Edge Functions 비밀값
 
