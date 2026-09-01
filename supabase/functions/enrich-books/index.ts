@@ -196,8 +196,95 @@ Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth) return reply({ error: "열쇠가 없습니다" }, 401);
 
-  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string } = {};
+  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string; crate?: boolean } = {};
   try { body = await req.json(); } catch { /* 빈 몸통도 허용 */ }
+
+  /* ── 궤짝을 알라딘에 묻는다 — 흐린 후보를 서지로 확정한다 ──
+     확신이 낮아 궤짝에 담긴 책들: 글씨는 흐렸어도 책은 진짜다.
+     읽어낸 글자로 알라딘을 검색해 강하게 일치하면(0.75 이상) 그 서지로
+     꽂는다. 흐린 OCR + 알라딘 일치 = 사람이 하나씩 누르는 것보다 낫다.
+     확정 못 하면 궤짝에 그대로 남는다 — 잃는 것이 없다. */
+  if (body.crate) {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: auth } } },
+    );
+    const limit = Math.min(Number(body.limit ?? 20), 30);
+    const { data: cands, error } = await db.from("intake_candidates")
+      .select("*, intake_photos(wall, shelf)")
+      .eq("status", "대기").order("created_at").limit(limit);
+    if (error) return reply({ error: "궤짝을 읽지 못했습니다: " + error.message }, 500);
+    if (!cands?.length) return reply({ 확정: 0, 겹침: 0, 못정함: 0, 남음: 0 });
+
+    let ok = 0, dup = 0, skip = 0;
+    const 확정목록: Array<Record<string, unknown>> = [];
+
+    for (const c of cands) {
+      const raw = String(c.raw_text ?? "").trim();
+      if (!raw) { skip++; continue; }
+      const guess = (c.candidates as Array<Record<string, unknown>> | null)?.[0] ?? {};
+      const stripped = raw.replace(/[\s·-]+\d{1,3}$/, "").trim();
+
+      let best = null, score = 0;
+      const tries: Array<[string, string, string]> = [
+        [[raw, guess.author].filter(Boolean).join(" "), "Book", "Keyword"],
+        [stripped || raw, "Book", "Title"],
+      ];
+      for (const [q2, target, qt] of tries) {
+        try {
+          const r = await aladin(ttb, q2, target, qt);
+          const j = JSON.parse(r.text.replace(/;$/, ""));
+          const p = pickBest(j.item ?? [], raw);
+          if (p.best && p.score > score) { best = p.best; score = p.score; }
+          if (score >= 0.9) break;
+        } catch { /* 다음 사다리로 */ }
+      }
+      if (!best || score < 0.75) { skip++; continue; }
+
+      const isbn = best.isbn13 || best.isbn ? String(best.isbn13 || best.isbn) : null;
+      const info = isbn ? await aladinLookup(ttb, isbn) : null;
+      const category = catOf(String(best.categoryName ?? "")) || String(guess.category || "문학");
+      const photo = (c.intake_photos ?? {}) as { wall?: string | null; shelf?: number | null };
+      let wall = photo.wall || null;
+      if (!wall) {
+        const { data: w } = await db.rpc("wall_for_category", { cat: category });
+        wall = (w as string | null) || "문학";
+      }
+      const title = decode(String(best.title ?? "")).trim();
+      const { data: made, error: e2 } = await db.from("books").insert({
+        title,
+        author: best.author ? decode(String(best.author)).split(/[,(]/)[0].trim() : null,
+        category, isbn,
+        publisher: info?.publisher ?? (best.publisher ? decode(String(best.publisher)) : null),
+        cover_url: info?.cover ?? (best.cover ? String(best.cover) : null),
+        published_year: info?.year ?? null,
+        page_count: info?.pages ?? null,
+        size_height: info?.sizeHeight ?? null,
+        size_depth: info?.sizeDepth ?? null,
+        wall,
+        shelf: photo.shelf ?? null,
+        spine_photo_id: c.photo_id ?? null,
+        spine_box: c.spine_box ?? null,
+        enrich_tried_at: new Date().toISOString(),
+      }).select("id").single();
+      if (e2) {
+        if (e2.code === "23505") {   // 이미 꽂혀 있다 — 후보만 접는다
+          await db.from("intake_candidates").update({ status: "버림" }).eq("id", c.id);
+          dup++; continue;
+        }
+        skip++; continue;
+      }
+      await db.from("intake_candidates")
+        .update({ status: "확정", resolved_book_id: made.id }).eq("id", c.id);
+      ok++;
+      확정목록.push({ 읽은것: raw, 알라딘: title });
+    }
+
+    const { count } = await db.from("intake_candidates")
+      .select("id", { count: "exact", head: true }).eq("status", "대기");
+    return reply({ 확정: ok, 겹침: dup, 못정함: skip, 남음: count ?? 0, 확정목록 });
+  }
 
   /* ── 서표의 ISBN 직접 조회 — 이미 꽂힌 책에 번호로 서지를 붙인다 ──
      제목 검색이 못 찾는 책의 마지막 길: 실물 뒤표지의 ISBN 을 사람이 적었다.

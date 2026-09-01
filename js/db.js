@@ -172,6 +172,17 @@
       );
     },
 
+    /* 궤짝 확정 — 확신이 낮아 궤짝에 담긴 후보를 알라딘에 물어,
+       강하게 일치하면(0.75 이상) 그 서지로 바로 꽂는다.
+       한 번에 여러 권을 도니 넉넉히 기다린다. */
+    async confirmCrate(limit = 20) {
+      return guard(
+        client.functions.invoke("enrich-books", { body: { crate: true, limit } }),
+        180000,
+        "궤짝 확정",
+      );
+    },
+
     /* 바코드 입고 — ISBN 하나로 서지가 완성된 책을 꽂는다 */
     async addByIsbn(isbn) {
       return guard(

@@ -338,6 +338,51 @@
       box.appendChild(bulk);
     }
 
+    /* 확신이 낮은 후보는 알라딘에 물어 확정한다 — 흐린 글씨라도 책은 진짜다.
+       읽어낸 글자로 검색해 강하게 일치하면(0.75 이상) 알라딘 서지로 꽂는다.
+       서버(Edge Function)가 20권씩 돌므로, 남은 것이 없어질 때까지 되돈다.
+       못 정한 책은 대기로 남아 되돌아오므로, 진행이 없으면(확정+겹침 0) 멈춘다. */
+    const hard = list.filter((c) => Number(c.confidence ?? 0) < 0.6);
+    if (hard.length && window.PostLibrosDB?.confirmCrate) {
+      const ask = document.createElement("button");
+      ask.className = "crate-bulk";
+      const idle = `알라딘에 물어 확정한다 — 흐린 ${hard.length}권`;
+      ask.textContent = idle;
+      ask.addEventListener("click", async () => {
+        if (ask.dataset.running) { ask.dataset.stop = "1"; ask.textContent = "멈추는 중…"; return; }
+        ask.dataset.running = "1";
+        delete ask.dataset.stop;
+        let sumOk = 0, sumDup = 0;
+        try {
+          for (let round = 1; round <= 20; round++) {
+            ask.textContent = `묻는 중… ${round}번째 스무 권 (누르면 멈춥니다)`;
+            const { data, error } = await window.PostLibrosDB.confirmCrate(20);
+            if (error || data?.error) {
+              renderCrate._msg = "묻지 못했습니다: " + (error?.message || data?.error);
+              break;
+            }
+            sumOk += data?.확정 ?? 0;
+            sumDup += data?.겹침 ?? 0;
+            // 확정도 겹침도 없으면 남은 것은 전부 알라딘도 모르는 책 — 더 물어도 같다
+            if (!(data?.확정 || data?.겹침) || !(data?.남음 > 0)) break;
+            if (ask.dataset.stop) break;
+          }
+          renderCrate._msg = sumOk || sumDup
+            ? `알라딘이 ${sumOk}권을 확정했습니다`
+              + (sumDup ? ` · 이미 꽂혀 있던 ${sumDup}권은 접었습니다` : "")
+              + " · 남은 것은 알라딘도 갈피를 못 잡은 책입니다"
+            : "알라딘도 확정하지 못했습니다 — 남은 책은 손으로 골라주세요";
+        } finally {
+          delete ask.dataset.running;
+          delete ask.dataset.stop;
+          await window.PostLibrosRefresh?.();
+          // 확정된 책들의 실물 책등을 이어서 오려 붙인다
+          try { await window.PostLibrosCropSpines?.(); } catch (e) { console.error(e); }
+        }
+      });
+      box.appendChild(ask);
+    }
+
     list.forEach((c) => {
       const item = document.createElement("div");
       item.className = "crateitem";
@@ -677,9 +722,22 @@
     }
 
     const CATSTAT = tally(books, (b) => b.cat).sort((a, b) => b[1] - a[1]);
-    const YEARSTAT = tally(books, (b) => b.year)
-      .sort((a, b) => a[0] - b[0])
-      .map(([y, v]) => ["'" + String(y).slice(2), v]);
+    /* 입고 해가 하나뿐이면(장서를 한꺼번에 옮긴 참) 막대 하나짜리 그림이 된다 —
+       그때는 펴낸 해를 10년 단위로 묶어 장서의 나이를 보여준다. 항목은
+       [막대 글자, 권수, 올릴 때 설명] 세 짝이다. */
+    const acqTally = tally(books, (b) => b.year);
+    const pubTally = tally(books, (b) => b.pubYear && Math.floor(b.pubYear / 10) * 10);
+    const usePub = acqTally.length <= 1 && pubTally.length > 1;
+    const YEARSTAT = usePub
+      ? pubTally.sort((a, b) => a[0] - b[0])
+          .map(([d, v]) => ["'" + String(d).slice(2), v, `${d}년대 펴냄 ${v}권`])
+      : acqTally.sort((a, b) => a[0] - b[0])
+          .map(([y, v]) => ["'" + String(y).slice(2), v, `${y}년 ${v}권 입고`]);
+    const yearPanel = $("yearcols")?.closest(".statpanel");
+    if (yearPanel) {
+      const h4El = yearPanel.querySelector("h4");
+      if (h4El) h4El.textContent = usePub ? "펴낸 해" : "연도별 입고";
+    }
     const AUTHSTAT = tally(books, (b) => b.a).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
     // "서가에 꽂힌" 이라고 못박는다 — 표본 화면에서는 벽이 밝힌 권수보다
@@ -700,12 +758,12 @@
     const yc = $("yearcols");
     // 입고 연도를 모르는 장서만 있을 수 있다 — 그때는 빈 칸으로 둔다
     const ymax = YEARSTAT.length ? Math.max(...YEARSTAT.map(y => y[1])) : 0;
-    if (!YEARSTAT.length) yc.innerHTML = `<p class="statempty">입고 연도가 적힌 책이 아직 없습니다.</p>`;
-    YEARSTAT.forEach(([y, v], i) => {
+    if (!YEARSTAT.length) yc.innerHTML = `<p class="statempty">연도가 적힌 책이 아직 없습니다.</p>`;
+    YEARSTAT.forEach(([y, v, tip], i) => {
       const el = document.createElement("div"); el.className = "col";
       const showVal = v === ymax || i === YEARSTAT.length - 1;
       el.innerHTML = `<span class="vl">${showVal ? v : ""}</span><i style="height:0%"></i><span class="yl">${y}</span>`;
-      el.title = `20${y.slice(1)}년 ${v}권 입고`;
+      el.title = tip;
       grow.push([el.querySelector("i"), "height", Math.round(v/ymax*76) + "%"]);
       yc.appendChild(el);
     });
@@ -1246,6 +1304,18 @@
     if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "")) {
       e.preventDefault();
       $("q").focus();
+      return;
+    }
+    // 서표가 열려 있으면 ←/→ 로 이웃 책을 넘긴다 — 글을 쓰는 중이 아닐 때만
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight")
+        && $("exlibris").classList.contains("show") && openBook
+        && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "")) {
+      const list = filteredBooks();
+      const i = list.indexOf(openBook);
+      if (i >= 0) {
+        const nb = list[i + (e.key === "ArrowRight" ? 1 : -1)];
+        if (nb) { e.preventDefault(); openExlibris(nb, bookWall(nb)); }
+      }
       return;
     }
     if (e.key !== "Escape") return;
