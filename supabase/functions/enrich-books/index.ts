@@ -68,6 +68,21 @@ function catOf(path: string): string | null {
   return null;   // 알아볼 수 없으면 원래 분류를 그대로 둔다
 }
 
+/* 알라딘 표지는 기본이 엄지손톱(coversum)이라 흐리다. 사이트 검색 화면이 쓰는
+   큰 그림(cover500)으로 주소를 올려 보고, 진짜 있는지 HEAD 로 확인한 뒤에만
+   바꾼다 — 아주 옛 책은 큰 그림이 없을 수 있고, 그때는 원래 것을 지킨다.
+   (기존 196권도 같은 방법으로 전수 확인 후 승급했다, 2026-09-01) */
+async function bigCover(url: string | null): Promise<string | null> {
+  if (!url) return null;
+  const up = url.replace(/\/cover(?:sum|\d+)\//, "/cover500/");
+  if (up === url) return url;
+  try {
+    const r = await fetch(up, { method: "HEAD" });
+    if (r.ok) return up;
+  } catch { /* 못 물으면 원래 것 그대로 */ }
+  return url;
+}
+
 async function aladin(key: string, query: string, target = "Book", queryType = "Keyword") {
   const params = new URLSearchParams({
     ttbkey: key,
@@ -153,13 +168,48 @@ async function aladinLookup(key: string, id: string, idType?: string) {
       sizeHeight: mm(it.subInfo?.packing?.sizeHeight, 80, 400),
       sizeDepth: mm(it.subInfo?.packing?.sizeDepth, 3, 150),
       publisher: it.publisher ? decode(String(it.publisher)) : null,
-      cover: it.cover ? String(it.cover) : null,
+      cover: it.cover ? await bigCover(String(it.cover)) : null,
       year: /^\d{4}/.test(String(it.pubDate ?? "")) ? Number(String(it.pubDate).slice(0, 4)) : null,
       category: catOf(String(it.categoryName ?? "")),
     };
   } catch {
     return null;
   }
+}
+
+/* 조회의 사다리 — ItemLookUp 은 절판·옛 책에서 곧잘 빈손이 된다 (사이트에는
+   보이는 책도). 그때는 그 번호로 검색(ItemSearch)해 ItemId 를 얻어 다시
+   조회한다. 검색 결과는 반드시 ISBN 이 정확히 같은 항목만 믿는다 — 검색은
+   느슨해서 엉뚱한 책을 돌려줄 수 있다. 사람이 붙여넣은 번호가 오는
+   서표·바코드 길에서만 쓴다 (자동 채우기는 이미 검색을 거친 뒤라 불필요). */
+async function lookupHard(ttb: string, isbn: string) {
+  const direct = await aladinLookup(ttb, isbn);
+  if (direct?.title) return direct;
+  for (const target of ["Book", "Foreign", "All"]) {
+    try {
+      const r = await aladin(ttb, isbn, target, "Keyword");
+      const j = JSON.parse(r.text.replace(/;$/, ""));
+      const it = (j.item ?? []).find((x: Record<string, unknown>) =>
+        String(x.isbn13 ?? "") === isbn || String(x.isbn ?? "") === isbn);
+      if (!it) continue;
+      if (it.itemId) {
+        const info = await aladinLookup(ttb, String(it.itemId), "ItemId");
+        if (info?.title) return info;
+      }
+      // 조회가 끝내 빈손이면 검색 결과의 서지로라도 답한다 — 쪽수·크기만 빈다
+      return {
+        title: it.title ? decode(String(it.title)).trim() : null,
+        author: it.author ? decode(String(it.author)).split(/[,(]/)[0].trim() : null,
+        isbn13: it.isbn13 ? String(it.isbn13) : null,
+        pages: null, sizeHeight: null, sizeDepth: null,
+        publisher: it.publisher ? decode(String(it.publisher)) : null,
+        cover: it.cover ? await bigCover(String(it.cover)) : null,
+        year: /^\d{4}/.test(String(it.pubDate ?? "")) ? Number(String(it.pubDate).slice(0, 4)) : null,
+        category: catOf(String(it.categoryName ?? "")),
+      };
+    } catch { /* 다음 과녁으로 */ }
+  }
+  return null;
 }
 
 /* 마지막 수단 — 알라딘 웹사이트 검색.
@@ -208,7 +258,7 @@ async function plantCandidate(db: any, ttb: string, c: any, best: Record<string,
     author: best.author ? decode(String(best.author)).split(/[,(]/)[0].trim() : null,
     category, isbn,
     publisher: info?.publisher ?? (best.publisher ? decode(String(best.publisher)) : null),
-    cover_url: info?.cover ?? (best.cover ? String(best.cover) : null),
+    cover_url: info?.cover ?? (best.cover ? await bigCover(String(best.cover)) : null),
     published_year: info?.year ?? null,
     page_count: info?.pages ?? null,
     size_height: info?.sizeHeight ?? null,
@@ -348,8 +398,8 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: auth } } },
     );
-    const info = await aladinLookup(ttb, isbn);
-    if (!info?.title) return reply({ error: "알라딘에서 찾지 못했습니다 (" + isbn + ")" }, 404);
+    const info = await lookupHard(ttb, isbn);
+    if (!info?.title) return reply({ error: "알라딘 조회에도 검색에도 없는 번호입니다 (" + isbn + ") — 번호를 다시 확인해 보세요" }, 404);
 
     const patch: Record<string, unknown> = {
       isbn: info.isbn13 || isbn,
@@ -386,7 +436,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: auth } } },
     );
-    const info = await aladinLookup(ttb, isbn);
+    const info = await lookupHard(ttb, isbn);
     if (!info?.title) return reply({ error: "알라딘에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
 
     const category = info.category || "문학";
@@ -531,7 +581,7 @@ Deno.serve(async (req) => {
         author: found.author ? decode(String(found.author)).split(/[,(]/)[0].trim() : null,
         isbn: found.isbn13 || found.isbn ? String(found.isbn13 || found.isbn) : null,
         publisher: found.publisher ? decode(String(found.publisher)) : null,
-        cover: found.cover ? String(found.cover) : null,
+        cover: found.cover ? await bigCover(String(found.cover)) : null,
         year: /^\d{4}/.test(String(found.pubDate ?? "")) ? Number(String(found.pubDate).slice(0, 4)) : null,
         category: catOf(String(found.categoryName ?? "")),
         pages: null, sizeHeight: null, sizeDepth: null,

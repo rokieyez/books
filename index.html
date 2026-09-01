@@ -142,9 +142,8 @@
       </div>
       <div class="statpanel wide" id="linkweb-panel">
         <h4>이음의 별자리</h4>
-        <p class="ps" id="ps-linkweb">이어 둔 책들이 성좌를 이룹니다</p>
+        <p class="ps" id="ps-linkweb">서로 다른 책을 손으로 이어 둔 컬렉션이 성좌를 이룹니다</p>
         <canvas id="linkweb" height="240"></canvas>
-        <div id="linksuggest"></div>
       </div>
       <div class="statpanel wide" id="authorweb-panel">
         <h4>작가의 별자리</h4>
@@ -216,6 +215,13 @@
       <input type="text" id="x-a" placeholder="지은이" aria-label="지은이">
     </div>
     <div class="x-row">
+      <span class="x-lb">시리즈</span>
+      <input type="text" id="x-series" list="serieslist"
+             placeholder="시리즈 이름 — 같은 이름끼리 목록에서 접힙니다"
+             aria-label="시리즈 이름">
+      <datalist id="serieslist"></datalist>
+    </div>
+    <div class="x-row">
       <span class="x-lb">읽음</span>
       <div class="x-seg" id="x-status" role="group" aria-label="읽음 상태">
         <button data-st="읽음">읽음</button>
@@ -260,6 +266,7 @@
         <input type="text" id="x-link-q" placeholder="이을 책을 찾는다 — 제목·지은이"
                aria-label="이을 책 검색">
         <div class="x-linkpick" id="x-linkpick"></div>
+        <button type="button" class="sugrow" id="x-serieslink" hidden></button>
       </div>
     </div>
     <div class="x-row">

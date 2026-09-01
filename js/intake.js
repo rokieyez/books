@@ -483,10 +483,10 @@
         // 아이디는 되들이기(수정 왕복)의 열쇠다 — 사람이 읽을 일은 없어 맨 뒤에 둔다
         const cols = ["title", "author", "category", "publisher", "isbn", "published_year",
                       "page_count", "size_height", "size_depth", "bookmark_page",
-                      "read_status", "read_year", "wall", "shelf", "slot", "acquired_on",
+                      "read_status", "read_year", "series", "wall", "shelf", "slot", "acquired_on",
                       "memo", "cover_url", "id"];
         const head = ["제목","지은이","분류","펴낸곳","ISBN","펴낸해","쪽수","높이mm","등두께mm","갈피",
-                      "읽음","읽은해","벽","단","자리","입고","여백","표지","아이디"];
+                      "읽음","읽은해","시리즈","벽","단","자리","입고","여백","표지","아이디"];
         const cell = (v) => {
           const s = v == null ? "" : String(v);
           return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -517,7 +517,7 @@
       "제목": "title", "지은이": "author", "분류": "category", "펴낸곳": "publisher",
       "ISBN": "isbn", "펴낸해": "published_year", "쪽수": "page_count",
       "높이mm": "size_height", "등두께mm": "size_depth", "갈피": "bookmark_page",
-      "읽음": "read_status", "읽은해": "read_year", "벽": "wall", "단": "shelf",
+      "읽음": "read_status", "읽은해": "read_year", "시리즈": "series", "벽": "wall", "단": "shelf",
       "자리": "slot", "입고": "acquired_on", "여백": "memo", "표지": "cover_url",
       "아이디": "id",
     };

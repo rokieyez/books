@@ -780,10 +780,14 @@
   function seriesRows(list) {
     const groups = new Map(), order = [];
     list.forEach((b) => {
+      /* 서표에서 손으로 적은 시리즈 이름이 우선이다 — 제목 꼴이 제각각인
+         전집(「신들의 사회」 「빛의 왕」…)도 한 이름으로 묶을 수 있다.
+         없으면 제목 끝 숫자 규칙(자동)이 그대로 일한다. */
       const m = b.t.match(SERIES_RE);
-      if (m) {
-        const key = m[1].trim() + "␟" + b.a;
-        if (!groups.has(key)) { groups.set(key, []); order.push({ g: key, base: m[1].trim() }); }
+      const base = b.series || (m ? m[1].trim() : null);
+      if (base) {
+        const key = (b.series ? "손␟" + b.series : base + "␟" + b.a);
+        if (!groups.has(key)) { groups.set(key, []); order.push({ g: key, base }); }
         groups.get(key).push(b);
       } else order.push({ b });
     });
@@ -1113,10 +1117,15 @@
 
   /* ── 작가의 별자리 — 같은 작가의 책들이 한 성좌로 모인다 ──
      이음(book_links)과 달리 손대지 않아도 뜬다: 지은이가 같으면 한 무리다.
-     가운데 작가 이름, 둘레에 그 작가의 책들 — 별을 누르면 서표가 열린다. */
+     진짜 성도(星圖)처럼 그린다: 바퀴살 대신 별을 흩뿌려 사슬로 잇고,
+     잔별을 배경에 깔고, 별마다 아주 작게 반짝이고 떠다닌다.
+     자리는 작가 이름 시드로 정한다 — 새로고침해도 같은 하늘이어야 한다.
+     모션 감경이면 정지 화면 한 장만 그린다. 별을 누르면 서표가 열린다. */
+  let authorWebRaf = 0;
   function renderAuthorWeb(books) {
     const cvs = $("authorweb"), ps = $("ps-authorweb");
     if (!cvs || !ps) return;
+    cancelAnimationFrame(authorWebRaf);
     // 두 권 이상 모은 작가만, 많이 모은 순으로 여덟까지
     const byAuthor = new Map();
     books.forEach((b) => {
@@ -1143,40 +1152,121 @@
     cvs.style.width = Wd + "px"; cvs.style.height = Ht + "px";
     const c = cvs.getContext("2d");
     c.scale(2, 2);
-    c.clearRect(0, 0, Wd, Ht);
     c.textAlign = "center";
 
-    const stars = [];   // [x, y, book] — 누른 자리에서 가장 가까운 별을 찾는다
+    const hash = (s) => {
+      let h = 9;
+      for (const ch of s) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+      return h || 1;
+    };
+
+    // 성도의 먼지 — 배경의 잔별. 흐리게 깜빡이기만 하고 움직이지는 않는다
+    const dustRng = makeRng(77);
+    const dust = Array.from({ length: Math.round((Wd * Ht) / 4500) }, () => ({
+      x: dustRng() * Wd, y: dustRng() * Ht,
+      r: 0.4 + dustRng() * 0.7,
+      ph: dustRng() * Math.PI * 2, sp: 0.5 + dustRng(),
+    }));
+
+    const stars = [];   // 성좌의 별 — 밑자리(bx,by)와 반짝임 위상을 품는다
+    const bonds = [];   // 별과 별 사이의 실
     tops.forEach(([name, list], i) => {
-      const cx = 105 + (i % perRow) * 210, cy = 80 + Math.floor(i / perRow) * 165;
-      const shown = list.slice(0, 14);   // 전집 작가는 열넷까지만 — 원이 붐빈다
-      const r = Math.min(56, 24 + shown.length * 2.4);
-      // 가운데 이름
-      c.fillStyle = "#E2D5B8";
-      c.font = "700 12px 'Gowun Batang', serif";
-      c.fillText(name.length > 9 ? name.slice(0, 9) + "…" : name, cx, cy + 4);
-      c.fillStyle = "rgba(163,148,122,.9)";
-      c.font = "10px sans-serif";
-      c.fillText(`${list.length}권`, cx, cy + 18);
-      // 둘레의 책들 — 이름에서 별로 실을 잇는다
+      const cx = 105 + (i % perRow) * 210, cy = 82 + Math.floor(i / perRow) * 165;
+      const shown = list.slice(0, 14);   // 전집 작가는 열넷까지만 — 하늘이 붐빈다
+      const rng = makeRng(hash(name));
+      const r0 = Math.min(54, 26 + shown.length * 2.2);
+      const cell = [];
       shown.forEach((b, k) => {
-        const a = (k / shown.length) * Math.PI * 2 - Math.PI / 2;
-        const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
-        c.strokeStyle = "rgba(151,116,47,.35)";
-        c.lineWidth = 1;
-        c.beginPath(); c.moveTo(cx, cy); c.lineTo(x, y); c.stroke();
-        c.fillStyle = b.st === "읽음" ? "#E0B15E" : "rgba(226,213,184,.55)";
-        c.beginPath(); c.arc(x, y, 2.4, 0, Math.PI * 2); c.fill();
-        stars.push([x, y, b]);
+        // 고른 각에 시드 난수의 흔들림을 얹는다 — 완전한 원은 성좌처럼 안 보인다
+        const a = (k / shown.length) * Math.PI * 2 - Math.PI / 2 + (rng() - 0.5) * 0.6;
+        const rr = r0 * (0.55 + rng() * 0.55);
+        const s = {
+          bx: cx + Math.cos(a) * rr, by: cy + Math.sin(a) * rr,
+          r: b.st === "읽음" ? 2.4 + rng() * 1.2 : 1.6 + rng() * 0.9,
+          lit: b.st === "읽음",
+          ph: rng() * Math.PI * 2, sp: 0.7 + rng() * 1.1,
+          b,
+        };
+        cell.push(s); stars.push(s);
       });
+      // 이웃 별끼리 사슬로 잇는다 — 가운데서 뻗는 바퀴살이 아니라 별자리 선
+      for (let k = 0; k < cell.length - 1; k++) bonds.push([cell[k], cell[k + 1]]);
     });
+
+    // 표류 — 밑자리 둘레를 아주 느리게 (한 바퀴 십몇 초) 맴돈다
+    const posOf = (s, t) => [
+      s.bx + Math.sin(t * 0.00042 * s.sp + s.ph) * 1.4,
+      s.by + Math.cos(t * 0.00033 * s.sp + s.ph * 1.7) * 1.4,
+    ];
+
+    let lastT = 0;
+    const draw = (t) => {
+      lastT = t;
+      c.clearRect(0, 0, Wd, Ht);
+      // 잔별
+      dust.forEach((d) => {
+        const tw = 0.16 + 0.14 * (1 + Math.sin(t * 0.0011 * d.sp + d.ph)) / 2;
+        c.globalAlpha = tw;
+        c.fillStyle = "#E2D5B8";
+        c.beginPath(); c.arc(d.x, d.y, d.r, 0, Math.PI * 2); c.fill();
+      });
+      c.globalAlpha = 1;
+      // 작가 이름 — 성좌 한가운데의 표기
+      tops.forEach(([name, list], i) => {
+        const cx = 105 + (i % perRow) * 210, cy = 82 + Math.floor(i / perRow) * 165;
+        c.fillStyle = "#E2D5B8";
+        c.font = "700 12px 'Gowun Batang', serif";
+        c.fillText(name.length > 9 ? name.slice(0, 9) + "…" : name, cx, cy + 4);
+        c.fillStyle = "rgba(163,148,122,.9)";
+        c.font = "10px sans-serif";
+        c.fillText(`${list.length}권`, cx, cy + 18);
+      });
+      // 별 사이의 실
+      c.strokeStyle = "rgba(151,116,47,.28)";
+      c.lineWidth = 0.8;
+      bonds.forEach(([p, q2]) => {
+        const [x1, y1] = posOf(p, t), [x2, y2] = posOf(q2, t);
+        c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+      });
+      // 별 — 읽은 책은 놋빛으로 밝게 무리를 두르고, 나머지는 흐린 상아빛
+      stars.forEach((s) => {
+        const [x, y] = posOf(s, t);
+        const tw = 0.68 + 0.32 * Math.sin(t * 0.002 * s.sp + s.ph);
+        if (s.lit) {
+          c.globalAlpha = Math.max(0.35, tw);
+          c.shadowColor = "rgba(224,177,94,.85)";
+          c.shadowBlur = 6;
+          c.fillStyle = "#E0B15E";
+        } else {
+          c.globalAlpha = Math.max(0.25, tw * 0.6);
+          c.shadowBlur = 0;
+          c.fillStyle = "#E2D5B8";
+        }
+        c.beginPath(); c.arc(x, y, s.r, 0, Math.PI * 2); c.fill();
+      });
+      c.shadowBlur = 0;
+      c.globalAlpha = 1;
+    };
+
+    if (noMotion) {
+      draw(0);   // 모션을 줄여 달라면 성도 한 장으로 멈춘다
+    } else {
+      const loop = (t) => {
+        if (!cvs.isConnected) return;   // 통계 화면이 통째로 사라지면 끝
+        if (cvs.offsetParent !== null) draw(t);   // 안 보일 땐 그리지 않고 기다린다
+        authorWebRaf = requestAnimationFrame(loop);
+      };
+      authorWebRaf = requestAnimationFrame(loop);
+    }
+
     cvs.onclick = (ev) => {
       const r = cvs.getBoundingClientRect();
       const mx = ev.clientX - r.left, my = ev.clientY - r.top;
       let hit = null, best = 16 * 16;
-      for (const [x, y, b] of stars) {
+      for (const s of stars) {
+        const [x, y] = posOf(s, lastT);
         const d = (x - mx) ** 2 + (y - my) ** 2;
-        if (d < best) { best = d; hit = b; }
+        if (d < best) { best = d; hit = s.b; }
       }
       if (hit) openExlibris(hit, bookWall(hit));
     };
@@ -1242,11 +1332,11 @@
 
   /* ── 이음의 별자리 — 이어 둔 책들이 성좌를 이룬다 ──
      이어진 책들만 별로 뜨고, 같은 성분(서로 닿는 무리)은 작은 원으로 모인다.
-     밑에는 「이어 둘까요」 — 시리즈인데 아직 이어지지 않은 무리를 제안한다. */
+     여기서의 이음은 컬렉션이다: 다른 작가·다른 작품이라도 이었을 때 빛이
+     나는 짝(주인의 뜻). 시리즈 잇기 제안은 여기가 아니라 서표에 있다. */
   async function renderLinkWeb(books) {
-    const cvs = $("linkweb"), sug = $("linksuggest"), ps = $("ps-linkweb");
-    if (!cvs || !sug || !ps) return;
-    sug.innerHTML = "";
+    const cvs = $("linkweb"), ps = $("ps-linkweb");
+    if (!cvs || !ps) return;
     const db = window.PostLibrosDB;
     const byId = new Map(books.filter((b) => b.id).map((b) => [b.id, b]));
     let links = [];
@@ -1325,44 +1415,37 @@
       };
     }
 
-    /* 이어 둘까요 — 같은 밑동·지은이의 시리즈인데 이음이 하나도 없는 무리.
-       단추 하나로 이웃 권끼리 사슬처럼 잇는다 (1↔2, 2↔3 …). 잇는 것은 주인만. */
-    if (!db?.addLink || !document.body.classList.contains("owner")) return;
-    const linked = new Set(es.map((l) => [l.book_id, l.linked_book_id].sort().join("|")));
-    const series = new Map();
-    books.forEach((b) => {
-      if (!b.id) return;
-      const m = b.t.match(SERIES_RE);
-      if (!m) return;
-      const key = m[1].trim().toLowerCase() + "|" + (b.a || "");
-      if (!series.has(key)) series.set(key, { base: m[1].trim(), vols: [] });
-      series.get(key).vols.push([Number(m[2]), b]);
-    });
-    let shown = 0;
-    for (const { base, vols } of series.values()) {
-      if (vols.length < 2 || shown >= 5) continue;
-      vols.sort((x, y) => x[0] - y[0]);
-      const pairs = [];
+  }
+
+  /* 서표의 시리즈 잇기 — 같은 무리(손으로 적은 시리즈, 또는 밑동·지은이가
+     같은 자동 시리즈)의 이웃 권끼리 사슬처럼 잇는다 (1↔2, 2↔3 …).
+     예전에는 통계의 별자리 밑에 있었지만, 그 별자리는 다른 작품끼리의
+     컬렉션이라(주인의 뜻) 시리즈 제안은 책 앞으로 왔다. 주인에게만 보인다. */
+  async function chainSeries(btn, base, group) {
+    const db = window.PostLibrosDB;
+    if (!db?.addLink || !db?.listAllLinks) return;
+    btn.disabled = true;
+    btn.textContent = `「${base}」 잇는 중…`;
+    try {
+      const es = await db.listAllLinks();
+      const linked = new Set((es || []).map((l) => [l.book_id, l.linked_book_id].sort().join("|")));
+      // 권수 순으로, 권수가 없으면(손묶기 전집) 제목 순으로 사슬을 짠다
+      const vols = group
+        .map((x) => [Number(x.t.match(SERIES_RE)?.[2] ?? NaN), x])
+        .sort((p, q2) => (isNaN(p[0]) || isNaN(q2[0]))
+          ? p[1].t.localeCompare(q2[1].t, "ko") : p[0] - q2[0]);
+      let made = 0;
       for (let i = 1; i < vols.length; i++) {
         const a = vols[i - 1][1], b = vols[i][1];
-        if (!linked.has([a.id, b.id].sort().join("|"))) pairs.push([a, b]);
+        if (linked.has([a.id, b.id].sort().join("|"))) continue;
+        await db.addLink(a.id, b.id);
+        made++;
       }
-      if (!pairs.length) continue;
-      shown++;
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "sugrow";
-      row.textContent = `「${base}」 ${vols.length}권을 시리즈로 잇는다`;
-      row.addEventListener("click", async () => {
-        row.disabled = true;
-        row.textContent = `「${base}」 잇는 중…`;
-        for (const [a, b] of pairs) {
-          try { await db.addLink(a.id, b.id); }
-          catch (err) { console.error("[별자리] 잇지 못했습니다:", err); }
-        }
-        renderLinkWeb(books);   // 새 성좌로 다시 그린다
-      });
-      sug.appendChild(row);
+      btn.textContent = made ? `이었습니다 — ${made}곳` : "이미 다 이어져 있습니다";
+      if (made && openBook) renderLinks(openBook);   // 이음 줄을 새로 편다
+    } catch (err) {
+      btn.textContent = "잇지 못했습니다 — " + (err.message || err);
+      btn.disabled = false;
     }
   }
 
@@ -1545,6 +1628,9 @@
     $("x-memoedit").hidden = !owner;
     $("x-memo").hidden = owner;
     $("x-saved").hidden = true;
+    // 시리즈 잇기는 주인의 것 — 주인 분기가 무리를 세어 다시 편다
+    const slBtn = $("x-serieslink");
+    if (slBtn) slBtn.hidden = true;
     if (!owner) {
       // 여백의 기록은 읽기 전용으로
       $("x-memo").textContent = b.memo || "아직 여백에 적힌 말이 없다.";
@@ -1560,9 +1646,38 @@
       $("x-enrich").disabled = false;
       $("x-isbn").value = b.isbn || "";
       $("x-cover-url").value = b.cover || "";
+      $("x-series").value = b.series || "";
+      // 이미 쓰던 시리즈 이름들을 골라 적게 — 오타로 무리가 갈라지지 않게
+      const dl = $("serieslist");
+      if (dl) {
+        dl.innerHTML = "";
+        [...new Set(allBooks().map((x) => x.series).filter(Boolean))].sort()
+          .forEach((s) => {
+            const opt = document.createElement("option");
+            opt.value = s;
+            dl.appendChild(opt);
+          });
+      }
       syncBookmarkRow(b);
       syncReadYearRow(b);
       renderLinks(b);
+      // 시리즈 잇기 단추 — 같은 무리가 두 권 넘으면 이음 줄 밑에 뜬다
+      const sbtn = $("x-serieslink");
+      if (sbtn) {
+        const m2 = b.t.match(SERIES_RE);
+        const base2 = b.series || (m2 ? m2[1].trim() : null);
+        const group = base2 && b.id
+          ? allBooks().filter((x) => x.id && (b.series
+              ? x.series === b.series
+              : (x.t.match(SERIES_RE)?.[1].trim() === base2 && x.a === b.a)))
+          : [];
+        sbtn.hidden = group.length < 2;
+        if (group.length >= 2) {
+          sbtn.disabled = false;
+          sbtn.textContent = `「${base2}」 ${group.length}권을 시리즈로 잇는다`;
+          sbtn.onclick = () => chainSeries(sbtn, base2, group);
+        }
+      }
     }
 
     // 기록은 있으면 누구에게나 보여주고, 없을 때 짓는 단추는 주인에게만
@@ -1676,6 +1791,12 @@
     row.hidden = !b || b.st !== "읽음";
     if (!row.hidden) $("x-ry").value = b.readYear || "";
   }
+  /* ── 시리즈 — 손으로 묶는다. 지우면 자동 접기 규칙으로 돌아간다 ── */
+  $("x-series").addEventListener("change", () => {
+    const v = $("x-series").value.trim();
+    saveBook({ series: v || null }, (b) => { b.series = v || null; });
+  });
+
   $("x-ry").addEventListener("change", () => {
     const raw = $("x-ry").value.trim();
     const y = raw ? parseInt(raw, 10) : null;
