@@ -302,15 +302,19 @@
   window.PostLibrosRenderCrate = renderCrate;
 
   /* 상단의 입고 수 — 표본이든 실제 장서든 지금 꽂혀 있는 만큼만 말한다 */
+  /* 실물 서재의 대략적인 규모 — 막대가 어디까지 왔는지 보여주는 기준점 */
+  const TOTAL_GOAL = 1300;
+
   function renderCensus() {
     // 벽이 스스로 밝힌 권수를 더한다. 화면에 그리는 책등은 그중 일부라
     // 그린 개수를 세면 벽 이름표(287권 …)와 어긋난다.
     const n = WALLS.filter(w => w.cat !== "archive").reduce((s, w) => s + (w.n || 0), 0);
-    const el = $("census");
-    if (!el) return;
-    el.firstChild.nodeValue = n
-      ? `${n.toLocaleString()}권 입고`
+    const num = $("census-n"), bar = $("census-bar");
+    if (!num) return;
+    num.textContent = n
+      ? `${n.toLocaleString()} / ${TOTAL_GOAL.toLocaleString()} 입고`
       : "아직 비어 있음";
+    if (bar) bar.style.width = Math.min(100, n / TOTAL_GOAL * 100).toFixed(1) + "%";
   }
 
   /* 책상 위 오늘의 책 — 아직 열어보지 않은 책 중에서 고른다 */
