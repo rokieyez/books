@@ -68,7 +68,7 @@
       <label>몇 단
         <input type="number" id="in-shelf" min="1" max="12" placeholder="—">
       </label>
-      <span class="intake-hint">한 번에 여러 장 — 같은 칸을 찍은 사진끼리 올리면 정리가 쉽습니다</span>
+      <span class="intake-hint">비워 두면 책의 분류를 보고 자리를 정합니다 — 실제로 찍은 칸을 적어 두면 그것이 우선입니다</span>
     </div>
     <button type="button" class="dropzone" id="in-drop">
       <span class="dz-mark">▚</span>
