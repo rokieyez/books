@@ -169,6 +169,8 @@
     document.body.classList.remove("waking");
     // 서가만 다시 그리면 상단의 셈과 책상에 옛 숫자가 남는다
     (window.PostLibrosRenderAll || renderWalls)();
+    // `#book/<id>` 로 들어온 사람은 그 책의 서표가 열린 채로 서재를 만난다
+    try { window.PostLibrosOpenHash?.(); } catch (e) { console.warn("[주소]", e); }
     return books.length;
   }
 
@@ -214,9 +216,15 @@
       isbn: b.isbn || null,
       pub: b.publisher || null,
       year: b.acquired_on ? Number(b.acquired_on.slice(0, 4)) : null,
+      acquired: b.acquired_on || null,
+      // 실물 치수(mm) 그대로 — 판형 지도가 쓴다. 책등 픽셀은 이미 변환된 값이라 못 쓴다
+      mmH: b.size_height || null,
+      mmD: b.size_depth || null,
       pubYear: b.published_year || null,
       readYear: b.read_year || null,
       series: b.series || null,
+      // 이 책에서 시작하는 길의 이름 — 있으면 현관에 걸린다
+      pathName: b.path_name || null,
       // 문학 벽의 단을 가르는 갈래 — 「―」는 갈래가 없다고 이미 확인한 표식이다
       genre: b.genre && b.genre !== "―" ? b.genre : null,
       st: b.read_status,

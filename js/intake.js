@@ -142,6 +142,16 @@
 
     <div class="enrich">
       <div class="enrich-head">
+        <b>실물 책등을 되살린다</b>
+        <span>인식이 남긴 자리 상자로 책장 사진에서 그 책등만 오려 붙입니다 —
+          벽에 진짜 책등 사진이 걸립니다. 알라딘도 AI 도 부르지 않으니 비용은 없습니다</span>
+      </div>
+      <button type="button" class="enrich-go" id="in-spines">사진에서 책등을 오린다</button>
+      <div class="enrich-out" id="in-spines-out"></div>
+    </div>
+
+    <div class="enrich">
+      <div class="enrich-head">
         <b>이름 없는 책들</b>
         <span>지은이가 비어 있는 책만 모읍니다 — 대부분 알라딘이 한 번 놓친 책이니,
           아는 이름은 그냥 적는 편이 빠릅니다</span>
@@ -157,9 +167,10 @@
     <div class="enrich">
       <div class="enrich-head">
         <b>기록을 한꺼번에 짓는다</b>
-        <span>읽음으로 표시한 책 중 기록이 없는 것만 — 한 번에 서른 권까지, 권마다 비용이 듭니다</span>
+        <span>방문자가 실제로 여는 순서대로 — 읽음, 읽는 중, 표지가 있어 진열장에 서는 책.
+          한 번에 서른 권까지, 권마다 비용이 듭니다</span>
       </div>
-      <button type="button" class="enrich-go" id="in-summarize">읽은 책의 기록을 짓는다</button>
+      <button type="button" class="enrich-go" id="in-summarize">만나는 책부터 기록을 짓는다</button>
       <div class="enrich-out" id="in-summarize-out"></div>
     </div>
 
@@ -670,10 +681,21 @@
           db.listSummarizedIds(),
         ]);
         const have = new Set(haveIds);
-        const todo = rows.filter((r) => r.read_status === "읽음" && !have.has(r.id)).slice(0, 30);
-        const left = rows.filter((r) => r.read_status === "읽음" && !have.has(r.id)).length - todo.length;
+        /* 방문자가 실제로 여는 서표부터 채운다.
+           읽음 책이 가장 먼저 열리고(읽은 책만 거름망·회고·리듬이 다 그리로 간다),
+           그다음이 읽는 중, 그다음이 표지가 있어 진열장에 설 수 있는 책이다.
+           표지도 없고 읽지도 않은 책은 아무도 만나지 않으므로 맨 뒤다. */
+        const rank = (r) =>
+          r.read_status === "읽음" ? 0 :
+          r.read_status === "읽는 중" ? 1 :
+          r.cover_url ? 2 : 3;
+        const queue = rows
+          .filter((r) => !have.has(r.id) && rank(r) < 3)
+          .sort((a, b) => rank(a) - rank(b) || (a.title || "").localeCompare(b.title || "", "ko"));
+        const todo = queue.slice(0, 30);
+        const left = queue.length - todo.length;
         if (!todo.length) {
-          out.innerHTML = `<p class="enrich-msg good">읽음 책의 기록이 모두 있습니다.</p>`;
+          out.innerHTML = `<p class="enrich-msg good">방문자가 만나는 책의 기록이 모두 있습니다.</p>`;
         } else {
           btn.textContent = "멈춘다";
           let ok = 0, bad = 0;
@@ -698,6 +720,27 @@
       }
       delete btn.dataset.running;
       btn.textContent = "읽은 책의 기록을 짓는다";
+    });
+
+    /* ── 실물 책등 되살리기 ──
+       사진 인식은 자리 상자를 남겼는데 오려 붙이는 일이 한 번도 돌지 않은 책들이
+       그대로 남아 있다. 사진과 상자만 있으면 되므로 아무 API 도 부르지 않는다. */
+    el("in-spines").addEventListener("click", async () => {
+      const btn = el("in-spines"), out = el("in-spines-out");
+      if (btn.dataset.running) return;
+      btn.dataset.running = "1"; btn.disabled = true;
+      out.innerHTML = `<p class="enrich-msg">사진을 여는 중…</p>`;
+      const msg = out.querySelector(".enrich-msg");
+      try {
+        const n = await cropSpines(msg);
+        if (!n && msg.textContent === "사진을 여는 중…") {
+          msg.textContent = "오릴 것이 없습니다 — 자리 상자가 있는 책은 이미 다 오렸습니다";
+        }
+      } catch (e) {
+        msg.className = "enrich-msg bad";
+        msg.textContent = "오리지 못했습니다: " + (e?.message || e);
+      }
+      btn.disabled = false; delete btn.dataset.running;
     });
 
     /* ── 갈래 채우기 ──────────────────────────────────────────

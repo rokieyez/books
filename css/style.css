@@ -1170,6 +1170,43 @@
     box-shadow: 0 0 22px rgba(224,177,94,.35);
   }
 
+  /* ── 이음의 항로도 ───────────────────────────────────── */
+  .chartbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .chartbar[hidden] { display: none; }
+  .chartbtn {
+    appearance: none; cursor: pointer; padding: 5px 12px;
+    font: inherit; font-size: 11.5px; color: var(--brass-dim);
+    background: none; border: 1px solid var(--line); border-radius: 2px;
+  }
+  .chartbtn:hover, .chartbtn:focus-visible { color: var(--brass); border-color: var(--brass-dim); outline: none; }
+  /* 길이 길어지면 그림만 옆으로 흐른다 — 본문은 그대로 */
+  .chartscroll { overflow-x: auto; overflow-y: hidden; margin-top: 6px; }
+  .chartscroll canvas { display: block; cursor: pointer; }
+
+  /* 길을 걷는 중 — 서표 아래의 다음 한 걸음 */
+  .walknext {
+    display: block; width: 100%; margin: 14px 0 2px;
+    appearance: none; cursor: pointer; padding: 9px 14px;
+    font-family: "Gowun Batang", serif; font-size: 12.5px; letter-spacing: .06em;
+    color: var(--brass); background: rgba(224,177,94,.1);
+    border: 1px solid var(--brass-dim); border-radius: 2px;
+  }
+  .walknext:hover, .walknext:focus-visible { background: rgba(224,177,94,.2); outline: none; }
+  .walknext:disabled { opacity: .5; cursor: default; color: var(--parchment-dim); }
+  .walknext[hidden] { display: none; }
+
+  /* 이음 띠의 방향 단추 — 다음에 / 먼저 / 나란히 */
+  .linkdir {
+    appearance: none; cursor: pointer; padding: 1px 6px; margin-right: 5px;
+    font: inherit; font-size: 10px; letter-spacing: .04em;
+    background: none; border: 1px solid var(--line); border-radius: 2px;
+    color: var(--parchment-dim); white-space: nowrap;
+  }
+  .linkdir[data-d="다음에"] { color: var(--brass); border-color: var(--brass-dim); }
+  .linkdir[data-d="먼저"] { color: var(--st-doing); border-color: rgba(188,133,45,.6); }
+  .linkdir[data-d="나란히"] { color: var(--st-todo); border-color: rgba(92,121,208,.5); }
+  .linkdir:disabled { opacity: .5; cursor: default; }
+
   /* ── 서표 카드(상세) ─────────────────────────────────── */
   .veil {
     position: fixed; inset: 0; z-index: 40; background: rgba(10, 7, 3, .76);
@@ -1311,6 +1348,7 @@
       0 8px 18px rgba(0,0,0,.5);
     font-family: "Gowun Batang", serif; color: #E8CE93;
     transition: transform .16s ease, box-shadow .16s ease;
+    position: relative;   /* 가짜 표지의 테(.cvrframe)가 이 안에 앉는다 */
   }
   .cover:hover, .cover:focus-visible {
     transform: translateY(-5px); outline: none;
@@ -1792,3 +1830,124 @@
 
   /* ── 궤짝은 주인의 작업대 — 방문자 화면에는 없다 ── */
   body:not(.owner) .crate { display: none !important; }
+
+  /* ── 걸어 볼 만한 길 — 현관에 걸리는 이음 ── */
+  .paths { margin: 0 0 28px; }
+  .pathrow {
+    display: grid; gap: 12px; margin-top: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+  .pathcard {
+    appearance: none; cursor: pointer; text-align: left; font-family: inherit;
+    display: flex; flex-direction: column; gap: 5px;
+    padding: 13px 14px; border: 1px solid var(--line); border-radius: 3px;
+    background: linear-gradient(160deg, rgba(58,39,18,.5), rgba(23,16,9,.6));
+    color: var(--parchment); transition: border-color .2s, transform .2s;
+  }
+  .pathcard:hover, .pathcard:focus-visible { border-color: var(--brass); transform: translateY(-2px); }
+  .pathcard.first { border-left: 2px solid var(--brass); }
+  .pathcard b { font-family: "Gowun Batang", serif; font-size: 14px; }
+  .pathcard .pathwho { font-size: 11.5px; color: var(--parchment-dim); line-height: 1.5; }
+  .pathcard .pathn {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px;
+    color: var(--brass); letter-spacing: .1em;
+  }
+
+  /* ── 검색의 안내판 — 벽은 앞줄만 보여준다 ── */
+  .findnote {
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    margin: 0 0 18px; padding: 10px 14px;
+    border: 1px dashed var(--line); border-radius: 3px;
+    background: rgba(58,39,18,.28);
+    font-size: 12.5px; color: var(--parchment-dim);
+  }
+  .findgo {
+    appearance: none; cursor: pointer; font-family: inherit; font-size: 11.5px;
+    padding: 5px 11px; border: 1px solid var(--brass); border-radius: 2px;
+    background: none; color: var(--brass);
+  }
+  .findgo:hover, .findgo:focus-visible { background: rgba(224,177,94,.12); }
+
+  /* ── 가짜 표지 — 알라딘이 모르는 책도 표지 뷰에서는 표지를 입는다 ── */
+  .cover .cvrframe {
+    position: absolute; inset: 9px; border: 1px solid rgba(226,213,184,.22);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; pointer-events: none;
+  }
+  .cover .cvrframe::before {
+    content: ""; position: absolute; inset: 3px; border: 1px solid rgba(226,213,184,.1);
+  }
+  .cover .cvrframe em {
+    font-family: "Gowun Batang", serif; font-style: normal; font-size: 34px;
+    color: rgba(226,213,184,.3); line-height: 1;
+  }
+  .cover .cvrframe u {
+    text-decoration: none; font-family: "IBM Plex Mono", monospace;
+    font-size: 8.5px; letter-spacing: .22em; color: rgba(226,213,184,.28);
+  }
+  .cover.hascover .cvrframe { display: none; }
+  /* 테는 자리 잡힌 요소라 그냥 두면 제목 위에 얹힌다 — 글자를 앞으로 올린다 */
+  .cover b, .cover span { position: relative; z-index: 1; }
+
+  /* ── 판형 지도 — 종이 조각의 크기가 실물 비율이다 ── */
+  .sizemap {
+    display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap;
+    padding: 14px 2px 4px;
+  }
+  .sizecell {
+    appearance: none; background: none; border: none; cursor: pointer; font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 4px; color: var(--parchment);
+  }
+  .sizepaper {
+    display: block; border: 1px solid rgba(226,213,184,.55); border-radius: 1px;
+    background:
+      linear-gradient(150deg, rgba(232,222,198,.34), rgba(232,222,198,.16)),
+      repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 1px, transparent 1px 4px);
+    box-shadow: 3px 3px 0 rgba(0,0,0,.42); margin-bottom: 6px;
+    transition: background .2s, border-color .2s;
+  }
+  .sizecell:hover .sizepaper, .sizecell:focus-visible .sizepaper {
+    border-color: var(--brass); background: rgba(224,177,94,.18);
+  }
+  .sizecell b { font-family: "Gowun Batang", serif; font-size: 12.5px; }
+  .sizecell .sizen {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--brass);
+  }
+  .sizecell .sizemm { font-size: 10px; color: var(--parchment-dim); }
+
+  /* ── 이 책의 주소 ── */
+  .x-share {
+    appearance: none; background: none; cursor: pointer; font-family: "IBM Plex Mono", monospace;
+    font-size: 10px; letter-spacing: .1em; color: var(--parchment-dim);
+    border: none; border-bottom: 1px dotted var(--line); padding: 2px 0; margin-top: 6px;
+  }
+  .x-share:hover, .x-share:focus-visible { color: var(--brass); border-bottom-color: var(--brass); }
+
+  /* ── 콜로폰 — 책 뒤의 판권장 ── */
+  footer.colophon p { margin: 0 0 5px; }
+  footer.colophon .colo-who {
+    font-family: "Gowun Batang", serif; font-size: 12.5px; letter-spacing: 0;
+    color: var(--parchment-dim);
+  }
+  footer.colophon .colo-who b { color: var(--parchment); font-weight: 400; }
+  footer.colophon .colo-tech { opacity: .62; }
+
+  /* ── 한 권을 다 읽었을 때 ── */
+  @keyframes readLit {
+    0%   { box-shadow: 0 0 0 0 rgba(224,177,94,0); }
+    22%  { box-shadow: 0 0 44px 6px rgba(224,177,94,.34); }
+    100% { box-shadow: 0 0 0 0 rgba(224,177,94,0); }
+  }
+  @keyframes candleFlare {
+    0%, 100% { opacity: 1; transform: scaleY(1); }
+    18% { opacity: 1; transform: scaleY(1.5) translateY(-3px); }
+    46% { opacity: .8; transform: scaleY(1.15) translateY(-1px); }
+  }
+  .exlibris.lit { animation: readLit 1.4s ease-out; }
+  .desk.lit .candlewax::after { animation: candleFlare 1.4s ease-out; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pathcard, .findgo, .sizepaper { transition: none; }
+    .exlibris.lit, .desk.lit .candlewax::after { animation: none; }
+  }

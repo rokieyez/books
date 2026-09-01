@@ -309,16 +309,27 @@
     async listLinks(bookId) {
       const { data, error } = await client
         .from("book_links")
-        .select("id, book_id, linked_book_id, note")
+        .select("id, book_id, linked_book_id, note, kind")
         .or(`book_id.eq.${bookId},linked_book_id.eq.${bookId}`);
       if (error) throw error;
       return data;
     },
 
-    /* 이음의 까닭을 적는다 — 「같은 번역가」 「인용됨」 같은 한 줄 */
-    async updateLink(linkId, note) {
-      const { error } = await client
-        .from("book_links").update({ note: note || null }).eq("id", linkId);
+    /* 이음의 까닭을 적는다 — 화살표 위에 걸리는 말.
+       「사회비판적인 글을 읽고 싶다면」처럼 왜 그리로 가는지. */
+    async updateLink(linkId, patch) {
+      // 예전에는 두 번째 인자가 그냥 문자열이었다 — 둘 다 받아 준다
+      const body = typeof patch === "string" ? { note: patch || null } : patch;
+      const { error } = await client.from("book_links").update(body).eq("id", linkId);
+      if (error) throw error;
+    },
+
+    /* 길의 방향을 뒤집는다 — 「이 책 다음에」와 「이 책보다 먼저」는
+       같은 이음을 양쪽에서 본 것이다. 줄을 지우고 다시 긋는 대신 바꿔 끼운다. */
+    async flipLink(link) {
+      const { error } = await client.from("book_links")
+        .update({ book_id: link.linked_book_id, linked_book_id: link.book_id })
+        .eq("id", link.id);
       if (error) throw error;
     },
 
@@ -345,7 +356,7 @@
       for (let from = 0; from < 5000; from += 500) {
         const { data, error } = await client
           .from("book_links")
-          .select("id, book_id, linked_book_id, note")
+          .select("id, book_id, linked_book_id, note, kind")
           .order("id")
           .range(from, from + 499);
         if (error) throw error;

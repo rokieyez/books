@@ -799,6 +799,7 @@
     if (v === "covers") renderCovers();
     if (v === "list") renderList();
     if (v === "stats") renderStats();
+    syncFindNote();
     layoutLadder(); updateLadder();
   }
   document.querySelectorAll(".viewseg button").forEach(b => {
@@ -848,9 +849,14 @@
       const el = document.createElement("button");
       el.className = "cover";
       el.style.setProperty("--cvr", b.c);
-      el.innerHTML = `<b></b><span></span>`;
+      /* 표지가 없는 책도 표지 뷰에서는 표지를 입는다 — 알라딘이 모르는 책이
+         빈 색종이로만 서 있으면, 그 칸은 「없는 책」처럼 읽힌다. 천 색 위에
+         테를 두르고 제목 첫 글자를 활자처럼 찍어 가짜 표지를 만든다. */
+      el.innerHTML = `<i class="cvrframe" aria-hidden="true"><em></em><u></u></i><b></b><span></span>`;
       el.querySelector("b").textContent = b.t;
       el.querySelector("span").textContent = b.a;
+      el.querySelector(".cvrframe em").textContent = (b.t || "?").trim()[0] || "?";
+      el.querySelector(".cvrframe u").textContent = b.cat || "";
       // 알라딘에서 받아 온 진짜 표지가 있으면 그것을 깐다.
       // 표지는 없어도 실물 책등 조각이 있으면 — 그거라도 세워 둔다
       if (b.cover) {
@@ -1237,12 +1243,63 @@
       }
     }
 
+    renderSizeMap(books);   // 판형 지도 — 실물 치수를 아는 책만
     renderLinkWeb(books);   // 이음의 별자리 — 데이터를 따로 받아와 그린다
     renderAuthorWeb(books); // 작가의 별자리 — 같은 작가의 책이 한 성좌로
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       grow.forEach(([el, prop, val]) => el.style[prop] = val);
     }));
+  }
+
+  /* ── 판형 지도 ─────────────────────────────────────────
+     알라딘의 packing 으로 199권의 실물 높이(mm)를 받아 두었는데, 지금은
+     책등 픽셀을 정하는 데만 쓰고 화면에는 한 번도 나오지 않았다. 여기서는
+     mm 를 숫자가 아니라 크기로 보여준다 — 판형별로 실제 비율의 종이를 세운다.
+     인쇄의 판형 이름은 높이로 가른다 (문고본 ~150, 국판 ~200, 신국판 ~230…). */
+  const FORMS = [
+    { nm: "문고본", max: 155, note: "주머니에 들어간다" },
+    { nm: "국판", max: 195, note: "손에 가볍다" },
+    { nm: "신국판", max: 213, note: "한국 단행본의 기본" },
+    { nm: "크라운판", max: 232, note: "조금 크고 두껍다" },
+    { nm: "4×6배판", max: 265, note: "화집·도감 쪽" },
+    { nm: "대형본", max: 9999, note: "책장 한 칸을 혼자 쓴다" },
+  ];
+  function renderSizeMap(books) {
+    const box = $("sizemap"), ps = $("ps-size"), panel = $("size-panel");
+    if (!box || !panel) return;
+    const sized = books.filter((b) => b.mmH > 0);
+    if (sized.length < 8) { panel.hidden = true; return; }
+    panel.hidden = false;
+    const tallest = Math.max(...sized.map((b) => b.mmH));
+    ps.textContent =
+      `실물 치수를 아는 ${sized.length.toLocaleString()}권 — 종이 조각의 크기가 실제 비율입니다.` +
+      ` 가장 큰 책은 ${tallest}mm.`;
+    box.innerHTML = "";
+    FORMS.forEach((f, i) => {
+      const lo = i ? FORMS[i - 1].max : 0;
+      const mine = sized.filter((b) => b.mmH > lo && b.mmH <= f.max);
+      if (!mine.length) return;
+      const avgH = Math.round(mine.reduce((s, b) => s + b.mmH, 0) / mine.length);
+      const depths = mine.map((b) => b.mmD).filter(Boolean);
+      const avgD = depths.length ? Math.round(depths.reduce((s, d) => s + d, 0) / depths.length) : null;
+      // 가장 큰 판형이 92px 이 되도록 — 판형끼리의 비율은 실물 그대로다
+      const px = Math.round(avgH / tallest * 92);
+      const cell = document.createElement("button");
+      cell.className = "sizecell";
+      cell.type = "button";
+      cell.innerHTML = `
+        <span class="sizepaper" style="height:${px}px;width:${Math.round(px * 0.68)}px"></span>
+        <b>${f.nm}</b>
+        <span class="sizen">${mine.length}권</span>
+        <span class="sizemm">평균 ${avgH}mm${avgD ? ` · 등 ${avgD}mm` : ""}</span>`;
+      cell.title = `${f.nm} — ${f.note}. 누르면 그중 한 권을 펼칩니다`;
+      cell.addEventListener("click", () => {
+        const b = mine[Math.floor(Math.random() * mine.length)];
+        openExlibris(b, bookWall(b));
+      });
+      box.appendChild(cell);
+    });
   }
 
   /* ── 작가의 별자리 — 같은 작가의 책들이 한 성좌로 모인다 ──
@@ -1467,103 +1524,483 @@
      이어진 책들만 별로 뜨고, 같은 성분(서로 닿는 무리)은 작은 원으로 모인다.
      여기서의 이음은 컬렉션이다: 다른 작가·다른 작품이라도 이었을 때 빛이
      나는 짝(주인의 뜻). 시리즈 잇기 제안은 여기가 아니라 서표에 있다. */
+  /* ── 이음의 항로도 ──────────────────────────────────────
+     예전에는 이음을 성좌로 그렸다. 예쁘지만 아무 데도 안내하지 않았다 —
+     별을 이어 두어도 어디서 시작해 어디로 가는지는 말해 주지 않는다.
+     독서 커뮤니티에서 도는 「작가 플로우 차트」처럼, 이음은 길이어야 한다:
+     화살표에 방향이 있고, 화살표 위에 왜 그리로 가는지가 적혀 있고,
+     어디서 시작하는지가 굵게 표시되어 있다.
+     밤하늘을 버리지는 않는다 — 옛 성도에도 항해선은 그려져 있었다. */
+  const CELL_W = 148, CELL_H = 112, CV_W = 44, CV_H = 62;
+  const coverCache = new Map();
+  function loadCover(url) {
+    if (!url) return Promise.resolve(null);
+    if (coverCache.has(url)) return coverCache.get(url);
+    // 알라딘 표지는 CORS 를 열어 준다(확인함) — 그래야 그림으로 내려받을 때
+    // 캔버스가 오염되지 않는다. 열어 주지 않는 곳이면 그냥 못 싣고 넘어간다.
+    const p = new Promise((res) => {
+      const im = new Image();
+      im.crossOrigin = "anonymous";
+      im.onload = () => res(im);
+      im.onerror = () => res(null);
+      im.src = url;
+    });
+    coverCache.set(url, p);
+    return p;
+  }
+
+  /* 표지가 없는 책의 얼굴 — 활판으로 찍은 듯 제목 첫 글자를 앉힌다.
+     서재의 열에 여섯은 표지가 없어서, 없는 채로 두면 색 블록 밭이 된다. */
+  function drawFace(c, x, y, w, h, b, img, dim) {
+    c.save();
+    c.globalAlpha = dim ? 0.55 : 1;
+    if (img) {
+      c.drawImage(img, x, y, w, h);
+    } else {
+      c.fillStyle = b.c || "#4A3218";
+      c.fillRect(x, y, w, h);
+      c.strokeStyle = "rgba(224,177,94,.45)"; c.lineWidth = 1;
+      c.strokeRect(x + 3.5, y + 3.5, w - 7, h - 7);
+      c.fillStyle = "rgba(242,231,200,.92)";
+      c.textAlign = "center"; c.textBaseline = "middle";
+      c.font = `700 ${Math.round(h * 0.42)}px 'Gowun Batang', serif`;
+      c.fillText((b.t || "?").trim().slice(0, 1), x + w / 2, y + h / 2 + 1);
+      c.textBaseline = "alphabetic";
+    }
+    c.strokeStyle = b.st === "읽음" ? "rgba(224,177,94,.9)" : "rgba(0,0,0,.5)";
+    c.lineWidth = b.st === "읽음" ? 1.6 : 1;
+    c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    c.restore();
+  }
+
+  /* 캔버스에 두 줄까지 줄여 적는다 */
+  function wrap2(c, text, x, y, max) {
+    const t = String(text || "");
+    let line = "", lines = [];
+    for (const ch of t) {
+      if (c.measureText(line + ch).width > max && line) { lines.push(line); line = ch; }
+      else line += ch;
+      if (lines.length === 2) break;
+    }
+    if (lines.length < 2 && line) lines.push(line);
+    if (lines.length === 2 && c.measureText(lines[1]).width > max - 8) {
+      lines[1] = lines[1].slice(0, -1) + "…";
+    }
+    lines.forEach((ln, k) => c.fillText(ln, x, y + k * 12));
+    return lines.length;
+  }
+
+  let walk = null;          /* 지금 걷고 있는 길 { list, i } */
+  let chartHit = [];        /* 항로도의 눌리는 자리 */
+
   async function renderLinkWeb(books) {
-    const cvs = $("linkweb"), ps = $("ps-linkweb");
+    const cvs = $("linkweb"), ps = $("ps-linkweb"), bar = $("chartbar");
     if (!cvs || !ps) return;
     const db = window.PostLibrosDB;
     const byId = new Map(books.filter((b) => b.id).map((b) => [b.id, b]));
     let links = [];
     if (db?.listAllLinks && byId.size) {
       try { links = await db.listAllLinks(); }
-      catch (e) { console.warn("[별자리] 이음을 읽지 못했습니다:", e); }
+      catch (e) { console.warn("[항로도] 이음을 읽지 못했습니다:", e); }
     }
-    /* 같은 시리즈끼리의 이음(서표의 「시리즈로 잇는다」가 만든 사슬)은
-       컬렉션이 아니다 — 성좌에서는 숨긴다. 이음 자체는 남아 있어
-       서표의 이음 줄에는 그대로 보인다. */
+    const es = links.filter((l) => byId.has(l.book_id) && byId.has(l.linked_book_id));
+
+    /* 기계가 이은 시리즈와 사람이 그은 길을 구별한다 — 굵기가 달라진다.
+       (예전에는 시리즈를 아예 숨겼는데, 그러면 화면이 통째로 비었다) */
     const seriesKeyOf = (b) => {
       if (b.series) return "손␟" + b.series;
       const m = b.t.match(SERIES_RE);
       return m ? m[1].trim().toLowerCase() + "␟" + (b.a || "") : null;
     };
-    const es = links.filter((l) => {
-      if (!byId.has(l.book_id) || !byId.has(l.linked_book_id)) return false;
+    const isAuto = (l) => {
       const ka = seriesKeyOf(byId.get(l.book_id));
-      return !(ka && ka === seriesKeyOf(byId.get(l.linked_book_id)));
-    });
+      return !!(ka && ka === seriesKeyOf(byId.get(l.linked_book_id)));
+    };
 
     const Wd = cvs.parentElement?.clientWidth ? cvs.parentElement.clientWidth - 2 : 600;
     if (!es.length) {
-      ps.textContent = "서로 다른 책을 이어 두면 성좌가 뜹니다 — 서표의 「이음」 줄에서";
+      ps.textContent = "책과 책을 이어 두면 길이 됩니다 — 서표의 「이음」 줄에서, 방향과 까닭까지";
       cvs.hidden = true;
-    } else {
-      // 연결 성분을 찾는다 — 성좌 하나가 성분 하나
-      const adj = new Map();
-      const join = (a, b2) => { if (!adj.has(a)) adj.set(a, new Set()); adj.get(a).add(b2); };
-      es.forEach((l) => { join(l.book_id, l.linked_book_id); join(l.linked_book_id, l.book_id); });
-      const seen = new Set(), comps = [];
-      for (const n of adj.keys()) {
-        if (seen.has(n)) continue;
-        const c = [], st = [n]; seen.add(n);
-        while (st.length) {
-          const x = st.pop(); c.push(x);
-          for (const m of adj.get(x) || []) if (!seen.has(m)) { seen.add(m); st.push(m); }
-        }
-        comps.push(c);
-      }
-      ps.textContent = `이음 ${es.length}개 · 성좌 ${comps.length}자리 — 별을 누르면 그 책이 펼쳐진다`;
-      cvs.setAttribute("aria-label",
-        `이음의 별자리 — 성좌 ${comps.length}자리, 이음 ${es.length}개. `
-        + comps.map((c) => (byId.get(c[0])?.t || "") + ` 등 ${c.length}권`).join(", "));
+      if (bar) bar.hidden = true;
+      return;
+    }
+    if (bar) bar.hidden = false;
 
-      // 성분마다 원으로 배치하고, 줄 수에 맞춰 캔버스 키를 정한다
-      const perRow = Math.max(1, Math.floor(Wd / 175));
-      const Ht = Math.max(150, Math.ceil(comps.length / perRow) * 130 + 10);
-      const pos = new Map();
-      comps.forEach((c, i) => {
-        const cx = 88 + (i % perRow) * 175, cy = 68 + Math.floor(i / perRow) * 130;
-        const r = Math.min(48, 14 + c.length * 5);
-        c.forEach((id, k) => {
-          const a = (k / c.length) * Math.PI * 2 - Math.PI / 2;
-          pos.set(id, c.length === 1
-            ? [cx, cy] : [cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
-        });
-      });
-
-      cvs.hidden = false;
-      cvs.width = Wd * 2; cvs.height = Ht * 2;   // 레티나
-      cvs.style.width = Wd + "px"; cvs.style.height = Ht + "px";
-      const c2 = cvs.getContext("2d");
-      c2.scale(2, 2);
-      c2.clearRect(0, 0, Wd, Ht);
-      c2.strokeStyle = "rgba(151,116,47,.5)"; c2.lineWidth = 1;
-      es.forEach((l) => {
-        const p = pos.get(l.book_id), q2 = pos.get(l.linked_book_id);
-        if (!p || !q2) return;
-        c2.beginPath(); c2.moveTo(p[0], p[1]); c2.lineTo(q2[0], q2[1]); c2.stroke();
-      });
-      c2.font = "10px sans-serif"; c2.textAlign = "center";
-      for (const [id, [x, y]] of pos) {
-        c2.fillStyle = "#E0B15E";
-        c2.beginPath(); c2.arc(x, y, 2.6, 0, Math.PI * 2); c2.fill();
-        const t = byId.get(id)?.t || "";
-        c2.fillStyle = "rgba(226,213,184,.72)";
-        c2.fillText(t.length > 9 ? t.slice(0, 9) + "…" : t, x, y + 15);
+    /* 이웃 관계 — 순서(방향 있음)와 나란히(방향 없음)를 나눠 둔다 */
+    const out = new Map(), inc = new Map(), any = new Map();
+    const push = (m, k, v) => { if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
+    es.forEach((l) => {
+      push(any, l.book_id, l.linked_book_id);
+      push(any, l.linked_book_id, l.book_id);
+      if (l.kind !== "나란히") {
+        push(out, l.book_id, l.linked_book_id);
+        push(inc, l.linked_book_id, l.book_id);
       }
-      // 별을 누르면 그 책 — 가장 가까운 별을 찾는다
-      cvs.onclick = (ev) => {
-        const r = cvs.getBoundingClientRect();
-        const mx = ev.clientX - r.left, my = ev.clientY - r.top;
-        let hit = null, best = 18 * 18;
-        for (const [id, [x, y]] of pos) {
-          const d = (x - mx) ** 2 + (y - my) ** 2;
-          if (d < best) { best = d; hit = id; }
-        }
-        const b = hit && byId.get(hit);
-        if (b) openExlibris(b, bookWall(b));
-      };
+    });
+
+    // 길 하나 = 이어진 덩어리 하나
+    const seen = new Set(), comps = [];
+    for (const n of any.keys()) {
+      if (seen.has(n)) continue;
+      const c = [], st = [n]; seen.add(n);
+      while (st.length) {
+        const x = st.pop(); c.push(x);
+        for (const m of any.get(x) || []) if (!seen.has(m)) { seen.add(m); st.push(m); }
+      }
+      comps.push(c);
     }
 
+    /* 깊이 = 입구에서 몇 걸음인가. 고리가 있어도 멈추도록 방문 표시를 둔다 */
+    const depth = new Map();
+    const depthOf = (n, guard) => {
+      if (depth.has(n)) return depth.get(n);
+      if (guard.has(n)) return 0;          // 고리 — 여기서 끊는다
+      guard.add(n);
+      const ps2 = inc.get(n) || [];
+      const d = ps2.length ? Math.max(...ps2.map((p) => depthOf(p, guard) + 1)) : 0;
+      guard.delete(n);
+      depth.set(n, d);
+      return d;
+    };
+    for (const n of any.keys()) depthOf(n, new Set());
+
+    /* 자리 잡기 — 길 하나가 한 덩어리다. 덩어리 안에서는 깊이가 가로 칸이 되고,
+       덩어리끼리는 가로로 채우다 자리가 모자라면 줄을 바꾼다. 짧은 길 열한 개를
+       세로로만 쌓으면 지도가 3,500px 짜리 두루마리가 되어 아무도 안 본다. */
+    const shaped = comps.map((c) => {
+      const cols = new Map();
+      c.forEach((n) => { const d = depth.get(n) || 0; push(cols, d, n); });
+      const keys = [...cols.keys()].sort((a, b2) => a - b2);
+      let rows = 0;
+      keys.forEach((d) => {
+        cols.get(d).sort((a, b2) =>
+          (byId.get(a)?.t || "").localeCompare(byId.get(b2)?.t || "", "ko"));
+        rows = Math.max(rows, cols.get(d).length);
+      });
+      return { ids: c, cols, keys, w: keys.length, rows };
+    }).sort((a, b2) => b2.w * b2.rows - a.w * a.rows);   // 큰 덩어리부터 자리를 준다
+
+    const canvasW = Math.max(Wd, 26 + CELL_W + 20);
+    const perRow = Math.max(1, Math.floor((canvasW - 40) / CELL_W));
+    const pos = new Map();
+    /* 한 줄을 채울 때, 남은 칸에 들어가는 덩어리를 뒤에서 끌어와 메운다
+       (그냥 순서대로 흘리면 세 칸짜리 뒤에 한 칸이 남아 지도가 텅 빈다) */
+    const left = [...shaped];
+    let yCursor = 30, maxCol = 1;
+    while (left.length) {
+      let xCol = 0, bandH = 0;
+      while (left.length) {
+        const i = left.findIndex((s) => xCol + s.w <= perRow);
+        if (i < 0) break;                       // 남은 칸에 들어갈 덩어리가 없다
+        const s = left.splice(i, 1)[0];
+        const x0 = 26 + xCol * CELL_W;
+        s.keys.forEach((d, di) => {
+          s.cols.get(d).forEach((n, r) => pos.set(n, [x0 + di * CELL_W, yCursor + r * CELL_H]));
+        });
+        bandH = Math.max(bandH, s.rows * CELL_H);
+        xCol += s.w;
+        maxCol = Math.max(maxCol, xCol);
+      }
+      if (!bandH) {   // 한 줄보다 넓은 덩어리 — 혼자 한 줄을 쓴다
+        const s = left.shift();
+        s.keys.forEach((d, di) => {
+          s.cols.get(d).forEach((n, r) => pos.set(n, [26 + di * CELL_W, yCursor + r * CELL_H]));
+        });
+        bandH = s.rows * CELL_H;
+        maxCol = Math.max(maxCol, s.w);
+      }
+      yCursor += bandH + 26;
+    }
+
+    const needW = 26 + maxCol * CELL_W + 20;
+    const W = Math.max(Wd, needW), H = Math.max(160, yCursor);
+
+    // 입구(들어오는 순서 이음이 없고 나가는 것이 있는 책)와 길 이름
+    const entries = [...any.keys()].filter((n) => !(inc.get(n) || []).length);
+    const named = entries.map((n) => byId.get(n)).filter((b) => b && b.pathName);
+
+    ps.textContent =
+      `길 ${comps.length}갈래 · 이음 ${es.length}개 · 입구 ${entries.length}곳`
+      + (named.length ? ` — ${named.map((b) => `「${b.pathName}」`).join(" ")}` : "")
+      + " · 책을 누르면 서표가 열립니다";
+    cvs.setAttribute("aria-label",
+      `이음의 항로도 — 길 ${comps.length}갈래, 이음 ${es.length}개. `
+      + comps.map((c) => (byId.get(c[0])?.t || "") + ` 등 ${c.length}권`).join(", "));
+
+    // 표지를 미리 실어 둔다 — 캔버스는 다 그린 뒤 한 번에 뜬다
+    const imgs = new Map();
+    await Promise.all([...any.keys()].map(async (n) => {
+      const b = byId.get(n);
+      const im = await loadCover(b?.cover || null);
+      if (im) imgs.set(n, im);
+    }));
+
+    cvs.hidden = false;
+    cvs.width = W * 2; cvs.height = H * 2;
+    cvs.style.width = W + "px"; cvs.style.height = H + "px";
+    const c = cvs.getContext("2d");
+    c.setTransform(2, 0, 0, 2, 0, 0);
+    c.clearRect(0, 0, W, H);
+
+    /* 손으로 이름 붙인 무리는 네모 상자로 묶는다 — 순서는 없지만 한 덩어리인 책들 */
+    const groups = new Map();
+    for (const n of any.keys()) {
+      const b = byId.get(n);
+      if (b?.series) push(groups, b.series, n);
+    }
+    groups.forEach((ids, name) => {
+      if (ids.length < 2) return;
+      const xs = ids.map((n) => pos.get(n)[0]), ys = ids.map((n) => pos.get(n)[1]);
+      const x0 = Math.min(...xs) - 14, x1 = Math.max(...xs) + CV_W + 14;
+      const y0 = Math.min(...ys) - 26, y1 = Math.max(...ys) + CV_H + 30;
+      c.strokeStyle = "rgba(224,177,94,.55)"; c.lineWidth = 1.2;
+      c.setLineDash([]);
+      c.strokeRect(x0, y0, x1 - x0, y1 - y0);
+      c.fillStyle = "rgba(224,177,94,.75)";
+      c.font = "10px 'IBM Plex Mono', monospace"; c.textAlign = "left";
+      c.fillText(name, x0 + 6, y0 - 5);
+    });
+
+    /* 화살표 — 순서 이음. 사람이 그은 길은 굵은 놋빛, 기계가 이은
+       시리즈는 가는 실선. 읽은 책으로 들어가는 길에는 불이 들어온다. */
+    const arrow = (p, q, l) => {
+      const auto = isAuto(l);
+      const lit = byId.get(l.linked_book_id)?.st === "읽음";
+      const x1 = p[0] + CV_W, y1 = p[1] + CV_H / 2;
+      const x2 = q[0], y2 = q[1] + CV_H / 2;
+      c.strokeStyle = lit ? "rgba(224,177,94,.95)"
+        : auto ? "rgba(151,116,47,.5)" : "rgba(224,177,94,.72)";
+      c.lineWidth = auto ? 1 : 1.8;
+      c.setLineDash(l.kind === "나란히" ? [4, 3] : []);
+      c.beginPath();
+      c.moveTo(x1, y1);
+      const mx = (x1 + x2) / 2;
+      c.bezierCurveTo(mx, y1, mx, y2, x2 - 8, y2);
+      c.stroke();
+      c.setLineDash([]);
+      if (l.kind !== "나란히") {
+        const a = Math.atan2(y2 - y1, 10);
+        c.fillStyle = c.strokeStyle;
+        c.beginPath();
+        c.moveTo(x2 - 1, y2);
+        c.lineTo(x2 - 9, y2 - 4 - Math.sin(a));
+        c.lineTo(x2 - 9, y2 + 4 - Math.sin(a));
+        c.closePath(); c.fill();
+      }
+      if (l.note) {
+        c.fillStyle = "rgba(226,213,184,.82)";
+        c.font = "10px 'Noto Sans KR', sans-serif";
+        c.textAlign = "center";
+        const ty = (y1 + y2) / 2 - 8;
+        const w = c.measureText(l.note).width + 8;
+        c.save();
+        c.fillStyle = "rgba(16,10,4,.82)";
+        c.fillRect(mx - w / 2, ty - 10, w, 14);
+        c.restore();
+        c.fillStyle = "rgba(226,213,184,.9)";
+        c.fillText(l.note.length > 16 ? l.note.slice(0, 16) + "…" : l.note, mx, ty);
+      }
+    };
+    es.forEach((l) => {
+      const p = pos.get(l.book_id), q = pos.get(l.linked_book_id);
+      if (!p || !q) return;
+      // 나란히는 방향이 없으니 왼쪽에 있는 쪽에서 긋는다
+      if (l.kind === "나란히" && p[0] > q[0]) arrow(q, p, l);
+      else arrow(p, q, l);
+    });
+
+    /* 책 — 표지(없으면 활자 얼굴)와 제목, 입구에는 「여기서 시작」 */
+    chartHit = [];
+    for (const [n, [x, y]] of pos) {
+      const b = byId.get(n);
+      if (!b) continue;
+      drawFace(c, x, y, CV_W, CV_H, b, imgs.get(n) || null, b.st !== "읽음");
+      c.fillStyle = b.st === "읽음" ? "rgba(242,231,200,.95)" : "rgba(226,213,184,.7)";
+      c.font = "10.5px 'Gowun Batang', serif";
+      c.textAlign = "center";
+      wrap2(c, b.t, x + CV_W / 2, y + CV_H + 14, CELL_W - 34);
+      if (!(inc.get(n) || []).length && (out.get(n) || []).length) {
+        c.fillStyle = "#E0B15E";
+        c.font = "700 10px 'Gowun Batang', serif";
+        c.fillText(b.pathName ? `「${b.pathName}」` : "여기서 시작", x + CV_W / 2, y - 8);
+      }
+      chartHit.push({ x, y, b });
+    }
+
+    cvs.onclick = (ev) => {
+      const r = cvs.getBoundingClientRect();
+      const mx = (ev.clientX - r.left) * (W / r.width);
+      const my = (ev.clientY - r.top) * (H / r.height);
+      const hit = chartHit.find((h) =>
+        mx >= h.x - 6 && mx <= h.x + CV_W + 6 && my >= h.y - 6 && my <= h.y + CV_H + 20);
+      if (hit) openExlibris(hit.b, bookWall(hit.b));
+    };
+
+    /* 길을 걷는다 — 가장 긴 길의 입구부터 한 권씩 */
+    chartPaths = comps.map((ids) => {
+      const start = ids.find((n) => !(inc.get(n) || []).length) ?? ids[0];
+      const order = [], seen2 = new Set();
+      const walkFrom = (n) => {
+        if (seen2.has(n)) return;
+        seen2.add(n); order.push(n);
+        (out.get(n) || []).forEach(walkFrom);
+      };
+      walkFrom(start);
+      ids.forEach(walkFrom);   // 방향 밖에 남은 책도 뒤에 붙인다
+      return order.map((n) => byId.get(n)).filter(Boolean);
+    }).sort((a, b2) => b2.length - a.length);
   }
+  let chartPaths = [];
+
+  /* ── 콜로폰 ────────────────────────────────────────────
+     책 뒤의 판권장처럼, 이 서재가 지금 몇 권이고 마지막으로 언제 자랐는지.
+     숫자를 정적 파일에 박아 두면 반드시 거짓말이 되므로 셈에서 가져온다. */
+  function renderColophon() {
+    const el = $("colo-how");
+    if (!el) return;
+    const books = allBooks();
+    const grew = books
+      .map((b) => b.acquired)
+      .filter(Boolean)
+      .sort()
+      .pop();
+    const when = grew ? new Date(grew) : null;
+    const day = when && !isNaN(when)
+      ? `${when.getFullYear()}년 ${when.getMonth() + 1}월 ${when.getDate()}일에 마지막 한 권이 들어왔습니다`
+      : "";
+    el.textContent = books.length
+      ? `지금 ${books.length.toLocaleString("ko-KR")}권` + (day ? ` · ${day}` : "")
+      : "서가 뒤의 방 · rokiz.net";
+  }
+
+  /* ── 현관에 걸리는 길 ──────────────────────────────────
+     항로도는 통계 안쪽에 있어서, 들어온 사람은 길이 있는 줄도 모른다.
+     이름을 붙인 길(books.path_name)과 가장 긴 길 하나를 현관에 내건다.
+     지도를 그리는 것과 달리 표지도 캔버스도 필요 없으므로 따로 센다. */
+  let foyerPaths = [];
+  async function renderPaths() {
+    const sec = $("paths"), row = $("pathrow");
+    const db = window.PostLibrosDB;
+    if (!sec || !row) return;
+    const byId = new Map(allBooks().filter((b) => b.id).map((b) => [b.id, b]));
+    if (!db?.listAllLinks || !byId.size) { sec.hidden = true; return; }
+    let links = [];
+    try { links = await db.listAllLinks(); }
+    catch (e) { console.warn("[길] 이음을 읽지 못했습니다:", e); sec.hidden = true; return; }
+
+    /* 「순서」로 이은 것만 길이 된다 — 나란히 놓은 짝은 길이 아니다 */
+    const out = new Map(), inc = new Map();
+    links.filter((l) => l.kind !== "나란히" && byId.has(l.book_id) && byId.has(l.linked_book_id))
+      .forEach((l) => {
+        if (!out.has(l.book_id)) out.set(l.book_id, []);
+        out.get(l.book_id).push(l.linked_book_id);
+        if (!inc.has(l.linked_book_id)) inc.set(l.linked_book_id, []);
+        inc.get(l.linked_book_id).push(l.book_id);
+      });
+
+    /* 입구(들어오는 화살이 없는 책)에서 앞으로만 따라간다 */
+    const chains = [];
+    const used = new Set();
+    const entries = [...byId.keys()].filter((id) => (out.get(id) || []).length && !(inc.get(id) || []).length);
+    for (const start of entries) {
+      const list = [], seen = new Set();
+      let cur = start;
+      while (cur && !seen.has(cur)) {
+        seen.add(cur); used.add(cur);
+        list.push(byId.get(cur));
+        cur = (out.get(cur) || [])[0];
+      }
+      if (list.length >= 2) chains.push(list);
+    }
+    chains.sort((a, b) => b.length - a.length);
+
+    /* 이름 붙인 길이 먼저, 그다음 가장 긴 길. 다 합쳐 넷까지 */
+    const named = chains.filter((c) => c[0].pathName);
+    const rest = chains.filter((c) => !c[0].pathName);
+    foyerPaths = [...named, ...rest].slice(0, 4);
+    if (!foyerPaths.length) { sec.hidden = true; return; }
+
+    sec.hidden = false;
+    row.innerHTML = "";
+    foyerPaths.forEach((list, i) => {
+      const read = list.filter((b) => b.st === "읽음").length;
+      const card = document.createElement("button");
+      card.className = "pathcard";
+      card.type = "button";
+      // 제목은 사람이 적은 글이다 — 태그로 읽히지 않게 textContent 로만 넣는다
+      card.innerHTML = `<b></b><span class="pathwho"></span><span class="pathn"></span>`;
+      card.querySelector("b").textContent =
+        list[0].pathName || `「${list[0].t}」에서 시작하는 길`;
+      card.querySelector(".pathwho").textContent =
+        list.map((b) => b.t).slice(0, 3).join(" → ") + (list.length > 3 ? " → …" : "");
+      card.querySelector(".pathn").textContent = `${list.length}권 · 읽은 것 ${read}권`;
+      card.addEventListener("click", () => {
+        walk = { list };
+        openExlibris(list[0], bookWall(list[0]));
+      });
+      row.appendChild(card);
+      if (i === 0) card.classList.add("first");
+    });
+  }
+
+  /* ── 길을 걷는다 ────────────────────────────────────────
+     지도를 눈으로 따라가는 것과 실제로 걷는 것은 다르다. 가장 긴 길의
+     입구에서 시작해 서표를 열고, 다 읽으면 다음 한 권으로 넘어간다. */
+  function syncWalkRow() {
+    const btn = $("x-walknext");
+    if (!btn) return;
+    if (!walk || !openBook) { btn.hidden = true; return; }
+    const i = walk.list.indexOf(openBook);
+    if (i < 0) { btn.hidden = true; return; }
+    const next = walk.list[i + 1];
+    btn.hidden = false;
+    btn.textContent = next
+      ? `이 길의 다음 책 — 「${next.t}」 →`
+      : "길의 끝입니다 — 여기까지";
+    btn.disabled = !next;
+  }
+  $("x-walknext")?.addEventListener("click", () => {
+    if (!walk || !openBook) return;
+    const next = walk.list[walk.list.indexOf(openBook) + 1];
+    if (next) openExlibris(next, bookWall(next));
+  });
+  $("chart-walk")?.addEventListener("click", () => {
+    const path = chartPaths[0];
+    if (!path?.length) return;
+    walk = { list: path };
+    openExlibris(path[0], bookWall(path[0]));
+  });
+  /* 그림으로 내려받는다 — 커뮤니티에 도는 플로우 차트는 결국 이미지 한 장이다 */
+  $("chart-png")?.addEventListener("click", () => {
+    const cvs = $("linkweb");
+    if (!cvs || cvs.hidden) return;
+    const out = document.createElement("canvas");
+    out.width = cvs.width; out.height = cvs.height + 96;
+    const c = out.getContext("2d");
+    c.fillStyle = "#100A04";
+    c.fillRect(0, 0, out.width, out.height);
+    c.drawImage(cvs, 0, 72);
+    c.setTransform(2, 0, 0, 2, 0, 0);
+    c.textAlign = "left";
+    c.fillStyle = "#E2D5B8";
+    c.font = "700 22px 'Gowun Batang', serif";
+    c.fillText("이음의 항로도", 26, 34);
+    c.fillStyle = "rgba(163,148,122,.9)";
+    c.font = "11px 'IBM Plex Mono', monospace";
+    c.fillText("서가 뒤의 방 · rokiz.net/books", 26, 52);
+    c.fillText(new Date().toLocaleDateString("ko-KR"), 26, out.height / 2 - 12);
+    let url;
+    try { url = out.toDataURL("image/png"); }
+    catch {
+      // 표지 중에 CORS 를 안 열어 준 것이 섞이면 캔버스가 오염돼 내보낼 수 없다
+      $("ps-linkweb").textContent = "그림으로 뽑지 못했습니다 — 표지 하나가 내려받기를 막고 있습니다";
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "서가뒤의방-항로도.png";
+    a.click();
+  });
 
   /* 서표의 시리즈 잇기 — 같은 무리(손으로 적은 시리즈, 또는 밑동·지은이가
      같은 자동 시리즈)의 이웃 권끼리 사슬처럼 잇는다 (1↔2, 2↔3 …).
@@ -1645,9 +2082,44 @@
       listShown = LIST_STEP;   // 검색을 바꾸면 처음부터 다시 센다
       coversShown = COVER_STEP;
       renderWalls();
+      syncFindNote();
       if (curView === "covers") renderCovers();
       if (curView === "list") renderList();
     }, 140);
+  });
+
+  /* ── 검색의 안내판 ──────────────────────────────────────
+     서가 뷰의 벽은 한 벽에 예순여섯 권만 그린다. 검색한 사람은 「12권 응답」
+     이라는 숫자만 보고 그 열두 권이 어디 있는지 모른 채 벽을 훑는다.
+     응답이 벽 한 면에 다 서지 못할 만큼 많으면, 목록으로 가는 문을 연다. */
+  const WALL_DRAWN = 66;
+  function syncFindNote() {
+    const note = $("findnote"), t = $("findnote-t");
+    if (!note || !t) return;
+    const word = $("q").value.trim();
+    const on = curView === "walls" && (word || stFilter);
+    if (!on) { note.hidden = true; return; }
+    const n = filteredBooks().length;
+    if (!n) {
+      note.hidden = false;
+      t.textContent = word
+        ? `"${word}" — 어느 벽도 응답하지 않았습니다.`
+        : "아직 읽어 낸 책이 없습니다.";
+      $("findgo").hidden = true;
+      return;
+    }
+    /* 한 벽에 다 서는 만큼이면 안내가 필요 없다 — 눈으로 이미 다 보인다 */
+    const crowded = n > WALL_DRAWN;
+    note.hidden = !crowded;
+    if (!crowded) return;
+    $("findgo").hidden = false;
+    t.textContent = word
+      ? `"${word}" — ${n.toLocaleString()}권이 응답했습니다. 벽에는 앞줄만 섭니다.`
+      : `읽어 낸 ${n.toLocaleString()}권. 벽에는 앞줄만 섭니다.`;
+  }
+  $("findgo")?.addEventListener("click", () => {
+    document.getElementById("tab-list")?.click();
+    $("v-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   /* ── 사다리: 위치 표식 + 고도계 ───────────────────────── */
@@ -1763,6 +2235,10 @@
       + (b.readYear ? ` · ${b.readYear} 읽음` : "");
     $("veil").classList.add("show");
     $("exlibris").classList.add("show");
+    /* 서표에 고유 주소를 준다 — 이 책 한 권을 그대로 건네줄 수 있어야 한다.
+       뒤로 가기가 서표를 닫는 문이 되도록 pushState 가 아니라 해시를 쓴다. */
+    if (b.id) { hashSelf = true; location.hash = "book/" + b.id; }
+    syncWalkRow();
     // 닫으면 원래 있던 자리로 돌아가도록 표를 남긴다
     returnFocus = document.activeElement;
     $("x-close").focus();
@@ -1795,6 +2271,7 @@
       $("x-isbn").value = b.isbn || "";
       $("x-cover-url").value = b.cover || "";
       $("x-series").value = b.series || "";
+      $("x-path").value = b.pathName || "";
       // 이미 쓰던 시리즈 이름들을 골라 적게 — 오타로 무리가 갈라지지 않게
       const dl = $("serieslist");
       if (dl) {
@@ -1879,14 +2356,51 @@
     }
   }
   function closeExlibris() {
+    walk = null;
+    if ($("x-walknext")) $("x-walknext").hidden = true;
     // ESC 로 닫으면 여백에 적던 글이 blur 를 못 만나 사라진다 — 먼저 흘려보낸다
     if (document.activeElement === $("x-memoedit")) $("x-memoedit").blur();
     $("veil").classList.remove("show");
     $("exlibris").classList.remove("show");
     openBook = null;
+    if (location.hash.startsWith("#book/")) {
+      hashSelf = true;
+      history.replaceState(null, "", location.pathname + location.search);
+    }
     try { returnFocus?.focus(); } catch {}
     returnFocus = null;
   }
+
+  /* ── 책 한 권의 주소 ────────────────────────────────────
+     `#book/<id>` 로 들어오면 그 책의 서표가 열린 채로 서재가 시작된다.
+     내가 주소를 바꾼 것과 사람이 뒤로 가기를 누른 것을 구별해야 하므로
+     스스로 쓴 해시에는 표를 남긴다. */
+  let hashSelf = false;
+  function openFromHash() {
+    if (hashSelf) { hashSelf = false; return; }
+    const m = location.hash.match(/^#book\/([\w-]+)$/);
+    if (!m) { if (openBook) closeExlibris(); return; }
+    if (openBook?.id === m[1]) return;   // 이미 그 책이 열려 있다 (서가를 다시 그린 뒤)
+    const b = allBooks().find((x) => x.id === m[1]);
+    if (b) openExlibris(b, bookWall(b));
+  }
+  window.addEventListener("hashchange", openFromHash);
+  $("x-share")?.addEventListener("click", async (e) => {
+    if (!openBook?.id) return;
+    const url = location.origin + location.pathname + "#book/" + openBook.id;
+    const btn = e.currentTarget;
+    const was = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(url);
+      btn.textContent = "주소를 복사했습니다";
+    } catch {
+      // 복사가 막힌 브라우저 — 주소창에라도 남겨 두면 사람이 긁어 갈 수 있다
+      btn.textContent = "복사가 막혀 있습니다 — 주소창을 그대로 쓰세요";
+    }
+    setTimeout(() => { btn.textContent = was; }, 2200);
+  });
+  /* 장서를 다 실은 뒤에 한 번 — 그전에는 찾을 책이 없다 */
+  window.PostLibrosOpenHash = openFromHash;
   // 알라딘 표지 주소가 죽어 있으면 그림 자리를 걷는다
   $("x-cover").addEventListener("error", () => { $("x-cover").hidden = true; });
   $("x-close").addEventListener("click", closeExlibris);
@@ -1943,8 +2457,25 @@
       syncBookmarkRow(openBook && { ...openBook, st });
       syncReadYearRow(openBook && { ...openBook, st, readYear: ry || openBook.readYear });
       syncOpenNowRow(openBook && { ...openBook, st });
+      if (st === "읽음") celebrateRead();
     });
   });
+
+  /* ── 한 권을 다 읽으면 서재가 반응한다 ─────────────────
+     읽음으로 바꾸는 것은 이 서재에서 가장 드물고 가장 값진 일인데
+     (스무 권 남짓이다) 지금은 단추 색만 바뀐다. 촛불이 한 번 크게 흔들리고
+     서표에 금빛이 번진다 — 소리도 팝업도 없이, 방이 알아차리는 만큼만. */
+  function celebrateRead() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const x = $("exlibris"), desk = $("desk");
+    [x, desk].forEach((el) => {
+      if (!el) return;
+      el.classList.remove("lit");
+      void el.offsetWidth;   // 연달아 눌러도 다시 켜지도록 흐름을 끊는다
+      el.classList.add("lit");
+      setTimeout(() => el.classList.remove("lit"), 1400);
+    });
+  }
 
   /* ── 읽은 해 — 읽음일 때만 보인다 ── */
   function syncReadYearRow(b) {
@@ -1954,6 +2485,11 @@
     if (!row.hidden) $("x-ry").value = b.readYear || "";
   }
   /* ── 시리즈 — 손으로 묶는다. 지우면 자동 접기 규칙으로 돌아간다 ── */
+  /* ── 길 이름 — 이 책에서 시작하는 길 ── */
+  $("x-path")?.addEventListener("change", () => {
+    const v = $("x-path").value.trim();
+    saveBook({ path_name: v || null }, (bk) => { bk.pathName = v || null; });
+  });
   $("x-series").addEventListener("change", () => {
     const v = $("x-series").value.trim();
     saveBook({ series: v || null }, (b) => { b.series = v || null; });
@@ -1988,6 +2524,48 @@
       const other = allBooks().find((x) => x.id === otherId);
       const chip = document.createElement("span");
       chip.className = "linkchip";
+
+      /* 이음의 방향 — 같은 줄을 양쪽에서 보면 「다음에」와 「먼저」다.
+         책 하나에서 보면 셋 중 하나이므로, 한 단추로 돌려 가며 고른다.
+         이것이 있어야 성좌가 아니라 길이 된다. */
+      const dirOf = () => (l.kind === "나란히" ? "나란히"
+        : l.book_id === b.id ? "다음에" : "먼저");
+      const dir = document.createElement("button");
+      dir.type = "button";
+      dir.className = "linkdir";
+      const paintDir = () => {
+        const d = dirOf();
+        dir.dataset.d = d;
+        dir.textContent = d === "다음에" ? "이 책 다음에" : d === "먼저" ? "이 책보다 먼저" : "나란히";
+        dir.title = "눌러서 방향을 바꿉니다 — 다음에 → 먼저 → 나란히";
+        chip.dataset.d = d;
+      };
+      paintDir();
+      dir.addEventListener("click", async () => {
+        const d = dirOf();
+        dir.disabled = true;
+        try {
+          if (d === "다음에") {
+            await db.flipLink(l);
+            const t = l.book_id; l.book_id = l.linked_book_id; l.linked_book_id = t;
+          } else if (d === "먼저") {
+            await db.updateLink(l.id, { kind: "나란히" });
+            l.kind = "나란히";
+          } else {
+            // 나란히 → 다음에: 방향을 되살리되 이 책이 앞에 서게 한다
+            if (l.book_id !== b.id) {
+              await db.flipLink(l);
+              const t = l.book_id; l.book_id = l.linked_book_id; l.linked_book_id = t;
+            }
+            await db.updateLink(l.id, { kind: "순서" });
+            l.kind = "순서";
+          }
+          paintDir();
+          renderAll();
+        } catch (err) { console.error("[이음] 방향을 바꾸지 못했습니다:", err); }
+        dir.disabled = false;
+      });
+
       const go = document.createElement("button");
       go.type = "button";
       go.textContent = other ? other.t : "(서가에 없는 책)";
@@ -2013,8 +2591,9 @@
         const save = async () => {
           const v = inp.value.trim();
           try {
-            await db.updateLink(l.id, v || null);
+            await db.updateLink(l.id, { note: v || null });
             l.note = v || null;
+            renderAll();
           } catch (err) { console.error("[이음] 까닭을 적지 못했습니다:", err); }
           why.textContent = l.note || "";
           inp.remove();
@@ -2036,7 +2615,7 @@
         try { await db.removeLink(l.id); renderLinks(b); }
         catch (err) { console.error("[이음] 풀지 못했습니다:", err); }
       });
-      chip.append(go, why, pen, del);
+      chip.append(dir, go, why, pen, del);
       host.appendChild(chip);
     });
   }
@@ -2416,7 +2995,9 @@
     renderCensus();
     renderToday();
     renderShowcase();
-    document.querySelector(".colophon").textContent = "서가 뒤의 방 · rokiz.net";
+    renderPaths();          // 이음이 만든 길 — 데이터를 따로 받아와 건다
+    renderColophon();
+    syncFindNote();
     if (curView === "covers") renderCovers();
     if (curView === "list") renderList();
     if (curView === "stats") renderStats();

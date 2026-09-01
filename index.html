@@ -89,11 +89,25 @@
   </div>
 </div>
 
+<!-- 검색의 안내판 — 벽은 앞줄만 보여주므로, 다 보려면 목록으로 가야 한다 -->
+<div class="wrap">
+  <p class="findnote" id="findnote" role="status" hidden>
+    <span id="findnote-t"></span>
+    <button type="button" class="findgo" id="findgo">목록에서 전부 본다</button>
+  </p>
+</div>
+
 <div class="wrap">
   <!-- 이 달의 진열장 — 표지가 있는 책 여섯을 액자처럼, 달이 바뀌면 저절로 교체 -->
   <section class="showcase" id="showcase" hidden>
     <div class="sec-label"><b>이 달의 진열장</b><span class="desc" id="showcase-sub"></span></div>
     <div class="showgrid" id="showgrid"></div>
+  </section>
+
+  <!-- 이름 붙인 길 — 항로도에서 지은 이름이 현관에 걸린다 -->
+  <section class="paths" id="paths" hidden>
+    <div class="sec-label"><b>걸어 볼 만한 길</b><span class="desc">한 권에서 다음 권으로, 순서대로 이어 둔 책들</span></div>
+    <div class="pathrow" id="pathrow"></div>
   </section>
 </div>
 
@@ -172,11 +186,24 @@
         <p class="ps" id="ps-rhythm"></p>
         <div id="rhythmgrid"></div>
       </div>
+      <!-- 판형 지도 — 실물 치수를 아는 책만. 숫자가 아니라 진짜 크기로 겹쳐 본다 -->
+      <div class="statpanel wide" id="size-panel">
+        <h4>판형 지도</h4>
+        <p class="ps" id="ps-size"></p>
+        <div class="sizemap" id="sizemap"></div>
+      </div>
       <div class="statpanel wide" id="linkweb-panel">
-        <h4>이음의 별자리</h4>
-        <p class="ps" id="ps-linkweb">서로 다른 책을 손으로 이어 둔 컬렉션이 성좌를 이룹니다</p>
-        <!-- 그림은 읽어 줄 수 없다 — 대신 몇 개가 걸려 있는지 말로 남긴다 -->
-        <canvas id="linkweb" height="240" role="img" aria-label="이음의 별자리"></canvas>
+        <h4>이음의 항로도</h4>
+        <p class="ps" id="ps-linkweb">책과 책을 이어 두면 길이 됩니다 — 서표의 「이음」 줄에서</p>
+        <div class="chartbar" id="chartbar" hidden>
+          <button type="button" class="chartbtn" id="chart-walk">이 길을 걷는다</button>
+          <button type="button" class="chartbtn" id="chart-png">그림으로 내려받는다</button>
+        </div>
+        <!-- 넓은 그림은 제 안에서 가로로 흐른다 — 본문이 옆으로 밀리지 않게 -->
+        <div class="chartscroll">
+          <!-- 그림은 읽어 줄 수 없다 — 대신 무엇이 걸려 있는지 말로 남긴다 -->
+          <canvas id="linkweb" height="240" role="img" aria-label="이음의 항로도"></canvas>
+        </div>
       </div>
       <div class="statpanel wide" id="authorweb-panel">
         <h4>작가의 별자리</h4>
@@ -230,7 +257,12 @@
   </button>
 </div>
 
-<footer class="colophon">서가 뒤의 방 · rokiz.net</footer>
+<!-- 콜로폰 — 책의 판권장처럼. 누가 지었고, 무엇으로 지었고, 언제 자랐는지 -->
+<footer class="colophon" id="colophon">
+  <p class="colo-who">이 서재는 <b>로키즈</b>가 실물 책장을 한 칸씩 옮겨 지었습니다.</p>
+  <p class="colo-how" id="colo-how">서가 뒤의 방 · rokiz.net</p>
+  <p class="colo-tech">손으로 쓴 HTML·CSS·JS · Supabase · 서지는 알라딘 · 표지는 각 출판사</p>
+</footer>
 
 <div class="veil" id="veil"></div>
 <div class="exlibris" id="exlibris" role="dialog" aria-modal="true" aria-label="서표">
@@ -240,6 +272,8 @@
     <div class="x-head-t">
       <h3 id="x-title"></h3>
       <p class="byline" id="x-byline"></p>
+      <!-- 이 책 한 권만 그대로 건네줄 수 있는 주소 -->
+      <button class="x-share" id="x-share" type="button">이 책의 주소를 복사한다</button>
     </div>
     <!-- 알라딘에서 받아 온 표지 — 없으면 자리도 없다 -->
     <img class="x-cover" id="x-cover" alt="" hidden>
@@ -308,7 +342,16 @@
                aria-label="이을 책 검색">
         <div class="x-linkpick" id="x-linkpick"></div>
         <button type="button" class="sugrow" id="x-serieslink" hidden></button>
+        <span class="x-hint">방향 단추를 누르면 「다음에 → 먼저 → 나란히」로 돕니다.
+          ✎ 로 적은 말은 항로도의 화살표 위에 걸립니다</span>
       </div>
+    </div>
+    <!-- 길의 이름은 그 길의 입구가 되는 책이 들고 있는다 -->
+    <div class="x-row">
+      <span class="x-lb">길 이름</span>
+      <input type="text" id="x-path" placeholder="이 책에서 시작하는 길의 이름"
+             aria-label="이 책에서 시작하는 길의 이름">
+      <span class="x-hint">「디킨스로 들어가는 문」처럼 — 적으면 현관에 걸립니다</span>
     </div>
     <div class="x-row">
       <span class="x-lb">표지</span>
@@ -327,6 +370,9 @@
       <span class="x-hint">잘못 읽힌 책을 지웁니다 — 되돌릴 수 없습니다</span>
     </div>
   </div>
+
+  <!-- 길을 걷는 중일 때만 — 다음 한 걸음 -->
+  <button type="button" class="walknext" id="x-walknext" hidden></button>
 
   <div id="x-full">
     <h4>Summarium</h4>
