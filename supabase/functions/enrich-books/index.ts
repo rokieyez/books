@@ -243,10 +243,11 @@ async function googleBooks(isbn: string) {
   }
 }
 
-/* 국립중앙도서관 서지정보 (seoji) — 다섯 번째이자 마지막 사다리.
+/* 국립중앙도서관 ISBN 서지정보 — 다섯 번째이자 마지막 사다리.
    알라딘이 하루 한도로 막히면 서지가 통째로 멎는다는 것을 2026-09-01 에
    겪었다. 납본된 책은 여기에 거의 다 있으므로, 알라딘이 쉬는 동안에도
-   제목·지은이·펴낸곳·쪽수·판형은 이 길로 들어온다. 표지는 없다.
+   제목·지은이·펴낸곳·쪽수·판형·표지가 이 길로 들어온다.
+   주소와 필드 이름은 공식 문서(N31101030500)에서 확인한 것이다.
    열쇠(NLK_CERT_KEY)가 없으면 이 사다리는 조용히 건너뛴다. */
 async function nlkLookup(isbn: string) {
   const key = Deno.env.get("NLK_CERT_KEY");
@@ -255,14 +256,16 @@ async function nlkLookup(isbn: string) {
     const params = new URLSearchParams({
       cert_key: key, result_style: "json", page_no: "1", page_size: "1", isbn,
     });
-    const res = await fetch(`https://seoji.nl.go.kr/landingPage/SearchApi.do?${params}`);
+    const res = await fetch(`https://www.nl.go.kr/seoji/SearchApi.do?${params}`);
     const j = await res.json();
+    // 인증키가 틀리면 docs 없이 {RESULT:"ERROR", ERR_CODE:"011"} 이 온다
     const d = j.docs?.[0];
     if (!d?.TITLE) return null;
     // 쪽수는 「349 p.」, 판형은 「152*225mm」 처럼 온다 — 숫자만 건져 낸다
     const pages = Number(String(d.PAGE ?? "").match(/\d+/)?.[0] ?? 0);
     const size = String(d.BOOK_SIZE ?? "").match(/(\d+)\s*\*\s*(\d+)/);
     const mm = (v: number, lo: number, hi: number) => (v >= lo && v <= hi ? v : null);
+    const cover = d.TITLE_URL ? String(d.TITLE_URL).trim().replace(/^http:/, "https:") : null;
     return {
       title: String(d.TITLE).trim(),
       author: d.AUTHOR ? String(d.AUTHOR).split(/[,;:]/)[0].trim() : null,
@@ -271,7 +274,7 @@ async function nlkLookup(isbn: string) {
       sizeHeight: size ? mm(Number(size[2]), 80, 400) : null,
       sizeDepth: null,
       publisher: d.PUBLISHER ? String(d.PUBLISHER).trim() : null,
-      cover: null,
+      cover: cover && /^https:\/\//.test(cover) ? cover : null,
       year: /^\d{4}/.test(String(d.PUBLISH_PREDATE ?? ""))
         ? Number(String(d.PUBLISH_PREDATE).slice(0, 4)) : null,
       category: null,   // 국중의 주제분류는 KDC 숫자라 이 서재의 벽 이름과 다르다
@@ -295,8 +298,8 @@ async function aladinDown(ttb: string): Promise<string | null> {
 }
 
 /* 조회의 사다리 — ① ItemLookUp ② ISBN 검색(정확 일치만) ③ 알라딘 사이트
-   ④ 구글 도서. ItemLookUp 은 절판·옛 책에서 곧잘 빈손이 된다. 사람이
-   붙여넣은 번호가 오는 서표·바코드 길에서만 쓴다. */
+   ④ 구글 도서 ⑤ 국립중앙도서관. ItemLookUp 은 절판·옛 책에서 곧잘
+   빈손이 된다. 사람이 붙여넣은 번호가 오는 서표·바코드 길에서만 쓴다. */
 async function lookupHard(ttb: string, isbn: string) {
   const direct = await aladinLookup(ttb, isbn);
   if (direct?.title) return direct;
@@ -410,7 +413,7 @@ Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth) return reply({ error: "열쇠가 없습니다" }, 401);
 
-  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string; crate?: boolean; genre?: boolean; candidate_id?: string; query?: string } = {};
+  let body: { probe?: string; lookup?: string; nlk?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string; crate?: boolean; genre?: boolean; candidate_id?: string; query?: string } = {};
   try { body = await req.json(); } catch { /* 빈 몸통도 허용 */ }
 
   /* ── 궤짝 수동 검색 — 자동 확정(0.75)이 못 정한 후보를 사람이 살린다 ──
@@ -630,6 +633,12 @@ Deno.serve(async (req) => {
       return reply({ error: "꽂지 못했습니다: " + e1.message }, 500);
     }
     return reply({ 꽂음: true, 제목: info.title, 지은이: info.author, 쪽수: info.pages });
+  }
+
+  /* ── 국립중앙도서관 살펴보기 — 열쇠를 넣은 뒤 진짜 오는지 한 번 찍어본다 ── */
+  if (body.nlk) {
+    const info = await nlkLookup(String(body.nlk));
+    return reply({ 열쇠있음: !!Deno.env.get("NLK_CERT_KEY"), 결과: info });
   }
 
   /* ── 조회 살펴보기 — ItemLookUp 응답 모양을 그대로 돌려준다 ──
