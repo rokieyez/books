@@ -344,6 +344,14 @@
       const guess = document.createElement("span");
       guess.className = "guess";
       guess.textContent = `"${c.raw_text || "읽지 못함"}"`;
+      // 확신도를 희미하게 — 얼마나 흐린 글씨였는지 알면 판단이 쉽다
+      const conf = Number(c.confidence ?? 0);
+      if (conf) {
+        const cf = document.createElement("i");
+        cf.className = "guessconf";
+        cf.textContent = `확신 ${Math.round(conf * 100)}%`;
+        guess.appendChild(cf);
+      }
       const cands = document.createElement("div");
       cands.className = "cands";
       (c.candidates || []).forEach((cand) => {
@@ -582,8 +590,10 @@
   function bookRow(b, sub) {
     const tr = document.createElement("tr");
     if (sub) tr.className = "subrow";
+    const stLabel = b.st === "읽는 중" && b.bookmark
+      ? `읽는 중 · ${b.bookmark.toLocaleString()}쪽` : b.st;
     tr.innerHTML = `<td class="t"></td><td></td><td></td>
-      <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${b.st}</td>
+      <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${stLabel}</td>
       <td>${b.year ?? ""}</td><td></td>`;
     tr.children[0].textContent = (sub ? "└ " : "") + b.t;
     tr.children[1].textContent = b.a;
@@ -815,6 +825,18 @@
     renderCovers();
   });
 
+  /* 「더 본다」가 화면에 들어오면 스스로 눌린다 — 스크롤이 곧 넘김이다.
+     단추는 그대로 남는다: 관찰자가 없는 브라우저의 예비 길. */
+  if ("IntersectionObserver" in window) {
+    const autoMore = new IntersectionObserver((ens) => {
+      ens.forEach((en) => {
+        if (en.isIntersecting && !en.target.hidden) en.target.click();
+      });
+    }, { rootMargin: "200px" });
+    autoMore.observe($("listmore"));
+    autoMore.observe($("covermore"));
+  }
+
   document.querySelectorAll(".sortbtn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const k = btn.dataset.k;
@@ -824,6 +846,8 @@
       document.querySelectorAll(".sortbtn").forEach((o) => {
         o.classList.toggle("on", o === btn);
         o.dataset.dir = o === btn ? (sortAsc ? "↑" : "↓") : "";
+        o.closest("th")?.setAttribute("aria-sort",
+          o === btn ? (sortAsc ? "ascending" : "descending") : "none");
       });
       listShown = LIST_STEP;
       renderList();
@@ -938,11 +962,14 @@
   function openExlibris(b, w) {
     openBook = b;
     $("x-mark").textContent = `${w ? w.nm : "책상 위"} · ${b.cat || "문학"}`;
-    // 표지가 있으면 걸어 둔다 — 깨진 그림은 error 핸들러가 내린다
+    // 표지가 있으면 걸어 둔다 — 없으면 실물 책등 조각이라도.
+    // 깨진 그림은 error 핸들러가 내린다
     const cv = $("x-cover");
-    if (b.cover) {
-      cv.src = b.cover;
-      cv.alt = `${b.t} 표지`;
+    const face = b.cover || b.spineImg;
+    if (face) {
+      cv.src = face;
+      cv.alt = `${b.t} ${b.cover ? "표지" : "책등"}`;
+      cv.classList.toggle("spine", !b.cover);
       cv.hidden = false;
     } else {
       cv.hidden = true;

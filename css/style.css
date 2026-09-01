@@ -577,6 +577,11 @@
   .crate-bulk:hover:not(:disabled) { background: rgba(224,177,94,.14); }
   .crate-bulk:disabled { opacity: .6; cursor: default; }
   .crateitem.resolved .cands { opacity: .4; }
+  .guessconf {
+    font-style: normal; font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5px; color: var(--parchment-dim); letter-spacing: .08em;
+    margin-left: 8px; opacity: .8;
+  }
   .crateitem.resolved .guess::after { content: " ✓ 꽂았다"; color: var(--brass); }
 
   /* ── 사진을 들이는 곳 ─────────────────────────────────
@@ -1113,6 +1118,8 @@
     box-shadow: 0 1px 0 rgba(224,177,94,.18) inset, 0 8px 18px rgba(0,0,0,.55);
     background: #1B1108;
   }
+  /* 표지 대신 실물 책등 조각 — 세로로 길어 폭을 줄인다 */
+  .x-cover.spine { width: 34px; }
   .exlibris .byline { margin: 0 0 14px; font-size: 13px; color: var(--parchment-dim); }
   .exlibris .rule { height: 1px; background: linear-gradient(90deg, transparent, var(--brass-dim) 30%, transparent 50%, var(--brass-dim) 70%, transparent); margin: 13px 0; }
   .exlibris h4 {
