@@ -42,6 +42,18 @@
         },
       });
     },
+    /* 비밀번호로 들어오기 — 평소에 쓰는 길.
+       가입이 잠겨 있어도 이미 있는 계정의 로그인은 막히지 않는다. */
+    async signInWithPassword(email, password) {
+      return client.auth.signInWithPassword({ email, password });
+    },
+
+    /* 비밀번호 정하기·바꾸기 — 들어와 있는 동안에만 된다.
+       그래서 처음 한 번은 메일 링크로 들어와야 한다. */
+    async setPassword(password) {
+      return client.auth.updateUser({ password });
+    },
+
     async signOut() {
       // 재설정·로그아웃은 전체 세션을 끊는다 (지금 이 접속만 남기지 않는다)
       return client.auth.signOut();

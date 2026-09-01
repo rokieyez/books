@@ -1001,9 +1001,37 @@
   .gate .gate-sub { margin: 0 0 16px; font-size: 12.5px; color: var(--parchment-dim); line-height: 1.7; }
   .gate form { display: flex; gap: 8px; }
   .gate form + form { margin-top: 8px; }
+  /* 메일 + 비밀번호 + 버튼 — 좁은 화면에서는 메일이 한 줄을 다 쓴다 */
+  .gate .pwform { flex-wrap: wrap; }
+  .gate .pwform input[type="email"] { flex: 1 1 100%; }
+  .gate .pwform input[type="password"] { flex: 1 1 120px; }
+  .gate .pwform .gate-go { flex: 0 0 auto; }
   .gate .gate-alt {
     margin: 14px 0 5px; font-size: 11.5px; line-height: 1.6;
     color: var(--parchment-dim); font-style: italic;
+  }
+  /* 문장 속에 놓이는 단추 — 생김새는 글자, 역할은 단추 */
+  .gate .linkish {
+    appearance: none; background: none; border: 0; padding: 0;
+    font: inherit; font-style: italic; cursor: pointer;
+    color: var(--brass); text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .gate .linkish:hover, .gate .linkish:focus-visible { color: var(--paperlabel); outline: none; }
+  .gate .linkish:disabled { opacity: .45; cursor: default; }
+  .gate .gate-who {
+    margin: 0 0 14px; font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px; color: var(--brass-dim); letter-spacing: .06em;
+    overflow-wrap: anywhere;
+  }
+  .gate .gate-out {
+    margin-top: 16px; width: 100%; appearance: none; cursor: pointer;
+    padding: 8px 0; font: inherit; font-size: 12.5px;
+    color: var(--parchment-dim); background: none;
+    border: 1px solid var(--line); border-radius: 2px;
+  }
+  .gate .gate-out:hover, .gate .gate-out:focus-visible {
+    color: var(--wax); border-color: var(--wax); outline: none;
   }
   .gate input {
     flex: 1; min-width: 0; font: inherit; font-size: 14px;

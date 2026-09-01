@@ -1,7 +1,12 @@
 /* 열쇠 — 로그인과 세션
  *
- * 메일 링크만 쓰면 사이트 주소가 바뀔 때마다(로컬 ↔ 배포) 링크가 엉뚱한 데로 간다.
- * 그래서 링크와 6자리 코드를 둘 다 받는다. 코드는 리디렉션이 없어 어디서든 통한다.
+ * 평소에는 비밀번호로 들어온다. 메일함을 열 필요가 없다.
+ *
+ * 메일 링크는 지우지 말 것 — 예비 수단이다. 신규 가입을 잠가 두었기 때문에
+ * 비밀번호를 잊으면 다시 만들 길이 없고, 그때 들어올 유일한 문이 이것이다.
+ * 비밀번호는 들어와 있는 동안에만 정할 수 있으므로 처음 한 번도 이 문을 쓴다.
+ *
+ * 문은 셋 중 하나를 보여준다: 로그인 / 메일 보낸 뒤 / 들어와 있음.
  */
 (function () {
   const db = window.PostLibrosDB;
@@ -24,30 +29,66 @@
     <button class="close" id="gate-close" aria-label="닫기">×</button>
     <span class="mark">Clavis</span>
     <h3>주인의 열쇠</h3>
-    <p class="gate-sub" id="gate-sub">이 서재는 한 사람만 씁니다 — 새로 드는 문은 없습니다.<br>등록된 주인의 메일로 열쇠를 보냅니다. 메일 속 링크를 누르면 열립니다.</p>
-    <form id="gate-form-mail" autocomplete="on">
+    <p class="gate-sub" id="gate-sub">이 서재는 한 사람만 씁니다 — 새로 드는 문은 없습니다.</p>
+
+    <form id="gate-form-pw" class="pwform" autocomplete="on">
       <input type="email" id="gate-email" placeholder="주인의 메일 주소" aria-label="주인의 메일 주소" required autocomplete="email">
-      <button type="submit" class="gate-go" id="gate-send">열쇠를 보낸다</button>
+      <input type="password" id="gate-pw" placeholder="비밀번호" aria-label="비밀번호" autocomplete="current-password">
+      <button type="submit" class="gate-go" id="gate-in">들어간다</button>
     </form>
-    <p class="gate-alt" id="gate-alt" hidden>링크가 열리지 않을 때만 — 메일에 여섯 자리가 함께 왔다면 여기 적으세요</p>
+
+    <p class="gate-alt" id="gate-ask">비밀번호를 아직 정하지 않았거나 잊었다면 —
+      <button type="button" class="linkish" id="gate-usemail">메일로 열쇠를 받는다</button></p>
+
+    <p class="gate-alt" id="gate-alt-code" hidden>링크가 열리지 않을 때만 — 메일에 여섯 자리가 함께 왔다면 여기 적으세요</p>
     <form id="gate-form-code" hidden autocomplete="off">
       <input type="text" id="gate-code" placeholder="여섯 자리" aria-label="메일로 받은 여섯 자리 코드"
              inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code">
       <button type="submit" class="gate-go" id="gate-verify">문을 연다</button>
     </form>
+
+    <div id="gate-account" hidden>
+      <p class="gate-who" id="gate-who"></p>
+      <form id="gate-form-newpw" class="pwform" autocomplete="on">
+        <input type="password" id="gate-newpw" placeholder="새 비밀번호 (8자 이상)" aria-label="새 비밀번호"
+               autocomplete="new-password" minlength="8">
+        <button type="submit" class="gate-go" id="gate-setpw">이 비밀번호로 정한다</button>
+      </form>
+      <p class="gate-alt">이제부터 메일함을 열지 않고 이 비밀번호로 들어옵니다.</p>
+      <button type="button" class="gate-out" id="gate-out">나간다</button>
+    </div>
+
     <p class="gate-msg" id="gate-msg" hidden></p>`;
 
   const veil = el("veil");
   let pendingEmail = "";
 
-  function openGate() {
+  /* 문이 보여줄 세 가지 모습 */
+  function showState(state) {
+    const login = state === "login";
+    const mailed = state === "mailed";
+    const inside = state === "inside";
+
+    el("gate-sub").hidden = inside;
+    el("gate-form-pw").hidden = !login && !mailed;
+    el("gate-ask").hidden = !login;
+    el("gate-alt-code").hidden = !mailed;
+    el("gate-form-code").hidden = !mailed;
+    el("gate-account").hidden = !inside;
+    gate.querySelector("h3").textContent = inside ? "들어와 있습니다" : "주인의 열쇠";
+  }
+
+  function openGate(state) {
+    showState(state);
     gate.hidden = false;
     veil.classList.add("show");
-    setTimeout(() => el("gate-email").focus(), 60);
+    const first = state === "inside" ? "gate-newpw" : "gate-email";
+    setTimeout(() => el(first).focus(), 60);
   }
   function closeGate() {
     gate.hidden = true;
     veil.classList.remove("show");
+    el("gate-msg").hidden = true;
   }
   function say(text, tone) {
     const m = el("gate-msg");
@@ -109,14 +150,16 @@
   async function reflect(user) {
     const mark = document.querySelector(".topbar .mark");
     if (user) {
-      keyBtn.textContent = "나간다";
+      keyBtn.textContent = "서재";
       keyBtn.title = user.email + " 로 들어와 있습니다";
       keyBtn.classList.add("in");
       document.body.classList.add("owner");
+      el("gate-who").textContent = user.email;
       try {
         const n = await loadRealLibrary();
-        say("", "");
-        closeGate();
+        // 비밀번호를 정하는 중이라면 닫지 않는다 — 방금 띄운 안내가 사라진다
+        // (setPassword 도 USER_UPDATED 로 여기까지 온다)
+        if (el("gate-account").hidden) closeGate();
         if (n === 0) {
           mark.setAttribute("title", "아직 꽂힌 책이 없습니다 — 궤짝에 책을 넣어 시작하세요");
         }
@@ -138,15 +181,15 @@
     document.body.appendChild(gate);
 
     keyBtn.addEventListener("click", async () => {
-      const user = db ? await db.currentUser() : null;
-      if (user) {
-        await db.signOut();
-        location.reload();
-      } else if (db) {
-        openGate();
-      } else {
-        say("Supabase 연결이 없어 지금은 들어갈 수 없습니다.", "bad");
-      }
+      if (!db) { say("Supabase 연결이 없어 지금은 들어갈 수 없습니다.", "bad"); return; }
+      // 들어와 있으면 곧장 내보내지 않는다 — 비밀번호를 정하는 자리이기도 하다
+      const user = await db.currentUser();
+      openGate(user ? "inside" : "login");
+    });
+
+    el("gate-out").addEventListener("click", async () => {
+      await db.signOut();
+      location.reload();
     });
     el("gate-close").addEventListener("click", closeGate);
     veil.addEventListener("click", closeGate);
@@ -154,13 +197,35 @@
       if (e.key === "Escape" && !gate.hidden) closeGate();
     });
 
-    el("gate-form-mail").addEventListener("submit", async (e) => {
+    /* ── 평소의 문: 비밀번호 ── */
+    el("gate-form-pw").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const email = el("gate-email").value.trim();
+      const pw = el("gate-pw").value;
+      if (!pw) { say("비밀번호를 적으세요. 아직 정하지 않았다면 아래에서 메일로 받으세요.", "bad"); return; }
+      el("gate-in").disabled = true;
+      say("문을 여는 중…");
+      const { error } = await db.signInWithPassword(email, pw);
+      el("gate-in").disabled = false;
+      if (error) {
+        say("메일 주소나 비밀번호가 맞지 않습니다.", "bad");
+        return;
+      }
+      // 세션이 생기면 onAuthStateChange 가 화면을 바꾼다
+    });
+
+    /* ── 예비의 문: 메일 링크 ── */
+    el("gate-usemail").addEventListener("click", async () => {
       pendingEmail = el("gate-email").value.trim();
-      el("gate-send").disabled = true;
+      if (!pendingEmail) {
+        say("먼저 메일 주소를 적으세요.", "bad");
+        el("gate-email").focus();
+        return;
+      }
+      el("gate-usemail").disabled = true;
       say("열쇠를 보내는 중…");
       const { error } = await db.signIn(pendingEmail);
-      el("gate-send").disabled = false;
+      el("gate-usemail").disabled = false;
       if (error) {
         // 등록되지 않은 주소면 Supabase 가 가입 거절로 답한다 — 이 서재의 주인이 아니라는 뜻이다
         const notOwner = error.code === "otp_disabled" ||
@@ -170,10 +235,25 @@
           : "열쇠를 보내지 못했습니다: " + error.message, "bad");
         return;
       }
-      // 메일 폼은 남겨 둔다 — 안 오면 다시 보내야 한다
-      el("gate-alt").hidden = false;
-      el("gate-form-code").hidden = false;
+      showState("mailed");
       say(pendingEmail + " 으로 보냈습니다. 메일 속 링크를 누르면 열립니다.", "good");
+    });
+
+    /* ── 비밀번호 정하기 (들어와 있을 때만) ── */
+    el("gate-form-newpw").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pw = el("gate-newpw").value;
+      if (pw.length < 8) { say("여덟 자 이상으로 정하세요.", "bad"); return; }
+      el("gate-setpw").disabled = true;
+      say("비밀번호를 새기는 중…");
+      const { error } = await db.setPassword(pw);
+      el("gate-setpw").disabled = false;
+      if (error) {
+        say("정하지 못했습니다: " + error.message, "bad");
+        return;
+      }
+      el("gate-newpw").value = "";
+      say("정해졌습니다. 다음부터는 이 비밀번호로 들어오세요.", "good");
     });
 
     el("gate-form-code").addEventListener("submit", async (e) => {
