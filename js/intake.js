@@ -156,11 +156,32 @@
       card.className = "photocard";
       const where = [p.wall ? p.wall + "의 벽" : "벽 미정", p.shelf ? p.shelf + "단" : null]
         .filter(Boolean).join(" · ");
+      const done = p.status === "완료";
       card.innerHTML = `
         <div class="ph"></div>
         <figcaption>${where}<span class="pst">${p.status}</span></figcaption>
-        <button class="phdel" aria-label="이 사진을 버린다">버린다</button>`;
+        <button class="phdel" aria-label="이 사진을 버린다">버린다</button>
+        <button class="phread">${done ? "다시 읽는다" : "책등을 읽는다"}</button>
+        <p class="phnote">${p.note ? p.note : ""}</p>`;
       grid.appendChild(card);
+
+      card.querySelector(".phread").addEventListener("click", async (ev) => {
+        const btn = ev.currentTarget;
+        btn.disabled = true;
+        const note = card.querySelector(".phnote");
+        note.textContent = "책등을 읽는 중… (수십 권이면 1분쯤 걸립니다)";
+        const { data, error } = await db.recognizeSpines(p.id);
+        btn.disabled = false;
+        if (error) {
+          note.textContent = "읽지 못했습니다 — " + (error.message || "알 수 없는 이유");
+          console.error("[사진] 책등 읽기 실패:", error);
+          return;
+        }
+        note.textContent = `${data.읽은권수}권을 읽어 ${data.꽂음}권을 꽂고 ${data.궤짝}권은 궤짝에 담았습니다`;
+        // 새로 꽂힌 책이 서가에 보이도록 다시 그린다
+        try { await window.PostLibrosRefresh?.(); } catch (e) { console.error(e); }
+        await renderShelf();
+      });
 
       // 비공개 버킷이라 서명된 주소를 받아 와야 보인다
       db.photoUrl(p.storage_path).then((url) => {

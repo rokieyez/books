@@ -668,6 +668,21 @@
   .photocard:hover .phdel, .photocard .phdel:focus-visible {
     opacity: 1; outline: none; border-color: var(--wax);
   }
+  .photocard .phread {
+    display: block; width: calc(100% - 16px); margin: 0 8px 8px;
+    padding: 6px 0; font: inherit; font-size: 11.5px; cursor: pointer;
+    color: var(--brass); background: none;
+    border: 1px solid var(--brass-dim); border-radius: 2px;
+  }
+  .photocard .phread:hover, .photocard .phread:focus-visible {
+    background: rgba(224,177,94,.1); outline: none;
+  }
+  .photocard .phread:disabled { opacity: .45; cursor: default; }
+  .photocard .phnote {
+    margin: 0 8px 8px; font-size: 10.5px; line-height: 1.5;
+    color: var(--parchment-dim); overflow-wrap: anywhere;
+  }
+  .photocard .phnote:empty { display: none; }
 
   /* ── 바닥: 책상과 램프, 오늘의 책 ─────────────────────── */
   .desk {

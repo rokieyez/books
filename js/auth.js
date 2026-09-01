@@ -128,6 +128,9 @@
     return books.length;
   }
 
+  /* 책등을 읽고 나면 서가를 다시 그려야 한다 — intake.js 가 부른다 */
+  window.PostLibrosRefresh = loadRealLibrary;
+
   /* 책등의 크기와 색은 DB 에 없다 — 제목에서 결정적으로 만들어 항상 같은 모습이 되게 한다 */
   const CLOTH = ["#5C3A22", "#6E2A1E", "#2E4630", "#28323E", "#4A2E3A", "#77522A", "#3A3A30"];
   function shapeForShelf(b) {

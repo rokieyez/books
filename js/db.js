@@ -210,6 +210,17 @@
       return data.signedUrl;
     },
 
+    /* 책등 읽기 — 사진 한 장을 Edge Function 에 넘긴다.
+       AI 키는 그 안에만 있다. 사진 한 장에 수십 권이라 오래 걸릴 수 있어
+       시간제한을 넉넉히 둔다. */
+    async recognizeSpines(photoId) {
+      return guard(
+        client.functions.invoke("recognize-spines", { body: { photo_id: photoId } }),
+        180000,
+        "책등 읽기",
+      );
+    },
+
     async removeIntakePhoto(photo) {
       const { error } = await client.from("intake_photos").delete().eq("id", photo.id);
       if (error) throw error;
