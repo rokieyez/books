@@ -626,6 +626,42 @@
   .intake-queue li.done .qs { color: var(--st-done); }
   .intake-queue li.bad .qs { color: var(--wax); }
 
+  /* 손으로 한 권 들이는 자리 */
+  .byhand {
+    display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px dashed rgba(74,58,34,.55);
+  }
+  .byhand-lb {
+    flex: 0 0 100%; font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; color: var(--brass-dim); letter-spacing: .1em;
+  }
+  .byhand input, .byhand select {
+    background: #1B1108; color: var(--parchment);
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: 6px 8px; font: inherit; font-size: 12px; min-width: 0;
+  }
+  .byhand #bh-title { flex: 2 1 140px; }
+  .byhand #bh-author { flex: 1 1 100px; }
+  .byhand input:focus-visible, .byhand select:focus-visible {
+    outline: 2px solid var(--brass); outline-offset: 1px;
+  }
+  .byhand-go {
+    flex: none; appearance: none; cursor: pointer; padding: 6px 14px;
+    font: inherit; font-size: 12px; color: var(--brass);
+    background: rgba(224,177,94,.12);
+    border: 1px solid var(--brass-dim); border-radius: 2px;
+  }
+  .byhand-go:hover, .byhand-go:focus-visible { background: rgba(224,177,94,.24); outline: none; }
+  .byhand-go:disabled { opacity: .45; cursor: default; }
+  .byhand-msg {
+    flex: 0 0 100%; font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; color: var(--brass-dim); letter-spacing: .06em;
+  }
+  .byhand-msg:empty { display: none; }
+  .byhand-msg.good { color: var(--st-done); }
+  .byhand-msg.bad { color: var(--wax); }
+
   .intake-shelf { margin-top: 18px; }
   .intake-empty {
     margin: 10px 0 0; font-size: 11.5px;
@@ -791,6 +827,22 @@
     resize: vertical;
   }
   .x-memoedit:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+  .x-remove {
+    appearance: none; cursor: pointer; padding: 5px 12px;
+    font: inherit; font-size: 11.5px;
+    color: var(--parchment-dim); background: none;
+    border: 1px dashed var(--line); border-radius: 2px;
+  }
+  .x-remove:hover, .x-remove:focus-visible {
+    color: var(--wax); border-color: var(--wax);
+    background: rgba(142,47,35,.08); outline: none;
+  }
+  .x-remove.warn {
+    color: #F0D6C6; background: rgba(142,47,35,.34);
+    border-style: solid; border-color: var(--wax);
+  }
+  .x-remove:disabled { opacity: .45; cursor: default; }
+  .x-hint { font-size: 10.5px; color: var(--parchment-dim); font-style: italic; }
 
   /* 셈이 설 수 없을 때 — 가짜 숫자 대신 사정을 적는다 */
   .statempty {

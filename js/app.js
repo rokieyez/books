@@ -717,6 +717,39 @@
     saveBook({ shelf }, (b) => { b.shelfNo = shelf; b.loc = [b.wall, shelf ? shelf + "단" : null].filter(Boolean).join(" ") || "자리 미정"; });
   });
 
+  /* ── 서가에서 뺀다 — 되돌릴 수 없으므로 한 번 더 묻는다 ── */
+  $("x-remove").addEventListener("click", async () => {
+    const btn = $("x-remove"), b = openBook, db = window.PostLibrosDB;
+    if (!b || !b.id || !db) return;
+    if (!btn.dataset.sure) {
+      btn.dataset.sure = "1";
+      btn.classList.add("warn");
+      btn.textContent = "정말 뺍니다";
+      setTimeout(() => {
+        if (!btn.dataset.sure) return;
+        delete btn.dataset.sure;
+        btn.classList.remove("warn");
+        btn.textContent = "서가에서 뺀다";
+      }, 4000);
+      return;
+    }
+    delete btn.dataset.sure;
+    btn.classList.remove("warn");
+    btn.disabled = true;
+    try {
+      await db.removeBook(b.id);
+      closeExlibris();
+      await window.PostLibrosRefresh?.();
+    } catch (err) {
+      console.error("[서표] 빼지 못했습니다:", err);
+      $("x-saved").hidden = false;
+      $("x-saved").textContent = "빼지 못했습니다";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "서가에서 뺀다";
+    }
+  });
+
   /* ── 여백의 기록 — 자리를 옮길 때 적는다 ── */
   $("x-memoedit").addEventListener("blur", () => {
     const memo = $("x-memoedit").value.trim();

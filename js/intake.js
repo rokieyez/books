@@ -18,6 +18,8 @@
   const MAX_EDGE = 3000;
   const QUALITY = 0.88;
   const WALLS = ["역사", "문학", "과학", "예술사회"];
+  /* 분류가 곧 벽이다 — Edge Function 의 wallFor, DB 의 wall_for_category 와 같은 규칙 */
+  const WALL_OF = { 역사: "역사", 문학: "문학", 과학: "과학", 예술: "예술사회", 사회: "예술사회" };
 
   let queueBusy = false;
 
@@ -75,6 +77,22 @@
     </button>
     <input type="file" id="in-file" accept="image/*" multiple hidden>
     <ul class="intake-queue" id="in-queue"></ul>
+
+    <form class="byhand" id="in-byhand">
+      <span class="byhand-lb">사진에 없는 책은 손으로</span>
+      <input type="text" id="bh-title" placeholder="제목" aria-label="제목" required>
+      <input type="text" id="bh-author" placeholder="지은이" aria-label="지은이">
+      <select id="bh-cat" aria-label="분류">
+        <option value="문학">문학</option>
+        <option value="역사">역사</option>
+        <option value="과학">과학</option>
+        <option value="예술">예술</option>
+        <option value="사회">사회</option>
+      </select>
+      <button type="submit" class="byhand-go">꽂는다</button>
+      <span class="byhand-msg" id="bh-msg"></span>
+    </form>
+
     <div class="intake-shelf" id="in-shelfroll"></div>`;
 
   const el = (id) => document.getElementById(id);
@@ -242,6 +260,39 @@
     drop.addEventListener("drop", (ev) => {
       ev.preventDefault();
       if (!queueBusy && ev.dataTransfer?.files?.length) take(ev.dataTransfer.files);
+    });
+
+    /* 손으로 한 권 — AI 가 놓쳤거나 사진에 없는 책 */
+    el("in-byhand").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const title = el("bh-title").value.trim();
+      if (!title) return;
+      const author = el("bh-author").value.trim();
+      const category = el("bh-cat").value;
+      const msg = el("bh-msg");
+      const go = e.target.querySelector(".byhand-go");
+
+      go.disabled = true;
+      msg.textContent = "꽂는 중…";
+      msg.className = "byhand-msg";
+      try {
+        await db.addBook({
+          title, author: author || null, category,
+          wall: WALL_OF[category] || "문학",
+        });
+        el("bh-title").value = "";
+        el("bh-author").value = "";
+        msg.textContent = "꽂았습니다.";
+        msg.className = "byhand-msg good";
+        await window.PostLibrosRefresh?.();
+      } catch (err) {
+        // 23505 = 이미 같은 책이 있다 (DB 가 막는다)
+        const dup = err.code === "23505" || /duplicate|unique/i.test(err.message || "");
+        msg.textContent = dup ? "이미 꽂혀 있는 책입니다." : "꽂지 못했습니다 — " + (err.message || err);
+        msg.className = "byhand-msg bad";
+      } finally {
+        go.disabled = false;
+      }
     });
 
     // 주인이 들어온 뒤에야 사진 목록을 읽을 수 있다

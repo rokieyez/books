@@ -150,6 +150,21 @@
       return data;
     },
 
+    /* 책을 뺀다 — 잘못 읽힌 것을 지운다.
+       요약은 book_id 를 따라 함께 지워진다 (on delete cascade). */
+    async removeBook(id) {
+      const { error } = await client.from("books").delete().eq("id", id);
+      if (error) throw error;
+    },
+
+    /* 손으로 한 권 들인다 — AI 가 놓친 책을 직접 꽂을 때 */
+    async addBook(book) {
+      const { data, error } = await client
+        .from("books").insert(book).select().single();
+      if (error) throw error;
+      return data;
+    },
+
     /* 기록을 짓는다 — 처음 펼칠 때만 돈이 든다.
        이미 있으면 함수가 저장된 것을 그대로 돌려준다. */
     async summarizeBook(bookId) {
