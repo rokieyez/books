@@ -177,11 +177,58 @@ async function aladinLookup(key: string, id: string, idType?: string) {
   }
 }
 
-/* 조회의 사다리 — ItemLookUp 은 절판·옛 책에서 곧잘 빈손이 된다 (사이트에는
-   보이는 책도). 그때는 그 번호로 검색(ItemSearch)해 ItemId 를 얻어 다시
-   조회한다. 검색 결과는 반드시 ISBN 이 정확히 같은 항목만 믿는다 — 검색은
-   느슨해서 엉뚱한 책을 돌려줄 수 있다. 사람이 붙여넣은 번호가 오는
-   서표·바코드 길에서만 쓴다 (자동 채우기는 이미 검색을 거친 뒤라 불필요). */
+/* 알라딘 웹사이트를 ISBN 으로 뒤진다 — API 검색에도 없는 절판서가 사이트에는
+   있는 일이 있다. HTML 에서 ItemId 만 줍고 서지는 조회 API 로 받는다.
+   광고 배너의 ItemId 가 섞이므로, 13자리면 조회 결과의 ISBN 이 정확히
+   같을 때만 믿는다 (10자리는 견줄 것이 없어 조회가 성사되면 받는다). */
+async function siteLookup(ttb: string, isbn: string) {
+  try {
+    const res = await fetch(
+      "https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=All&SearchWord=" + isbn,
+      { headers: { "User-Agent": "Mozilla/5.0" } },
+    );
+    const html = await res.text();
+    const ids = [...new Set(
+      [...html.matchAll(/wproduct\.aspx\?ItemId=(\d+)/g)].map((m) => m[1]),
+    )].slice(0, 5);
+    for (const id of ids) {
+      const info = await aladinLookup(ttb, id, "ItemId");
+      if (info?.title && (isbn.length !== 13 || info.isbn13 === isbn)) return info;
+    }
+  } catch { /* 사이트가 막혀도 다음 길이 있다 */ }
+  return null;
+}
+
+/* 알라딘 밖의 마지막 길 — 구글 도서. 열쇠 없이 ISBN 으로 물을 수 있고,
+   알라딘이 끝내 모르는 옛 책·작은 출판사 책도 곧잘 나온다.
+   표지는 작고 실물 크기(mm)는 없지만, 빈손보다는 낫다. */
+async function googleBooks(isbn: string) {
+  try {
+    const res = await fetch("https://www.googleapis.com/books/v1/volumes?q=isbn:" + isbn);
+    const j = await res.json();
+    const v = j.items?.[0]?.volumeInfo;
+    if (!v?.title) return null;
+    return {
+      title: String(v.title).trim(),
+      author: v.authors?.[0] ? String(v.authors[0]).trim() : null,
+      isbn13: isbn.length === 13 ? isbn : null,
+      pages: Number(v.pageCount) > 0 ? Number(v.pageCount) : null,
+      sizeHeight: null, sizeDepth: null,
+      publisher: v.publisher ? String(v.publisher).trim() : null,
+      cover: v.imageLinks?.thumbnail
+        ? String(v.imageLinks.thumbnail).replace(/^http:/, "https:") : null,
+      year: /^\d{4}/.test(String(v.publishedDate ?? ""))
+        ? Number(String(v.publishedDate).slice(0, 4)) : null,
+      category: null,   // 구글 분류는 영어 갈래라 옮기지 않는다 — 원래 분류를 지킨다
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* 조회의 사다리 — ① ItemLookUp ② ISBN 검색(정확 일치만) ③ 알라딘 사이트
+   ④ 구글 도서. ItemLookUp 은 절판·옛 책에서 곧잘 빈손이 된다. 사람이
+   붙여넣은 번호가 오는 서표·바코드 길에서만 쓴다. */
 async function lookupHard(ttb: string, isbn: string) {
   const direct = await aladinLookup(ttb, isbn);
   if (direct?.title) return direct;
@@ -209,7 +256,8 @@ async function lookupHard(ttb: string, isbn: string) {
       };
     } catch { /* 다음 과녁으로 */ }
   }
-  return null;
+  // API 가 끝내 모르면: 알라딘 사이트 → 구글 도서 순으로 더 내려간다
+  return (await siteLookup(ttb, isbn)) ?? (await googleBooks(isbn));
 }
 
 /* 마지막 수단 — 알라딘 웹사이트 검색.
@@ -399,7 +447,7 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: auth } } },
     );
     const info = await lookupHard(ttb, isbn);
-    if (!info?.title) return reply({ error: "알라딘 조회에도 검색에도 없는 번호입니다 (" + isbn + ") — 번호를 다시 확인해 보세요" }, 404);
+    if (!info?.title) return reply({ error: "알라딘·구글 도서 어디에도 없는 번호입니다 (" + isbn + ") — 번호를 다시 확인해 보세요" }, 404);
 
     const patch: Record<string, unknown> = {
       isbn: info.isbn13 || isbn,
@@ -437,7 +485,7 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: auth } } },
     );
     const info = await lookupHard(ttb, isbn);
-    if (!info?.title) return reply({ error: "알라딘에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
+    if (!info?.title) return reply({ error: "알라딘·구글 도서 모두에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
 
     const category = info.category || "문학";
     const { data: wall } = await db.rpc("wall_for_category", { cat: category });
