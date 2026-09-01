@@ -21,6 +21,11 @@
     --st-todo: #5C79D0;
   }
   * { box-sizing: border-box; }
+  /* hidden 속성은 브라우저 기본 스타일의 display:none 으로만 걸려 있어서,
+     클래스 하나가 display 를 지정하면 조용히 무력해진다
+     (.gate form { display: flex } 이 코드 입력란을 계속 보이게 했다).
+     여기서 못을 박아 둔다 — hidden 은 언제나 숨은 것이다. */
+  [hidden] { display: none !important; }
   /* 브라우저 스크롤바 숨김 — 사다리가 위치를 알려준다 */
   html { scrollbar-width: none; }
 
@@ -995,6 +1000,11 @@
   }
   .gate .gate-sub { margin: 0 0 16px; font-size: 12.5px; color: var(--parchment-dim); line-height: 1.7; }
   .gate form { display: flex; gap: 8px; }
+  .gate form + form { margin-top: 8px; }
+  .gate .gate-alt {
+    margin: 14px 0 5px; font-size: 11.5px; line-height: 1.6;
+    color: var(--parchment-dim); font-style: italic;
+  }
   .gate input {
     flex: 1; min-width: 0; font: inherit; font-size: 14px;
     background: rgba(23,16,9,.6); color: var(--parchment);

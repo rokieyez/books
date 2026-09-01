@@ -24,11 +24,12 @@
     <button class="close" id="gate-close" aria-label="닫기">×</button>
     <span class="mark">Clavis</span>
     <h3>주인의 열쇠</h3>
-    <p class="gate-sub" id="gate-sub">이 서재는 한 사람만 씁니다 — 새로 드는 문은 없습니다.<br>등록된 주인의 메일로 열쇠를 보냅니다. 메일 속 링크를 누르거나, 함께 온 여섯 자리를 여기 적으세요.</p>
+    <p class="gate-sub" id="gate-sub">이 서재는 한 사람만 씁니다 — 새로 드는 문은 없습니다.<br>등록된 주인의 메일로 열쇠를 보냅니다. 메일 속 링크를 누르면 열립니다.</p>
     <form id="gate-form-mail" autocomplete="on">
       <input type="email" id="gate-email" placeholder="주인의 메일 주소" aria-label="주인의 메일 주소" required autocomplete="email">
       <button type="submit" class="gate-go" id="gate-send">열쇠를 보낸다</button>
     </form>
+    <p class="gate-alt" id="gate-alt" hidden>링크가 열리지 않을 때만 — 메일에 여섯 자리가 함께 왔다면 여기 적으세요</p>
     <form id="gate-form-code" hidden autocomplete="off">
       <input type="text" id="gate-code" placeholder="여섯 자리" aria-label="메일로 받은 여섯 자리 코드"
              inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code">
@@ -169,10 +170,10 @@
           : "열쇠를 보내지 못했습니다: " + error.message, "bad");
         return;
       }
-      el("gate-form-mail").hidden = true;
+      // 메일 폼은 남겨 둔다 — 안 오면 다시 보내야 한다
+      el("gate-alt").hidden = false;
       el("gate-form-code").hidden = false;
-      say(pendingEmail + " 으로 보냈습니다. 링크를 누르거나 여섯 자리를 적으세요.", "good");
-      setTimeout(() => el("gate-code").focus(), 60);
+      say(pendingEmail + " 으로 보냈습니다. 메일 속 링크를 누르면 열립니다.", "good");
     });
 
     el("gate-form-code").addEventListener("submit", async (e) => {
