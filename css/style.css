@@ -425,7 +425,15 @@
   }
   .cratebox .note { margin: 0 0 10px; font-size: 12.5px; color: var(--parchment-dim); }
   /* 궤짝 뚜껑 — 처음엔 잠겨 있다 */
-  .cratewrap { position: relative; perspective: 1100px; }
+  .cratewrap {
+    position: relative; perspective: 1100px;
+    /* 뚜껑이 젖혀지는 동안 아래쪽 모서리가 보는 사람 쪽으로 다가오면서
+       원근 때문에 가로로 부풀어 궤짝 밖으로 삐져나간다. 모바일 Chrome 은
+       그만큼 화면을 넓혀 잡아 사다리가 화면 밖으로 밀려난다.
+       가로만 잘라낸다 — clip 은 visible 과 짝지을 수 있어서 위로 넘어가는
+       스윙은 그대로 살아 있다 (hidden 이면 세로까지 잘려 뚜껑이 사라진다). */
+    overflow-x: clip;
+  }
   .cratelid { /* 낡은 청록 판재의 돔형 뚜껑 — 칠이 벗겨지고 긁힌 세월 */
     position: absolute; inset: 0; z-index: 5; cursor: pointer;
     appearance: none; border: 3px solid #120C05; padding: 0;
