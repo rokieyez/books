@@ -1090,6 +1090,15 @@
     margin: 0 0 3px; font-family: "Gowun Batang", serif; font-weight: 700;
     font-size: 22px; line-height: 1.5; color: #E8CE93; text-wrap: balance;
   }
+  /* 표지 — 제목 옆에 작은 액자로 건다 */
+  .x-head { display: flex; gap: 14px; align-items: flex-start; }
+  .x-head-t { flex: 1; min-width: 0; }
+  .x-cover {
+    flex: none; width: 76px; height: auto; margin-top: 2px;
+    border: 1px solid var(--brass-dim);
+    box-shadow: 0 1px 0 rgba(224,177,94,.18) inset, 0 8px 18px rgba(0,0,0,.55);
+    background: #1B1108;
+  }
   .exlibris .byline { margin: 0 0 14px; font-size: 13px; color: var(--parchment-dim); }
   .exlibris .rule { height: 1px; background: linear-gradient(90deg, transparent, var(--brass-dim) 30%, transparent 50%, var(--brass-dim) 70%, transparent); margin: 13px 0; }
   .exlibris h4 {

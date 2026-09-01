@@ -897,6 +897,16 @@
   function openExlibris(b, w) {
     openBook = b;
     $("x-mark").textContent = `${w ? w.nm : "책상 위"} · ${b.cat || "문학"}`;
+    // 표지가 있으면 걸어 둔다 — 깨진 그림은 error 핸들러가 내린다
+    const cv = $("x-cover");
+    if (b.cover) {
+      cv.src = b.cover;
+      cv.alt = `${b.t} 표지`;
+      cv.hidden = false;
+    } else {
+      cv.hidden = true;
+      cv.removeAttribute("src");
+    }
     $("x-title").textContent = b.t;
     $("x-byline").textContent =
       `${b.a}${b.pages ? " · " + b.pages.toLocaleString() + "쪽" : ""}${b.year ? " · " + b.year + " 입고" : ""}`;
@@ -990,6 +1000,8 @@
     try { returnFocus?.focus(); } catch {}
     returnFocus = null;
   }
+  // 알라딘 표지 주소가 죽어 있으면 그림 자리를 걷는다
+  $("x-cover").addEventListener("error", () => { $("x-cover").hidden = true; });
   $("x-close").addEventListener("click", closeExlibris);
   $("veil").addEventListener("click", closeExlibris);
   $("x-gen").addEventListener("click", async () => {
