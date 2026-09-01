@@ -279,6 +279,11 @@ Deno.serve(async (req) => {
     if (error) dup += shelved.length;
     else put = data?.length ?? shelved.length;
   }
+  /* 「다시 읽는다」를 안전하게 만든다 — 같은 사진의 아직 손대지 않은 후보는
+     지우고 새로 담는다. 확정·버림은 사람이 내린 판단이므로 건드리지 않는다.
+     이게 없으면 사진을 두 번 읽을 때마다 궤짝이 통째로 불어난다. */
+  await db.from("intake_candidates")
+    .delete().eq("photo_id", photo_id).eq("status", "대기");
   if (doubtful.length) {
     const { error } = await db.from("intake_candidates").insert(doubtful);
     if (error) return reply({ error: "궤짝에 담지 못했습니다: " + error.message }, 500);

@@ -73,8 +73,14 @@
   let stFilter = null;                        /* "읽음" | "읽는 중" | null */
   const stPass = (b) => !stFilter || b.st === stFilter;
   /* 검색어와 거름망을 함께 통과해야 보인다 — 벽의 응답 수도 이 규칙을 쓴다 */
-  function passes(b) { return stPass(b) && (!q() || matchBook(b, q())); }
-  function sifting() { return !!(q() || stFilter); }
+  /* 곁가지 거름망 — 「기록 있는 책만」·「표지 있는 것만」.
+     읽음 거름망(stFilter)과 겹쳐 걸린다. 이것도 passes 하나를 통해야
+     벽의 응답 수·표지·목록·항로도가 전부 같은 것을 본다. */
+  let onlySummary = false, onlyCover = false;
+  const sidePass = (b) =>
+    (!onlySummary || summarized.has(b.id)) && (!onlyCover || !!b.cover);
+  function passes(b) { return stPass(b) && sidePass(b) && (!q() || matchBook(b, q())); }
+  function sifting() { return !!(q() || stFilter || onlySummary || onlyCover); }
 
   /* 벽 하나의 세 단을 어떻게 채울지 정한다.
      기본은 앞에서부터 스물둘씩 — 벽이 곧 한 갈래이므로 나눌 이유가 없다.
@@ -282,7 +288,12 @@
         if (!w.books.length) {
           const none = document.createElement("p");
           none.className = "wallempty";
-          none.textContent = "이 벽은 아직 비어 있습니다 — 문은 그대로 열립니다";
+          /* 「비어 있습니다」로 끝내면 서재가 고장 난 것처럼 읽힌다.
+             지금 책이 실제로 어디 모여 있는지까지 말해 준다. */
+          const big = WALLS.filter((x) => x.cat !== "archive" && x.books?.length)
+            .sort((a, x) => x.books.length - a.books.length)[0];
+          none.textContent = "이 벽은 아직 비어 있습니다 — 문은 그대로 열립니다"
+            + (big ? ` · 지금은 ${big.nm}에 ${big.books.length.toLocaleString()}권이 모여 있습니다` : "");
           panel.appendChild(none);
           // 걸쇠는 책등 사이에 끼어 있으므로, 책이 없으면 문고리도 사라진다.
           // 빈 벽에도 열 길을 남긴다
@@ -685,6 +696,53 @@
       rp.hidden = !done;
     }
   }
+  /* ── 현관의 첫 문장 ─────────────────────────────────────
+     처음 들어온 사람이 만나는 문장이 「이 서재의 벽은 전부 책이다」로 끝나면
+     여기가 살아 있는 서재인지 알 길이 없다. 오늘의 셈을 그대로 말한다.
+     좁은 화면에서는 위쪽 셈 막대가 숨으므로, 이 줄이 그 자리를 대신한다. */
+  function renderFoyerLine() {
+    const el = $("foyerline");
+    if (!el) return;
+    const books = allBooks();
+    if (!books.length) { el.textContent = ""; return; }
+    const done = books.filter((b) => b.st === "읽음").length;
+    const bits = [`${books.length.toLocaleString()}권이 서 있고, 그중 ${done.toLocaleString()}권을 읽어 냈습니다`];
+    if (summarized.size) bits.push(`기록 ${summarized.size}편`);
+    if (LINK_N) bits.push(`이음 ${LINK_N}개`);
+    el.textContent = bits.join(" · ") + ".";
+  }
+  let LINK_N = 0;
+
+  /* ── 지금 펼쳐 둔 책 ────────────────────────────────────
+     읽는 중인 책은 책상 위에 쌓이는데, 책상은 벽 넷을 지나야 나온다.
+     한 권이라도 있으면 현관에 걸어 둔다 — 이 서재가 지금 살아 있다는 표. */
+  function renderNowOpen() {
+    const btn = $("nowopen");
+    if (!btn) return;
+    const now = allBooks().filter((b) => b.st === "읽는 중");
+    if (!now.length) { btn.hidden = true; return; }
+    const b = now[0];
+    btn.hidden = false;
+    const at = b.bookmark ? ` · ${b.bookmark}쪽에 갈피` : "";
+    btn.textContent = `지금 펼쳐 둔 책 — 「${b.t}」${at}`
+      + (now.length > 1 ? ` 외 ${now.length - 1}권` : "");
+    btn.onclick = () => openExlibris(b, bookWall(b));
+  }
+
+  /* ── 기록이 있는 책 ─────────────────────────────────────
+     AI 가 지어 둔 기록은 서표를 열어야만 보인다. 520권 중 여섯 권뿐이라
+     방문자가 우연히 만날 확률이 없다 — 서가·목록·표지에 표를 달고 걸러 낸다. */
+  let summarized = new Set(), summariesAsked = false;
+  async function loadSummarized() {
+    const db = window.PostLibrosDB;
+    if (summariesAsked || !db?.listSummarizedIds) return;
+    summariesAsked = true;
+    try {
+      summarized = new Set(await db.listSummarizedIds());
+      if (summarized.size) renderAll();   // 표식과 거름망이 이제야 그려진다
+    } catch (e) { console.warn("[기록] 목록을 읽지 못했습니다:", e); }
+  }
+
   /* 거름망을 켜고 끈다 — 모든 보기가 같은 규칙을 쓰므로 다시 그리기만 하면 된다 */
   function toggleReadPath() {
     stFilter = stFilter ? null : "읽음";
@@ -697,6 +755,24 @@
   }
   $("census")?.addEventListener("click", toggleReadPath);
   $("readpath")?.addEventListener("click", toggleReadPath);
+
+  /* 곁가지 거름망 두 개 — 켜면 벽까지 함께 걸린다 */
+  function syncSideBtns() {
+    const s = $("sumonly"), c = $("coveronly");
+    if (s) {
+      s.hidden = !summarized.size;
+      s.setAttribute("aria-pressed", onlySummary ? "true" : "false");
+      s.textContent = onlySummary ? `기록 ${summarized.size}권` : "기록 있는 책만";
+    }
+    if (c) {
+      const n = allBooks().filter((b) => b.cover).length;
+      c.hidden = !n || n === allBooks().length;
+      c.setAttribute("aria-pressed", onlyCover ? "true" : "false");
+      c.textContent = onlyCover ? `표지 ${n.toLocaleString()}권` : "표지 있는 것만";
+    }
+  }
+  $("sumonly")?.addEventListener("click", () => { onlySummary = !onlySummary; renderAll(); });
+  $("coveronly")?.addEventListener("click", () => { onlyCover = !onlyCover; renderAll(); });
 
   /* 책상 위 오늘의 책 — 아직 열어보지 않은 책 중에서 날짜로 고른다.
      그냥 첫 권을 집으면 1,300권이 있어도 매일 같은 책이다.
@@ -774,9 +850,12 @@
   function bookWall(b) { return WALLS.find(w => w.books && w.books.includes(b)); }
   function allBooks() { return WALLS.filter(w => w.books).flatMap(w => w.books); }
   /* 검색은 어느 뷰에서든 같은 규칙 — 제목·지은이에 출판사·ISBN 까지 */
+  /* 검색이 닿는 곳 — 제목·지은이·펴낸곳·ISBN 만 보다가
+     시리즈·분류·갈래·여백의 메모까지 넓혔다. 「신들의 사회」를 찾는 사람이
+     시리즈 이름으로 찾고, 「추리」로 갈래를 훑을 수 있어야 한다. */
   function matchBook(b, query) {
-    return (b.t + " " + b.a + " " + (b.pub || "") + " " + (b.isbn || ""))
-      .toLowerCase().includes(query);
+    return [b.t, b.a, b.pub, b.isbn, b.series, b.cat, b.genre, b.memo]
+      .filter(Boolean).join(" ").toLowerCase().includes(query);
   }
   window.PostLibrosMatch = matchBook;
   function filteredBooks() { return allBooks().filter(passes); }
@@ -800,6 +879,15 @@
     if (v === "list") renderList();
     if (v === "stats") renderStats();
     syncFindNote();
+    /* 보기도 주소에 남는다 — 「목록으로 봐」라고 링크를 건넬 수 있어야 한다.
+       서표가 열려 있을 때는 그 주소가 우선이므로 건드리지 않는다. */
+    const want = v === "walls" ? "" : "#" + v;
+    if (!openBook && !location.hash.startsWith("#book/") && location.hash !== want) {
+      // replaceState 는 hashchange 를 울리지 않는다 — 표는 해시를 실제로
+      // 바꿀 때만 남긴다. 아니면 다음에 오는 진짜 뒤로 가기를 삼켜 버린다
+      if (want) { hashSelf = true; location.hash = want; }
+      else history.replaceState(null, "", location.pathname + location.search);
+    }
     layoutLadder(); updateLadder();
   }
   document.querySelectorAll(".viewseg button").forEach(b => {
@@ -897,6 +985,9 @@
     if (!sortKey) return list;
     const val = (b) => sortKey === "st" ? (ST_ORDER[b.st] ?? 9)
       : sortKey === "year" ? (b.year ?? 0)
+      // 읽은 해가 없는 책은 0 이 아니라 맨 뒤로 — 안 읽은 책이 앞줄을 차지하면
+      // 「읽은 해로 정렬」이 아무 소용이 없다
+      : sortKey === "ry" ? (b.readYear ?? (sortAsc ? 9999 : -1))
       : String(b[sortKey] ?? "");
     return [...list].sort((x, y) => {
       const a = val(x), b2 = val(y);
@@ -939,13 +1030,17 @@
     if (sub) tr.className = "subrow";
     const stLabel = b.st === "읽는 중" && b.bookmark
       ? `읽는 중 · ${b.bookmark.toLocaleString()}쪽` : b.st;
+    /* 기록이 있는 책에는 표를 단다 — 520권 중 여섯 권이라 우연히는 못 만난다 */
+    const mark = summarized.has(b.id) ? `<i class="hasrec" title="기록이 있는 책">✦</i>` : "";
     tr.innerHTML = `<td class="t"></td><td></td><td></td>
       <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${stLabel}</td>
+      <td class="ry">${b.readYear ?? ""}</td>
       <td>${b.year ?? ""}</td><td></td>`;
-    tr.children[0].textContent = (sub ? "└ " : "") + b.t;
+    tr.children[0].innerHTML = mark;
+    tr.children[0].append((sub ? "└ " : "") + b.t);
     tr.children[1].textContent = b.a;
     tr.children[2].textContent = b.cat;
-    tr.children[5].textContent = b.loc;
+    tr.children[6].textContent = b.loc;
     tr.addEventListener("click", () => openExlibris(b, bookWall(b)));
     return tr;
   }
@@ -956,11 +1051,11 @@
     const tr = document.createElement("tr");
     tr.className = "seriesrow";
     tr.innerHTML = `<td class="t"><i class="fold">${open ? "▾" : "▸"}</i> <b></b> <span class="cnt">${r.books.length}권</span></td>
-      <td></td><td></td><td>읽음 ${read}/${r.books.length}</td><td></td><td></td>`;
+      <td></td><td></td><td>읽음 ${read}/${r.books.length}</td><td></td><td></td><td></td>`;
     tr.querySelector("b").textContent = r.base;
     tr.children[1].textContent = r.books[0].a;
     tr.children[2].textContent = r.books[0].cat;
-    tr.children[5].textContent = r.books[0].loc;
+    tr.children[6].textContent = r.books[0].loc;
     tr.addEventListener("click", () => {
       if (open) expandedSeries.delete(r.series); else expandedSeries.add(r.series);
       renderList();
@@ -1887,6 +1982,8 @@
     let links = [];
     try { links = await db.listAllLinks(); }
     catch (e) { console.warn("[길] 이음을 읽지 못했습니다:", e); sec.hidden = true; return; }
+    LINK_N = links.length;   // 현관의 첫 문장이 이 숫자를 쓴다
+    renderFoyerLine();       // 이음 수가 이제야 왔으므로 문장을 다시 쓴다
 
     /* 「순서」로 이은 것만 길이 된다 — 나란히 놓은 짝은 길이 아니다 */
     const out = new Map(), inc = new Map();
@@ -2239,6 +2336,7 @@
        뒤로 가기가 서표를 닫는 문이 되도록 pushState 가 아니라 해시를 쓴다. */
     if (b.id) { hashSelf = true; location.hash = "book/" + b.id; }
     syncWalkRow();
+    syncPhotoRow(b);
     // 닫으면 원래 있던 자리로 돌아가도록 표를 남긴다
     returnFocus = document.activeElement;
     $("x-close").focus();
@@ -2363,8 +2461,8 @@
     $("veil").classList.remove("show");
     $("exlibris").classList.remove("show");
     openBook = null;
+    // replaceState 는 hashchange 를 울리지 않으므로 표(hashSelf)를 남기지 않는다
     if (location.hash.startsWith("#book/")) {
-      hashSelf = true;
       history.replaceState(null, "", location.pathname + location.search);
     }
     try { returnFocus?.focus(); } catch {}
@@ -2378,6 +2476,12 @@
   let hashSelf = false;
   function openFromHash() {
     if (hashSelf) { hashSelf = false; return; }
+    const view = location.hash.replace(/^#/, "");
+    if (["walls", "covers", "list", "stats"].includes(view)) {
+      if (openBook) closeExlibris();
+      if (curView !== view) setView(view);
+      return;
+    }
     const m = location.hash.match(/^#book\/([\w-]+)$/);
     if (!m) { if (openBook) closeExlibris(); return; }
     if (openBook?.id === m[1]) return;   // 이미 그 책이 열려 있다 (서가를 다시 그린 뒤)
@@ -2385,6 +2489,27 @@
     if (b) openExlibris(b, bookWall(b));
   }
   window.addEventListener("hashchange", openFromHash);
+  /* 이 책을 만난 사진 — 인식에 쓴 원본 책장 사진을 새 탭에 연다.
+     intake 버킷은 비공개라 서명 주소가 필요하고, 그건 주인에게만 나온다.
+     그래서 방문자에게는 단추 자체를 보이지 않는다. */
+  function syncPhotoRow(b) {
+    const btn = $("x-photo");
+    if (!btn) return;
+    btn.hidden = !(b?.photoId && document.body.classList.contains("owner"));
+    btn.textContent = "이 책을 만난 사진을 본다";
+  }
+  $("x-photo")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    if (!openBook?.photoId) return;
+    btn.textContent = "사진을 여는 중…";
+    const got = await window.PostLibrosDB?.spinePhotoUrl(openBook.photoId).catch(() => null);
+    if (!got) { btn.textContent = "사진을 열지 못했습니다"; return; }
+    const where = [got.wall ? got.wall + "의 벽" : null, got.shelf ? got.shelf + "단" : null]
+      .filter(Boolean).join(" · ");
+    btn.textContent = where ? `이 책을 만난 사진 — ${where}` : "이 책을 만난 사진을 본다";
+    window.open(got.url, "_blank", "noopener");
+  });
+
   $("x-share")?.addEventListener("click", async (e) => {
     if (!openBook?.id) return;
     const url = location.origin + location.pathname + "#book/" + openBook.id;
@@ -2997,6 +3122,10 @@
     renderShowcase();
     renderPaths();          // 이음이 만든 길 — 데이터를 따로 받아와 건다
     renderColophon();
+    renderFoyerLine();
+    renderNowOpen();
+    loadSummarized();       // 한 번만 묻는다 — 오면 스스로 다시 그린다
+    syncSideBtns();
     syncFindNote();
     if (curView === "covers") renderCovers();
     if (curView === "list") renderList();

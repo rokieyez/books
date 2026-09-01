@@ -217,6 +217,8 @@
       pub: b.publisher || null,
       year: b.acquired_on ? Number(b.acquired_on.slice(0, 4)) : null,
       acquired: b.acquired_on || null,
+      // 이 책을 만난 사진 — 서표에서 원본 책장 사진을 연다 (주인만)
+      photoId: b.spine_photo_id || null,
       // 실물 치수(mm) 그대로 — 판형 지도가 쓴다. 책등 픽셀은 이미 변환된 값이라 못 쓴다
       mmH: b.size_height || null,
       mmD: b.size_depth || null,

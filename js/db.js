@@ -456,6 +456,17 @@
       return data.signedUrl;
     },
 
+    /* 이 책을 어느 사진에서 만났는가 — 서표에서 원본 책장 사진을 연다.
+       intake 버킷은 비공개라 주인만 서명 주소를 받는다 (방문자는 조용히 실패). */
+    async spinePhotoUrl(photoId) {
+      const { data, error } = await client
+        .from("intake_photos").select("storage_path, wall, shelf")
+        .eq("id", photoId).maybeSingle();
+      if (error || !data?.storage_path) return null;
+      const url = await this.photoUrl(data.storage_path).catch(() => null);
+      return url ? { url, wall: data.wall, shelf: data.shelf } : null;
+    },
+
     /* ── 실물 책등 조각 ──
        인식 때 받은 자리 상자(spine_box)로 사진에서 그 책등만 오려 낸다.
        조각은 covers 버킷 <uid>/spines/<책id>.webp 로 산다. */

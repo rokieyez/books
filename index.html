@@ -66,6 +66,10 @@
   <h1>서가 뒤의 방</h1>
   <p class="sub">이 서재의 벽은 전부 책이다 — 그런데 벽마다 방이 하나씩 숨어 있다.</p>
   <p class="secret">비뚤게 꽂힌 책을 당기면 문이 열린다 · 사다리를 타고 내려가면 책상이 나온다</p>
+  <!-- 서재가 오늘의 자기 상태를 스스로 말한다 — 정적 문구가 아니라 셈에서 나온다 -->
+  <p class="foyerline" id="foyerline" role="status"></p>
+  <!-- 지금 펼쳐 둔 책은 책상까지 내려가야 보였다 — 현관으로 올린다 -->
+  <button class="nowopen" id="nowopen" type="button" hidden></button>
   <div class="viewrow">
     <!-- 진짜 탭으로 알린다 — role="tab" 없이 aria-selected 만 두면 읽어 주는
          기계는 어느 보기가 켜졌는지 말해 주지 못한다. ←/→ 로도 넘어간다 -->
@@ -86,6 +90,11 @@
          그냥 둘러보면 좀처럼 마주치지 않는다 -->
     <button class="heightsort readpath" id="readpath" aria-pressed="false"
             title="이 서재가 실제로 읽어 낸 책만 남긴다">읽은 책만</button>
+    <!-- 기록은 서표를 열어야만 보인다 — 어디 있는지 물어볼 수 있게 -->
+    <button class="heightsort sumonly" id="sumonly" aria-pressed="false" hidden
+            title="AI 가 지어 둔 기록이 딸린 책만 남긴다">기록 있는 책만</button>
+    <button class="heightsort coveronly" id="coveronly" aria-pressed="false"
+            title="진짜 표지가 걸린 책만 남긴다">표지 있는 것만</button>
   </div>
 </div>
 
@@ -128,6 +137,8 @@
           <th><button class="sortbtn" data-k="a">저자</button></th>
           <th><button class="sortbtn" data-k="cat">분류</button></th>
           <th><button class="sortbtn" data-k="st">상태</button></th>
+          <!-- 이 서재에서 가장 값진 정보 — 지금까지 목록에 없었다 -->
+          <th><button class="sortbtn" data-k="ry">읽은 해</button></th>
           <th><button class="sortbtn" data-k="year">입고</button></th>
           <th><button class="sortbtn" data-k="loc">위치</button></th>
         </tr></thead>
@@ -274,6 +285,8 @@
       <p class="byline" id="x-byline"></p>
       <!-- 이 책 한 권만 그대로 건네줄 수 있는 주소 -->
       <button class="x-share" id="x-share" type="button">이 책의 주소를 복사한다</button>
+      <!-- 이 책을 만난 자리 — 인식에 쓴 원본 책장 사진 (주인만) -->
+      <button class="x-share x-photo" id="x-photo" type="button" hidden>이 책을 만난 사진을 본다</button>
     </div>
     <!-- 알라딘에서 받아 온 표지 — 없으면 자리도 없다 -->
     <img class="x-cover" id="x-cover" alt="" hidden>

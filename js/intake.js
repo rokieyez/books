@@ -295,17 +295,17 @@
       card.querySelector(".phread").addEventListener("click", async (ev) => {
         const btn = ev.currentTarget;
 
-        /* 이미 읽은 사진을 다시 읽으면 같은 책이 한 번 더 꽂힌다.
-           되돌리기가 없으므로 한 번 더 묻는다 — 실수로 눌렀을 때
-           빠져나갈 자리를 준다. */
+        /* 예전에는 「같은 책이 또 꽂힙니다」라고 겁을 주었는데 그건 사실이 아니다 —
+           함수가 이미 꽂힌 책을 열쇠로 걸러 내고(2026-09-02 코드로 확인),
+           대신 없던 자리 상자를 소급해 채운다. 궤짝의 대기 후보도 지우고 새로
+           담으므로 불어나지 않는다. 남는 값은 AI 호출 비용뿐이라, 겁이 아니라
+           값을 알린다. */
         if (btn.classList.contains("again") && !btn.dataset.sure) {
           btn.dataset.sure = "1";
-          btn.classList.add("warn");
-          btn.textContent = "정말? 같은 책이 또 꽂힙니다";
+          btn.textContent = "한 번 더 — 비용이 듭니다";
           setTimeout(() => {
             if (!btn.dataset.sure) return;
             delete btn.dataset.sure;
-            btn.classList.remove("warn");
             btn.textContent = "↻ 다시 읽는다";
           }, 4000);
           return;
@@ -734,7 +734,11 @@
       try {
         const n = await cropSpines(msg);
         if (!n && msg.textContent === "사진을 여는 중…") {
-          msg.textContent = "오릴 것이 없습니다 — 자리 상자가 있는 책은 이미 다 오렸습니다";
+          /* 오릴 것이 0개일 때 「이미 다 오렸습니다」라고 하면 거짓말이 된다 —
+             실제로는 자리 상자를 가진 책이 한 권도 없는 경우가 대부분이다
+             (상자를 받기 전 코드로 읽은 옛 사진들). 무엇을 해야 하는지 말한다. */
+          msg.textContent = "오릴 자리가 하나도 없습니다 — 위의 사진에서 「↻ 다시 읽는다」를 "
+            + "누르면 자리를 소급해 채웁니다 (이미 꽂힌 책은 다시 안 꽂힙니다)";
         }
       } catch (e) {
         msg.className = "enrich-msg bad";
