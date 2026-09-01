@@ -344,7 +344,9 @@
         }
         renderCrate._msg = `${ok}권을 꽂았습니다`
           + (dup ? ` · 이미 꽂혀 있던 ${dup}권은 접었습니다` : "")
-          + (bad ? ` · ${bad}권은 실패했습니다 — 남아 있습니다` : "");
+          + (bad ? ` · ${bad}권은 실패했습니다 — 남아 있습니다` : "")
+          // 이 길로 꽂힌 책은 제목뿐이다 — 서지는 들이기의 채우기가 잇는다
+          + (ok ? " · 서지는 사진 들이기의 「끝까지 채운다」로 채워집니다" : "");
         await window.PostLibrosRefresh?.();
         // 꽂힌 책들의 실물 책등을 이어서 오려 붙인다
         try { await window.PostLibrosCropSpines?.(); } catch (e) { console.error(e); }
