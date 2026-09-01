@@ -288,7 +288,12 @@
 
     if (!list.length) {
       label.textContent = "비어 있음";
-      box.innerHTML = `<p class="note">궤짝이 비어 있습니다 — 확신이 갈리는 책이 생기면 여기 담깁니다.</p>`;
+      // 마지막 확정으로 궤짝이 다 비었어도 결과 문구는 한 번 보여준다
+      const msg = renderCrate._msg
+        ? `<p class="note">${renderCrate._msg}</p>` : "";
+      renderCrate._msg = null;
+      box.innerHTML = msg
+        + `<p class="note">궤짝이 비어 있습니다 — 확신이 갈리는 책이 생기면 여기 담깁니다.</p>`;
       return;
     }
     label.textContent = `${list.length}권 · 꽂을 곳을 정해주세요`;
@@ -502,6 +507,8 @@
       cv.width = W * 2; cv.height = H * 2;   // 레티나에서도 글자가 뭉개지지 않게
       cv.style.width = W + "px"; cv.style.height = H + "px";
       cv.title = "사진 속 그 책등";
+      cv.setAttribute("role", "img");
+      cv.setAttribute("aria-label", "사진에서 오려 낸 책등 — " + (c.raw_text || "제목 미상"));
       cv.getContext("2d").drawImage(im, sx, sy, sw, sh, 0, 0, W * 2, H * 2);
       el.prepend(cv);
       el.classList.add("hascrop");
