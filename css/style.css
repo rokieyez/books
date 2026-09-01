@@ -1176,6 +1176,11 @@
   }
   .cover.hascover b { padding-top: 18px; }
   .cover.hascover span { padding-bottom: 9px; }
+  /* 표지 대신 실물 책등 조각 — 세로로 길어 통째로 채우지 않고 세워 둔다 */
+  .cover.spinefill {
+    background-size: auto 100%; background-color: #1B1108;
+    background-position: center;
+  }
 
   .cover { /* 가죽 장정 — 금박 압인 프레임 */
     aspect-ratio: 2 / 3; appearance: none; border: none; cursor: pointer; text-align: left;

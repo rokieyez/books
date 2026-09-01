@@ -70,7 +70,7 @@
       sec.className = "wallsec";
       wallEls.push({ el: sec, w });
       const hits = (w.cat !== "archive" && q())
-        ? w.books.filter(b => (b.t+" "+b.a).toLowerCase().includes(q())).length : null;
+        ? w.books.filter(b => matchBook(b, q())).length : null;
       w.hits = hits;
       if (hits === 0) sec.style.opacity = ".4"; /* 검색에 응답 없는 벽은 어두워진다 */
       sec.innerHTML = `<div class="sec-label"><b></b><span class="desc"></span><span class="hits"></span></div>`;
@@ -192,7 +192,7 @@
       } else {
         /* 벽에는 66권만 그려진다. 검색 중이면 응답한 책을 앞으로 끌어와
            찾는 책이 보이지 않는 뒷줄에 묻히지 않게 한다. */
-        const hit = (b) => (b.t + " " + b.a).toLowerCase().includes(q());
+        const hit = (b) => matchBook(b, q());
         const shelved = q()
           ? [...w.books.filter(hit), ...w.books.filter(b => !hit(b))]
           : w.books;
@@ -220,7 +220,7 @@
             if (b.paper) el.classList.add("paper");
             if (b.lean) el.classList.add("lean");
             if (b.folio) el.classList.add("folio");
-            if (q() && !((b.t+" "+b.a).toLowerCase().includes(q()))) el.classList.add("dim");
+            if (q() && !matchBook(b, q())) el.classList.add("dim");
             el.style.cssText = `background-color:${b.c};height:${b.h}px;width:${b.w2}px;`;
             // 사진에서 오려 낸 실물 책등이 있으면 그것을 입는다 — 글자는 그림 안에 이미 있다
             if (b.spineImg) {
@@ -449,9 +449,15 @@
 
   function bookWall(b) { return WALLS.find(w => w.books && w.books.includes(b)); }
   function allBooks() { return WALLS.filter(w => w.books).flatMap(w => w.books); }
+  /* 검색은 어느 뷰에서든 같은 규칙 — 제목·지은이에 출판사·ISBN 까지 */
+  function matchBook(b, query) {
+    return (b.t + " " + b.a + " " + (b.pub || "") + " " + (b.isbn || ""))
+      .toLowerCase().includes(query);
+  }
+  window.PostLibrosMatch = matchBook;
   function filteredBooks() {
     const query = q();
-    return allBooks().filter(b => !query || (b.t + " " + b.a).toLowerCase().includes(query));
+    return allBooks().filter(b => !query || matchBook(b, query));
   }
   function setView(v) {
     curView = v;
@@ -503,10 +509,14 @@
       el.innerHTML = `<b></b><span></span>`;
       el.querySelector("b").textContent = b.t;
       el.querySelector("span").textContent = b.a;
-      // 알라딘에서 받아 온 진짜 표지가 있으면 그것을 깐다
+      // 알라딘에서 받아 온 진짜 표지가 있으면 그것을 깐다.
+      // 표지는 없어도 실물 책등 조각이 있으면 — 그거라도 세워 둔다
       if (b.cover) {
         el.classList.add("hascover");
         lazyCover(el, b.cover);
+      } else if (b.spineImg) {
+        el.classList.add("hascover", "spinefill");
+        lazyCover(el, b.spineImg);
       }
       el.addEventListener("click", () => openExlibris(b, bookWall(b)));
       box.appendChild(el);
@@ -644,7 +654,7 @@
     const books = allBooks();
     const n = books.length;
 
-    ["catbars", "yearcols", "statusbar", "authorbars", "pagesum", "wallbars", "memolist"]
+    ["catbars", "yearcols", "statusbar", "authorbars", "pagesum", "wallbars", "pubbars", "memolist"]
       .forEach((id) => { const el = $(id); if (el) el.innerHTML = ""; });
     $("statuslegend").innerHTML = "";
 
@@ -751,6 +761,21 @@
         wb.appendChild(el);
       });
       if (!wb.children.length) wb.innerHTML = `<p class="statempty">벽에 책이 꽂히면 셈이 섭니다.</p>`;
+    }
+
+    /* ── 자주 들인 출판사 — 서지를 채운 책 기준 ── */
+    const pb = $("pubbars");
+    if (pb) {
+      const PUBSTAT = tally(books, (b) => b.pub).sort((x, y) => y[1] - x[1]).slice(0, 5);
+      const pmax = PUBSTAT.length ? PUBSTAT[0][1] : 0;
+      if (!PUBSTAT.length) pb.innerHTML = `<p class="statempty">서지를 채우면 출판사가 여기 모입니다.</p>`;
+      PUBSTAT.forEach(([nm, v]) => {
+        const el = document.createElement("div"); el.className = "hbar";
+        el.innerHTML = `<span class="lb" style="font-size:11.5px"></span><span class="track"><span class="fill" style="width:0%;background:var(--brass-dim)"></span></span><span class="val">${v}권</span>`;
+        el.querySelector(".lb").textContent = nm;
+        grow.push([el.querySelector(".fill"), "width", Math.round(v / pmax * 100) + "%"]);
+        pb.appendChild(el);
+      });
     }
 
     /* ── 여백의 기록 — 흩어진 메모를 한자리에 ── */
@@ -1190,7 +1215,19 @@
     saveBook({ memo: memo || null }, (b) => { b.memo = memo; });
   });
   document.addEventListener("keydown", e => {
+    // / 를 누르면 검색으로 — 글을 쓰는 중이 아닐 때만
+    if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "")) {
+      e.preventDefault();
+      $("q").focus();
+      return;
+    }
     if (e.key !== "Escape") return;
+    // 검색창에서 Esc — 검색을 비운다
+    if (document.activeElement === $("q") && $("q").value) {
+      $("q").value = "";
+      $("q").dispatchEvent(new Event("input"));
+      return;
+    }
     if ($("exlibris").classList.contains("show")) { closeExlibris(); return; }
     const open = document.querySelector(".wallsec.open");
     if (open) { open.classList.remove("open"); syncBodyClass(); }

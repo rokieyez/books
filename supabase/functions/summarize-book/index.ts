@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   );
 
   const { data: book, error: e1 } = await db
-    .from("books").select("id, title, author, publisher, published_year, category")
+    .from("books").select("id, title, author, publisher, published_year, category, isbn, page_count")
     .eq("id", book_id).single();
   if (e1 || !book) return reply({ error: "그런 책이 없습니다" }, 404);
 
@@ -56,8 +56,14 @@ Deno.serve(async (req) => {
     .eq("book_id", book_id).maybeSingle();
   if (had) return reply({ ...had, 새로지음: false });
 
+  // ISBN·쪽수까지 주면 어느 판본인지 못박힌다 — 동명이서를 헷갈리지 않게
   const who = [book.author, book.publisher].filter(Boolean).join(" · ");
-  const prompt = `「${book.title}」${who ? ` (${who})` : ""}${book.published_year ? ` ${book.published_year}년` : ""}
+  const facts = [
+    book.published_year ? `${book.published_year}년` : null,
+    book.page_count ? `${book.page_count}쪽` : null,
+    book.isbn ? `ISBN ${book.isbn}` : null,
+  ].filter(Boolean).join(" · ");
+  const prompt = `「${book.title}」${who ? ` (${who})` : ""}${facts ? ` — ${facts}` : ""}
 
 이 책을 아직 읽지 않은 서재 주인에게 소개하는 짧은 글을 써주세요.
 

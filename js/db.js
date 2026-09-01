@@ -321,8 +321,9 @@
       return path;
     },
 
-    /* 서가를 그릴 때 조각들의 서명 주소를 한 번에 받는다 */
-    async signSpineUrls(paths, seconds = 7200) {
+    /* 서가를 그릴 때 조각들의 서명 주소를 한 번에 받는다.
+       토큰 갱신 때 서가를 다시 그리지 않으므로, 주소는 하루를 살아야 한다 */
+    async signSpineUrls(paths, seconds = 86400) {
       if (!paths.length) return new Map();
       const { data, error } = await client.storage
         .from("covers")
