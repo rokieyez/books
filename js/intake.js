@@ -98,8 +98,17 @@
         <b>서지를 채운다</b>
         <span>알라딘에 물어 ISBN·출판사·표지·분류를 넣고 지은이 오탈자를 바로잡습니다</span>
       </div>
-      <button type="button" class="enrich-go" id="in-enrich">20권씩 채운다</button>
+      <button type="button" class="enrich-go" id="in-enrich">끝까지 채운다</button>
       <div class="enrich-out" id="in-enrich-out"></div>
+    </div>
+
+    <div class="enrich">
+      <div class="enrich-head">
+        <b>장서를 베껴 둔다</b>
+        <span>1,300권을 한 곳에만 두지 않습니다 — 지금 꽂힌 그대로를 파일로 내려받습니다</span>
+      </div>
+      <button type="button" class="enrich-go" id="in-export">목록을 내려받는다 (CSV)</button>
+      <div class="enrich-out" id="in-export-out"></div>
     </div>
 
     <div class="intake-shelf" id="in-shelfroll"></div>`;
@@ -277,31 +286,88 @@
       if (!queueBusy && ev.dataTransfer?.files?.length) take(ev.dataTransfer.files);
     });
 
-    /* 서지 채우기 — 알라딘에 물어 빈 칸을 메운다 */
+    /* 베껴 두기 — 서재가 사라져도 목록은 손에 남게 한다.
+       엑셀이 한글을 깨뜨리지 않도록 BOM 을 앞에 붙인다. */
+    el("in-export").addEventListener("click", async () => {
+      const btn = el("in-export"), out = el("in-export-out");
+      btn.disabled = true;
+      out.innerHTML = `<p class="enrich-msg">장서를 세는 중…</p>`;
+      try {
+        const rows = await db.listBooks({ limit: 5000 });
+        const cols = ["title", "author", "category", "publisher", "isbn", "published_year",
+                      "read_status", "wall", "shelf", "slot", "acquired_on", "memo", "cover_url"];
+        const head = ["제목","지은이","분류","펴낸곳","ISBN","펴낸해",
+                      "읽음","벽","단","자리","입고","여백","표지"];
+        const cell = (v) => {
+          const s = v == null ? "" : String(v);
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const csv = "﻿" + [head.join(",")]
+          .concat(rows.map((r) => cols.map((c) => cell(r[c])).join(","))).join("\r\n");
+        const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        const a = document.createElement("a");
+        const d = new Date();
+        const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+        a.href = url;
+        a.download = `서가뒤의방-장서-${stamp}.csv`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        out.innerHTML = `<p class="enrich-msg good">${rows.length.toLocaleString()}권을 베껴 두었습니다.</p>`;
+      } catch (err) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "베끼지 못했습니다 — " + (err.message || err);
+      }
+      btn.disabled = false;
+    });
+
+    /* 서지 채우기 — 알라딘에 물어 빈 칸을 메운다.
+       1,300권을 스무 권씩 예순다섯 번 누르게 할 수는 없다. 한 번 누르면
+       남은 것이 없을 때까지 스스로 돌고, 언제든 멈출 수 있다. */
+    let enrichStop = false;
     el("in-enrich").addEventListener("click", async () => {
       const btn = el("in-enrich"), out = el("in-enrich-out");
-      btn.disabled = true;
-      out.innerHTML = `<p class="enrich-msg">알라딘에 묻는 중… (20권이면 1분쯤)</p>`;
-      const { data, error } = await db.enrichBooks(20);
-      btn.disabled = false;
+      if (btn.dataset.running) { enrichStop = true; btn.textContent = "멈추는 중…"; return; }
 
-      if (error || data?.error) {
-        out.innerHTML = `<p class="enrich-msg bad"></p>`;
-        out.querySelector("p").textContent = "채우지 못했습니다 — " + (data?.error || error.message);
-        return;
+      btn.dataset.running = "1";
+      btn.textContent = "멈춘다";
+      enrichStop = false;
+      let 채움 = 0, 못찾음 = 0, 겹침 = 0, 회 = 0;
+      const 고침 = [], 살펴볼것 = [];
+
+      const draw = (head, cls = "") => {
+        const lines = [`<p class="enrich-msg ${cls}"></p>`];
+        if (고침.length) {
+          lines.push(`<p class="enrich-msg">바로잡은 지은이</p><ul class="enrich-list">` +
+            고침.map((c) => `<li>${esc(c.제목)} — ${esc(c.지은이전)} → <b>${esc(c.지은이후)}</b></li>`).join("") + `</ul>`);
+        }
+        if (살펴볼것.length) {
+          lines.push(`<p class="enrich-msg">제목이 조금 다릅니다 — 맞는지 보고 서표에서 고치세요</p><ul class="enrich-list">` +
+            살펴볼것.map((s) => `<li>${esc(s.지금)} <i>(알라딘: ${esc(s.알라딘)})</i></li>`).join("") + `</ul>`);
+        }
+        out.innerHTML = lines.join("");
+        out.querySelector("p").textContent = head;
+      };
+
+      draw("알라딘에 묻는 중… (스무 권에 1분쯤)");
+      while (!enrichStop) {
+        회++;
+        const { data, error } = await db.enrichBooks(20);
+        if (error || data?.error) {
+          draw("채우다 멈췄습니다 — " + (data?.error || error.message)
+               + ` (여기까지 ${채움}권)`, "bad");
+          break;
+        }
+        채움 += data.채움; 못찾음 += data.못찾음; 겹침 += data.겹침;
+        고침.push(...(data.고침 || []));
+        살펴볼것.push(...(data.살펴볼것 || []));
+        await window.PostLibrosRefresh?.();
+        if (!data.남음) { draw(`다 채웠습니다 — ${채움}권 · 못 찾음 ${못찾음} · 겹침 ${겹침}`, "good"); break; }
+        draw(`${회}번째 — 지금까지 ${채움}권 · 못 찾음 ${못찾음} · 겹침 ${겹침} · 아직 ${data.남음}권 남음`);
+        if (enrichStop) { draw(`멈췄습니다 — ${채움}권 채움 · 아직 ${data.남음}권 남음`, "good"); break; }
       }
 
-      const lines = [`<p class="enrich-msg good">${data.채움}권을 채웠습니다 · 못 찾음 ${data.못찾음} · 겹침 ${data.겹침} · 아직 ${data.남음}권 남음</p>`];
-      if (data.고침?.length) {
-        lines.push(`<p class="enrich-msg">바로잡은 지은이</p><ul class="enrich-list">` +
-          data.고침.map((c) => `<li>${esc(c.제목)} — ${esc(c.지은이전)} → <b>${esc(c.지은이후)}</b></li>`).join("") + `</ul>`);
-      }
-      if (data.살펴볼것?.length) {
-        lines.push(`<p class="enrich-msg">제목이 조금 다릅니다 — 맞는지 보고 서표에서 고치세요</p><ul class="enrich-list">` +
-          data.살펴볼것.map((s) => `<li>${esc(s.지금)} <i>(알라딘: ${esc(s.알라딘)})</i></li>`).join("") + `</ul>`);
-      }
-      out.innerHTML = lines.join("");
-      await window.PostLibrosRefresh?.();
+      delete btn.dataset.running;
+      btn.textContent = "끝까지 채운다";
     });
 
     /* 손으로 한 권 — AI 가 놓쳤거나 사진에 없는 책 */

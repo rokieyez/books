@@ -113,13 +113,25 @@
     },
 
     /* ── 장서 ── */
-    async listBooks({ wall = null, search = null, limit = 200 } = {}) {
-      let qy = client.from("books").select("*").order("wall").order("shelf").order("slot");
-      if (wall) qy = qy.eq("wall", wall);
-      if (search) qy = qy.or(`title.ilike.%${search}%,author.ilike.%${search}%`);
-      const { data, error } = await qy.limit(limit);
-      if (error) throw error;
-      return data;
+    /* 장서 전체를 쪽으로 나눠 읽는다.
+       PostgREST 에는 한 번에 돌려주는 줄 수의 상한(기본 1,000)이 있어,
+       .limit(2000) 이라 적어도 조용히 잘린다. 상한값을 짐작하지 않고
+       한 쪽씩 끝까지 읽는다 — 서재가 커져도 그대로 산다. */
+    async listBooks({ wall = null, search = null, limit = 5000, page = 500 } = {}) {
+      const out = [];
+      for (let from = 0; from < limit; from += page) {
+        // id 까지 걸어야 쪽이 어긋나지 않는다 — 벽·단·자리는 겹칠 수 있다
+        let qy = client.from("books").select("*")
+          .order("wall").order("shelf").order("slot").order("id");
+        if (wall) qy = qy.eq("wall", wall);
+        if (search) qy = qy.or(`title.ilike.%${search}%,author.ilike.%${search}%`);
+        const to = Math.min(from + page, limit) - 1;
+        const { data, error } = await qy.range(from, to);
+        if (error) throw error;
+        out.push(...data);
+        if (data.length < to - from + 1) break;   // 마지막 쪽이었다
+      }
+      return out;
     },
 
     async countBooks() {
