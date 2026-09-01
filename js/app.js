@@ -726,6 +726,8 @@
       btn.setAttribute("aria-selected", btn.dataset.st === b.st ? "true" : "false"));
     $("x-wall").value = b.wall || "";
     $("x-shelf").value = b.shelfNo || "";
+    $("x-t").value = b.t || "";
+    $("x-a").value = b.a || "";
 
     // 기록은 있으면 보여주고, 없으면 청할 수 있게 둔다
     $("x-full").hidden = true;
@@ -860,6 +862,33 @@
   });
 
   /* ── 여백의 기록 — 자리를 옮길 때 적는다 ── */
+  /* 책등을 잘못 읽었을 때 — 지웠다 다시 넣지 않고 여기서 고친다.
+     제목·지은이는 중복 열쇠의 재료라, 고치면 이미 있는 책과 부딪힐 수 있다.
+     그때 DB 가 23505 로 거절하므로 그대로 알린다. */
+  function fixField(id, key, apply) {
+    $(id).addEventListener("blur", async () => {
+      const v = $(id).value.trim();
+      if (!openBook || !v || v === (openBook[key === "title" ? "t" : "a"] || "")) return;
+      const tag = $("x-saved");
+      try {
+        await window.PostLibrosDB.updateBook(openBook.id, { [key]: v });
+        apply(openBook, v);
+        tag.textContent = "적었습니다"; tag.hidden = false;
+        clearTimeout(fixField._t);
+        fixField._t = setTimeout(() => { tag.hidden = true; }, 1800);
+        renderAll();
+      } catch (err) {
+        const dup = String(err.message || err).includes("23505")
+          || String(err.code || "") === "23505";
+        tag.textContent = dup ? "이미 같은 책이 있습니다" : "적지 못했습니다";
+        tag.hidden = false;
+        $(id).value = openBook[key === "title" ? "t" : "a"] || "";
+      }
+    });
+  }
+  fixField("x-t", "title", (b, v) => { b.t = v; $("x-title").textContent = v; });
+  fixField("x-a", "author", (b, v) => { b.a = v; });
+
   $("x-memoedit").addEventListener("blur", () => {
     const memo = $("x-memoedit").value.trim();
     if (!openBook || memo === (openBook.memo || "")) return;

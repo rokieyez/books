@@ -843,6 +843,9 @@
     padding: 5px 8px; font: inherit; font-size: 12px;
   }
   .x-edit input { width: 60px; }
+  /* 제목·지은이는 길다 — 남는 자리를 다 쓴다 */
+  .x-edit #x-t { flex: 1 1 100%; width: auto; font-family: "Gowun Batang", serif; }
+  .x-edit #x-a { flex: 1 1 100%; width: auto; }
   .x-edit select:focus-visible, .x-edit input:focus-visible {
     outline: 2px solid var(--brass); outline-offset: 1px;
   }
