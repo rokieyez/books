@@ -506,16 +506,85 @@
   });
 
   /* ── 서표 ─────────────────────────────────────────────── */
+  let openBook = null;   /* 지금 펼쳐 둔 책 — 고칠 때 대상이 된다 */
+
   function openExlibris(b, w) {
+    openBook = b;
     $("x-mark").textContent = `${w ? w.nm : "책상 위"} · ${b.cat || "문학"}`;
     $("x-title").textContent = b.t;
     $("x-byline").textContent = `${b.a}${b.year ? " · " + b.year + " 입고" : ""}`;
-    const cur = CURATED[b.t];
-    $("x-full").hidden = !cur;
-    $("x-pending").hidden = !!cur;
-    if (cur) { $("x-summary").textContent = cur.s; $("x-memo").textContent = cur.m; }
     $("veil").classList.add("show");
     $("exlibris").classList.add("show");
+
+    const owner = document.body.classList.contains("owner");
+    const db = window.PostLibrosDB;
+
+    // 표본 화면에서는 미리 써 둔 글을 보여준다
+    if (!owner || !db || !b.id) {
+      const cur = CURATED[b.t];
+      $("x-edit").hidden = true;
+      $("x-memoedit").hidden = true;
+      $("x-full").hidden = !cur;
+      $("x-pending").hidden = !!cur;
+      $("x-memo").hidden = false;
+      if (cur) { $("x-summary").textContent = cur.s; $("x-memo").textContent = cur.m; }
+      return;
+    }
+
+    /* ── 주인의 화면 ── */
+    $("x-edit").hidden = false;
+    $("x-memo").hidden = true;
+    $("x-memoedit").hidden = false;
+    $("x-memoedit").value = b.memo || "";
+    $("x-saved").hidden = true;
+
+    document.querySelectorAll("#x-status button").forEach(btn =>
+      btn.setAttribute("aria-selected", btn.dataset.st === b.st ? "true" : "false"));
+    $("x-wall").value = b.wall || "";
+    $("x-shelf").value = b.shelfNo || "";
+
+    // 기록은 있으면 보여주고, 없으면 청할 수 있게 둔다
+    $("x-full").hidden = true;
+    $("x-pending").hidden = false;
+    $("x-none").textContent = "기록을 찾는 중…";
+    $("x-gen").hidden = true;
+
+    db.getSummary(b.id).then((s) => {
+      if (openBook !== b) return;          // 그새 다른 책을 폈다면 버린다
+      if (s) {
+        $("x-summary").textContent = s.summary;
+        $("x-full").hidden = false;
+        $("x-pending").hidden = true;
+      } else {
+        $("x-none").textContent = "이 책의 기록은 아직 없습니다.";
+        $("x-gen").hidden = false;
+        $("x-gen").disabled = false;
+        $("x-gen").textContent = "지금 기록을 부탁한다";
+      }
+    }).catch((err) => {
+      if (openBook !== b) return;
+      $("x-none").textContent = "기록을 읽지 못했습니다: " + (err.message || err);
+      $("x-gen").hidden = false;
+    });
+  }
+
+  /* ── 서표에서 고친 것을 바로 적는다 ── */
+  async function saveBook(patch, applyLocal) {
+    const b = openBook, db = window.PostLibrosDB;
+    if (!b || !b.id || !db) return;
+    try {
+      await db.updateBook(b.id, patch);
+      applyLocal?.(b);
+      const tag = $("x-saved");
+      tag.hidden = false;
+      clearTimeout(saveBook._t);
+      saveBook._t = setTimeout(() => { tag.hidden = true; }, 1800);
+      renderAll();
+    } catch (err) {
+      console.error("[서표] 고치지 못했습니다:", err);
+      $("x-saved").hidden = false;
+      $("x-saved").textContent = "적지 못했습니다";
+    }
   }
   function closeExlibris() {
     $("veil").classList.remove("show");
@@ -523,11 +592,56 @@
   }
   $("x-close").addEventListener("click", closeExlibris);
   $("veil").addEventListener("click", closeExlibris);
-  $("x-gen").addEventListener("click", () => {
-    $("x-pending").hidden = true;
+  $("x-gen").addEventListener("click", async () => {
+    const db = window.PostLibrosDB, b = openBook;
+    if (!db || !b || !b.id) {
+      // 표본 화면 — 실제로 짓지는 않는다
+      $("x-pending").hidden = true;
+      $("x-full").hidden = false;
+      $("x-summary").textContent = "…실서비스에서는 이 자리에서 AI가 책 소개를 지어 넣습니다. 열어보는 책에만 비용이 듭니다.";
+      $("x-memo").textContent = "메모는 이 자리에서 바로 적어 넣습니다.";
+      return;
+    }
+    $("x-gen").disabled = true;
+    $("x-none").textContent = "기록을 짓는 중… (열어본 책에만 비용이 듭니다)";
+    const { data, error } = await db.summarizeBook(b.id);
+    if (openBook !== b) return;
+    if (error || data?.error) {
+      $("x-gen").disabled = false;
+      $("x-none").textContent = "짓지 못했습니다 — " + (data?.error || error.message);
+      return;
+    }
+    $("x-summary").textContent = data.summary;
     $("x-full").hidden = false;
-    $("x-summary").textContent = "…실서비스에서는 이 자리에서 AI가 책 소개를 바탕으로 요약을 지어 넣습니다. 열어보는 책에만 비용이 듭니다.";
-    $("x-memo").textContent = "메모는 이 자리에서 바로 적어 넣습니다.";
+    $("x-pending").hidden = true;
+  });
+
+  /* ── 읽음 상태 ── */
+  document.querySelectorAll("#x-status button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const st = btn.dataset.st;
+      document.querySelectorAll("#x-status button").forEach((o) =>
+        o.setAttribute("aria-selected", o === btn ? "true" : "false"));
+      saveBook({ read_status: st }, (b) => { b.st = st; });
+    });
+  });
+
+  /* ── 자리 (벽·단) ── */
+  $("x-wall").addEventListener("change", () => {
+    const wall = $("x-wall").value || null;
+    saveBook({ wall }, (b) => { b.wall = wall; b.loc = [wall, b.shelfNo ? b.shelfNo + "단" : null].filter(Boolean).join(" ") || "자리 미정"; });
+  });
+  $("x-shelf").addEventListener("change", () => {
+    const raw = $("x-shelf").value.trim();
+    const shelf = raw ? Number(raw) : null;
+    saveBook({ shelf }, (b) => { b.shelfNo = shelf; b.loc = [b.wall, shelf ? shelf + "단" : null].filter(Boolean).join(" ") || "자리 미정"; });
+  });
+
+  /* ── 여백의 기록 — 자리를 옮길 때 적는다 ── */
+  $("x-memoedit").addEventListener("blur", () => {
+    const memo = $("x-memoedit").value.trim();
+    if (!openBook || memo === (openBook.memo || "")) return;
+    saveBook({ memo: memo || null }, (b) => { b.memo = memo; });
   });
   document.addEventListener("keydown", e => {
     if (e.key !== "Escape") return;

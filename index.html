@@ -144,16 +144,43 @@
   <h3 id="x-title"></h3>
   <p class="byline" id="x-byline"></p>
   <div class="rule"></div>
+
+  <!-- 주인만 보이는 자리 — 책의 상태와 자리를 여기서 고친다 -->
+  <div class="x-edit" id="x-edit" hidden>
+    <div class="x-row">
+      <span class="x-lb">읽음</span>
+      <div class="x-seg" id="x-status" role="group" aria-label="읽음 상태">
+        <button data-st="읽음">읽음</button>
+        <button data-st="읽는 중">읽는 중</button>
+        <button data-st="안 읽음">안 읽음</button>
+      </div>
+    </div>
+    <div class="x-row">
+      <span class="x-lb">자리</span>
+      <select id="x-wall" aria-label="벽">
+        <option value="">벽 미정</option>
+        <option value="역사">역사</option>
+        <option value="문학">문학</option>
+        <option value="과학">과학</option>
+        <option value="예술사회">예술과 사회</option>
+      </select>
+      <input type="number" id="x-shelf" min="1" max="12" placeholder="단" aria-label="단">
+      <span class="x-saved" id="x-saved" hidden>적었습니다</span>
+    </div>
+  </div>
+
   <div id="x-full">
     <h4>Summarium</h4>
     <p class="body" id="x-summary"></p>
     <h4>여백의 기록</h4>
     <p class="marginalia" id="x-memo"></p>
+    <textarea class="x-memoedit" id="x-memoedit" hidden rows="3"
+              placeholder="여백에 적어 둘 말 — 자리를 옮기면 저장됩니다"></textarea>
   </div>
   <div id="x-pending">
     <h4>Summarium</h4>
-    <p class="undeciphered">이 책의 기록은 아직 없습니다.</p>
-    <button class="genbtn" id="x-gen">지금 기록을 부탁한다 (실서비스: AI 요약 생성)</button>
+    <p class="undeciphered" id="x-none">이 책의 기록은 아직 없습니다.</p>
+    <button class="genbtn" id="x-gen">지금 기록을 부탁한다</button>
   </div>
   <div class="sealmark">藏</div>
 </div>

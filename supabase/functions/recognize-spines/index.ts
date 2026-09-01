@@ -150,56 +150,96 @@ Deno.serve(async (req) => {
   const use = out.content?.find((c: { type: string }) => c.type === "tool_use");
   const books: Array<Record<string, unknown>> = use?.input?.books ?? [];
 
-  // 벽에 꽂을 것과 궤짝에 담을 것을 가른다
+  /* 이미 꽂혀 있는 책은 다시 꽂지 않는다.
+     DB 에도 같은 규칙의 유일 색인이 걸려 있어 어느 길로 들어와도 막히지만,
+     여기서 먼저 걸러야 "이미 있음 12권" 처럼 사정을 말해줄 수 있다.
+     열쇠 만드는 법은 DB 쪽 dedup_key 와 똑같아야 한다. */
+  const keyOf = (t: string, a: string) =>
+    `${t}|${a}`.toLowerCase().replace(/[^0-9a-z가-힣]/g, "");
+
+  const { data: owned } = await db.from("books").select("title, author, wall");
+  const already = new Set((owned ?? []).map((b) => keyOf(b.title ?? "", b.author ?? "")));
+
+  // 벽마다 몇 권이 있는지 세어 두면 새 책이 앉을 자리를 이어서 매길 수 있다
+  const filled = new Map<string, number>();
+  (owned ?? []).forEach((b) => {
+    if (b.wall) filled.set(b.wall, (filled.get(b.wall) ?? 0) + 1);
+  });
+
+  const wallFor = (cat: string) =>
+    cat === "역사" ? "역사"
+    : cat === "과학" ? "과학"
+    : (cat === "예술" || cat === "사회") ? "예술사회"
+    : "문학";
+
   const shelved: Array<Record<string, unknown>> = [];
   const doubtful: Array<Record<string, unknown>> = [];
+  let dup = 0;
 
-  books.forEach((b, i) => {
+  books.forEach((b) => {
     const title = String(b.title ?? "").trim();
     if (!title) return;
     const conf = Number(b.confidence ?? 0);
     const vol = String(b.volume ?? "").trim();
     const full = vol ? `${title} ${vol}` : title;
+    const author = String(b.author ?? "").trim();
+    const cat = String(b.category ?? "문학");
+
+    // 같은 사진 안에 두 번 나온 것도 한 번만 센다
+    const key = keyOf(full, author);
+    if (already.has(key)) { dup++; return; }
+    already.add(key);
 
     if (conf >= SURE) {
+      // 사진에 적어 둔 자리가 있으면 그것이 우선이다 — 실제로 찍은 자리가 더 정확하다
+      const wall = photo.wall || wallFor(cat);
+      const n = filled.get(wall) ?? 0;
+      filled.set(wall, n + 1);
       shelved.push({
         title: full,
-        author: String(b.author ?? "").trim() || null,
-        category: String(b.category ?? "문학"),
+        author: author || null,
+        category: cat,
         spine_color: /^#[0-9a-fA-F]{6}$/.test(String(b.spine_color)) ? b.spine_color : null,
-        wall: photo.wall,
-        shelf: photo.shelf,
-        slot: i + 1,
+        wall,
+        shelf: photo.shelf ?? Math.floor(n / 30) + 1,
+        slot: (n % 30) + 1,
       });
     } else {
       doubtful.push({
         photo_id,
         raw_text: full,
         confidence: conf,
-        candidates: [{ title: full, author: b.author ?? "", category: b.category ?? "" }],
+        candidates: [{ title: full, author, category: cat }],
       });
     }
   });
 
+  let put = 0;
   if (shelved.length) {
-    const { error } = await db.from("books").insert(shelved);
-    if (error) return reply({ error: "꽂지 못했습니다: " + error.message }, 500);
+    const { data, error } = await db.from("books").insert(shelved).select("id");
+    // 23505 = 유일 색인 위반. 앞에서 걸렀는데도 걸렸다면 다른 창에서 동시에
+    // 넣은 것이다 — 실패가 아니라 이미 있다는 뜻이므로 그렇게 센다.
+    if (error && error.code !== "23505") {
+      return reply({ error: "꽂지 못했습니다: " + error.message }, 500);
+    }
+    if (error) dup += shelved.length;
+    else put = data?.length ?? shelved.length;
   }
   if (doubtful.length) {
     const { error } = await db.from("intake_candidates").insert(doubtful);
     if (error) return reply({ error: "궤짝에 담지 못했습니다: " + error.message }, 500);
   }
-
   await db.from("intake_photos").update({
     status: "완료",
     detected_count: books.length,
-    note: `꽂음 ${shelved.length} · 궤짝 ${doubtful.length}`,
+    note: `꽂음 ${put} · 궤짝 ${doubtful.length}${dup ? ` · 이미 있음 ${dup}` : ""}`,
   }).eq("id", photo_id);
 
   return reply({
     읽은권수: books.length,
-    꽂음: shelved.length,
+    꽂음: put,
     궤짝: doubtful.length,
+    이미있음: dup,
     책들: shelved.map((b) => b.title),
   });
 });

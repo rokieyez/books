@@ -142,6 +142,24 @@
       return data;
     },
 
+    /* 책 한 권을 고친다 — 읽음 상태, 벽·단, 메모 */
+    async updateBook(id, patch) {
+      const { data, error } = await client
+        .from("books").update(patch).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    /* 기록을 짓는다 — 처음 펼칠 때만 돈이 든다.
+       이미 있으면 함수가 저장된 것을 그대로 돌려준다. */
+    async summarizeBook(bookId) {
+      return guard(
+        client.functions.invoke("summarize-book", { body: { book_id: bookId } }),
+        120000,
+        "기록 짓기",
+      );
+    },
+
     /* ── 기록의 방 ── */
     async listArchive({ tag = null, search = null } = {}) {
       let qy = client.from("archive_items").select("*").order("created_at", { ascending: false });

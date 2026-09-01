@@ -168,6 +168,10 @@
       w2: 17 + ((h >> 5) % 9),
       year: b.acquired_on ? Number(b.acquired_on.slice(0, 4)) : null,
       st: b.read_status,
+      // 서표에서 고칠 때 쓰는 원본 값들 — 화면용 loc 만으로는 되돌릴 수 없다
+      wall: b.wall || null,
+      shelfNo: b.shelf ?? null,
+      memo: b.memo || "",
       loc: [b.wall, b.shelf ? b.shelf + "단" : null].filter(Boolean).join(" ") || "자리 미정",
       paper: (h >> 9) % 6 === 0,
       lean: (h >> 12) % 19 === 0,
