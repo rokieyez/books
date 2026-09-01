@@ -942,6 +942,12 @@
   }
 
   /* 서재를 여는 동안 — 표본을 스치듯 보여주지 않으려고 비워 둔다 */
+  /* 자바스크립트가 꺼져 있을 때 — 빈 방만 보이는 이유를 적어 둔다 */
+  .noscript-note {
+    max-width: 620px; margin: 90px auto; padding: 0 22px; text-align: center;
+    font-family: "Gowun Batang", serif; font-size: 15px; line-height: 1.9;
+    color: var(--parchment-dim); letter-spacing: .04em;
+  }
   .waking-note {
     margin: 80px 0; text-align: center;
     font-family: "Gowun Batang", serif; font-size: 14px;
@@ -1168,6 +1174,8 @@
   .viewseg button:last-child { border-right: none; }
   .viewseg button[aria-selected="true"] { background: var(--brass); color: #241708; }
   .viewseg button:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
+  /* 탭에서 Tab 을 한 번 더 누르면 그 보기 안으로 들어온다 — 들어온 자리를 표시 */
+  [role="tabpanel"]:focus-visible { outline: 1px dashed var(--brass); outline-offset: 8px; }
 
   /* 표지 뷰 */
   .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px; margin-top: 26px; }

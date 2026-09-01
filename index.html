@@ -4,9 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>서가 뒤의 방</title>
-  <meta name="description" content="책장인 줄 알았는데 문이었다. 1,300여 권의 장서를 옮겨 담은 밤의 서재 — 벽마다 방이 하나씩 숨어 있다.">
+  <!-- 권수는 적지 않는다 — 장서는 계속 늘고, 정적 파일의 숫자는 반드시 거짓이 된다 -->
+  <meta name="description" content="책장인 줄 알았는데 문이었다. 한 사람의 장서를 그대로 옮겨 담은 밤의 서재 — 벽마다 방이 하나씩 숨어 있다.">
   <meta name="theme-color" content="#171009">
+  <!-- 밤의 서재다 — 입력창·스크롤막대·기본 위젯도 어두운 쪽을 쓰게 한다 -->
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://www.rokiz.net/books/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <!-- 첫 화면까지의 길목을 미리 터 둔다. 책은 supabase 에서, 글꼴은 구글에서,
+       supabase 라이브러리는 jsdelivr 에서 온다 — 이 셋의 손잡기를 앞당긴다 -->
+  <link rel="preconnect" href="https://gaeumegwhxxnfvrhbknp.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://image.aladin.co.kr">
   <!-- 폰 홈 화면에 얹을 때 — 사진 들이기는 대개 폰에서 한다 -->
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -17,6 +28,10 @@
   <meta property="og:description" content="책장인 줄 알았는데 문이었다 — 벽마다 방이 하나씩 숨어 있는 밤의 서재.">
   <meta property="og:url" content="https://www.rokiz.net/books/">
   <meta property="og:image" content="https://www.rokiz.net/books/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="촛불 켜진 밤의 서재 — 책으로 된 벽">
+  <meta property="og:locale" content="ko_KR">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant:ital,wght@0,500;1,500&family=Noto+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="css/style.css">
@@ -33,7 +48,13 @@
   </div>
 </div>
 
-<div class="ladder" aria-hidden="false">
+<noscript>
+  <p class="noscript-note">이 서재는 자바스크립트로 벽을 세웁니다 — 꺼져 있으면 빈 방만 보입니다.
+    브라우저에서 자바스크립트를 켜고 다시 들어와 주세요.</p>
+</noscript>
+
+<!-- 스크롤 높이를 알리는 장식 사다리 — 읽어 주는 기계에는 소음이다 -->
+<div class="ladder" aria-hidden="true">
   <div class="rail" id="rail"><div class="car" id="car"></div></div>
   <span class="alt" id="alt">지상 9.2m</span>
 </div>
@@ -45,11 +66,17 @@
   <p class="sub">이 서재의 벽은 전부 책이다 — 그런데 벽마다 방이 하나씩 숨어 있다.</p>
   <p class="secret">비뚤게 꽂힌 책을 당기면 문이 열린다 · 사다리를 타고 내려가면 책상이 나온다</p>
   <div class="viewrow">
+    <!-- 진짜 탭으로 알린다 — role="tab" 없이 aria-selected 만 두면 읽어 주는
+         기계는 어느 보기가 켜졌는지 말해 주지 못한다. ←/→ 로도 넘어간다 -->
     <div class="viewseg" role="tablist" aria-label="보기 방식">
-      <button data-v="walls" aria-selected="true">서가</button>
-      <button data-v="covers" aria-selected="false">표지</button>
-      <button data-v="list" aria-selected="false">목록</button>
-      <button data-v="stats" aria-selected="false">통계</button>
+      <button id="tab-walls" role="tab" data-v="walls" aria-selected="true"
+              aria-controls="walls" tabindex="0">서가</button>
+      <button id="tab-covers" role="tab" data-v="covers" aria-selected="false"
+              aria-controls="v-covers" tabindex="-1">표지</button>
+      <button id="tab-list" role="tab" data-v="list" aria-selected="false"
+              aria-controls="v-list" tabindex="-1">목록</button>
+      <button id="tab-stats" role="tab" data-v="stats" aria-selected="false"
+              aria-controls="v-stats" tabindex="-1">통계</button>
     </div>
     <!-- 실물 높이 자료가 쌓이면 진짜 서가처럼 키 순서로도 볼 수 있다 -->
     <button class="heightsort" id="heightsort" aria-pressed="false"
@@ -65,16 +92,16 @@
   </section>
 </div>
 
-<div class="wrap" id="walls"></div>
+<div class="wrap" id="walls" role="tabpanel" aria-labelledby="tab-walls" tabindex="0"></div>
 
 <div class="wrap">
-  <section id="v-covers" hidden>
+  <section id="v-covers" role="tabpanel" aria-labelledby="tab-covers" tabindex="0" hidden>
     <div class="covers" id="covergrid"></div>
     <p class="cover-note" id="cover-note"></p>
     <button class="listmore" id="covermore" hidden>더 본다</button>
   </section>
 
-  <section id="v-list" hidden>
+  <section id="v-list" role="tabpanel" aria-labelledby="tab-list" tabindex="0" hidden>
     <div class="listwrap">
       <table class="ledger">
         <thead><tr>
@@ -92,7 +119,7 @@
     <button class="listmore" id="listmore" hidden>더 본다</button>
   </section>
 
-  <section id="v-stats" hidden>
+  <section id="v-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0" hidden>
     <div class="statgrid">
       <div class="statpanel">
         <h4>분류별 장서</h4>
@@ -143,12 +170,13 @@
       <div class="statpanel wide" id="linkweb-panel">
         <h4>이음의 별자리</h4>
         <p class="ps" id="ps-linkweb">서로 다른 책을 손으로 이어 둔 컬렉션이 성좌를 이룹니다</p>
-        <canvas id="linkweb" height="240"></canvas>
+        <!-- 그림은 읽어 줄 수 없다 — 대신 몇 개가 걸려 있는지 말로 남긴다 -->
+        <canvas id="linkweb" height="240" role="img" aria-label="이음의 별자리"></canvas>
       </div>
       <div class="statpanel wide" id="authorweb-panel">
         <h4>작가의 별자리</h4>
         <p class="ps" id="ps-authorweb">같은 작가의 책들이 한 성좌로 모입니다</p>
-        <canvas id="authorweb" height="240"></canvas>
+        <canvas id="authorweb" height="240" role="img" aria-label="작가의 별자리"></canvas>
       </div>
       <div class="statpanel wide">
         <h4>여백의 기록</h4>
@@ -194,7 +222,7 @@
 <footer class="colophon">서가 뒤의 방 · rokiz.net</footer>
 
 <div class="veil" id="veil"></div>
-<div class="exlibris" id="exlibris" role="dialog" aria-label="서표">
+<div class="exlibris" id="exlibris" role="dialog" aria-modal="true" aria-label="서표">
   <button class="close" id="x-close" aria-label="닫기">×</button>
   <span class="mark" id="x-mark"></span>
   <div class="x-head">
@@ -302,15 +330,17 @@
   </div>
   <div class="sealmark">藏</div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
-<script src="js/config.js"></script>
-<script src="js/db.js"></script>
+<!-- defer 는 순서를 지키면서 화면 그리기를 막지 않는다 — 여섯 개가 나란히
+     내려오고, 문서가 다 읽힌 뒤 적힌 차례대로 실행된다 -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<script defer src="js/config.js"></script>
+<script defer src="js/db.js"></script>
 <!-- 표본 데이터 — 로그인이 붙으면 db.js 조회로 교체된다 -->
-<script src="js/data.js"></script>
-<script src="js/app.js"></script>
+<script defer src="js/data.js"></script>
+<script defer src="js/app.js"></script>
 <!-- app.js 의 renderWalls 를 쓰므로 그 뒤에 온다 -->
-<script src="js/auth.js"></script>
+<script defer src="js/auth.js"></script>
 <!-- 사진 들이기 — 궤짝 앞에 자리를 잡는다 -->
-<script src="js/intake.js"></script>
+<script defer src="js/intake.js"></script>
 </body>
 </html>

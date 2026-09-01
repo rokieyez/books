@@ -115,11 +115,16 @@
     const byWall = {
       "역사": [], "문학": [], "과학": [], "예술사회": [], "종교": [],
     };
+    const WALL_OF = {
+      역사: "역사", 문학: "문학", 과학: "과학", 종교: "종교",
+      예술: "예술사회", 사회: "예술사회", 인문: "예술사회", 철학: "예술사회",
+    };
     books.forEach((b) => {
       // 자리(wall)를 적어 두었으면 그것이 우선이다 — 서표에서 옮긴 자리가
       // 화면에도 보여야 한다. 없으면 분류가 벽을 정한다 (원래 규칙).
-      const catWall = (b.category === "예술" || b.category === "사회") ? "예술사회"
-        : b.category === "종교" ? "종교" : b.category;
+      // 분류 이름이 벽 이름과 늘 같지는 않다 — 예술·사회·인문·철학은 한 벽을 쓴다.
+      // 표에 없는 분류를 그냥 두면 아래 fallback 이 조용히 문학 벽으로 보낸다.
+      const catWall = WALL_OF[b.category] || b.category;
       const key = b.wall || catWall;
       (byWall[key] || byWall["문학"]).push(shapeForShelf(b, spineSigned));
     });

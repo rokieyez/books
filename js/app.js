@@ -677,8 +677,12 @@
   }
   function setView(v) {
     curView = v;
-    document.querySelectorAll(".viewseg button").forEach(b =>
-      b.setAttribute("aria-selected", b.dataset.v === v ? "true" : "false"));
+    document.querySelectorAll(".viewseg button").forEach(b => {
+      const on = b.dataset.v === v;
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      // 탭 묶음은 Tab 키를 한 번만 먹는다 — 안에서는 ←/→ 로 옮겨 다닌다
+      b.tabIndex = on ? 0 : -1;
+    });
     $("walls").hidden = v !== "walls";
     $("crate").hidden = v !== "walls";
     $("desk").hidden = v !== "walls";
@@ -694,6 +698,21 @@
   }
   document.querySelectorAll(".viewseg button").forEach(b => {
     b.addEventListener("click", () => setView(b.dataset.v));
+  });
+  /* 탭 묶음 안에서의 ←/→ — 키보드로만 다니는 사람은 이 길로 보기를 바꾼다.
+     (서표가 열려 있을 때의 ←/→ 는 이웃 책 넘기기라 서로 겹치지 않는다) */
+  document.querySelector(".viewseg")?.addEventListener("keydown", (e) => {
+    const keys = { ArrowLeft: -1, ArrowRight: 1, Home: 0, End: 0 };
+    if (!(e.key in keys)) return;
+    const tabs = [...document.querySelectorAll(".viewseg button")];
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const j = e.key === "Home" ? 0
+      : e.key === "End" ? tabs.length - 1
+        : (i + keys[e.key] + tabs.length) % tabs.length;
+    setView(tabs[j].dataset.v);
+    tabs[j].focus();
   });
 
   /* 표지 뷰 — 표지는 그림이라 무겁다. 한 번에 다 깔지 않고,
@@ -1143,6 +1162,9 @@
       return;
     }
     ps.textContent = `${tops.length}명의 작가 — 별을 누르면 그 책이 펼쳐진다`;
+    // 그림은 읽어 줄 수 없으니, 성좌 이름과 권수를 말로 적어 둔다
+    cvs.setAttribute("aria-label",
+      "작가의 별자리 — " + tops.map(([nm, list]) => `${nm} ${list.length}권`).join(", "));
 
     const Wd = cvs.parentElement?.clientWidth ? cvs.parentElement.clientWidth - 2 : 600;
     const perRow = Math.max(1, Math.floor(Wd / 210));
@@ -1378,6 +1400,9 @@
         comps.push(c);
       }
       ps.textContent = `이음 ${es.length}개 · 성좌 ${comps.length}자리 — 별을 누르면 그 책이 펼쳐진다`;
+      cvs.setAttribute("aria-label",
+        `이음의 별자리 — 성좌 ${comps.length}자리, 이음 ${es.length}개. `
+        + comps.map((c) => (byId.get(c[0])?.t || "") + ` 등 ${c.length}권`).join(", "));
 
       // 성분마다 원으로 배치하고, 줄 수에 맞춰 캔버스 키를 정한다
       const perRow = Math.max(1, Math.floor(Wd / 175));
@@ -1754,6 +1779,18 @@
   $("x-cover").addEventListener("error", () => { $("x-cover").hidden = true; });
   $("x-close").addEventListener("click", closeExlibris);
   $("veil").addEventListener("click", closeExlibris);
+  /* 서표는 장막 위에 뜬 방이다 — Tab 이 장막 뒤 서가로 새어 나가면
+     보이지 않는 곳에 초점이 놓여 길을 잃는다. 안에서만 돌게 묶는다. */
+  $("exlibris").addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const able = [...$("exlibris").querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!able.length) return;
+    const first = able[0], last = able[able.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   $("x-gen").addEventListener("click", async () => {
     const db = window.PostLibrosDB, b = openBook;
     if (!db || !b || !b.id) {
@@ -2232,7 +2269,8 @@
      빈 뼈대를 그리지 않고, auth.js 의 loadRealLibrary 가 책을 실어 올 때까지
      「여는 중」으로 기다린다. (예전의 방문자용 표본 데이터는 지웠다) */
   document.body.classList.add("waking");
-  $("walls").innerHTML = `<p class="waking-note">서재를 여는 중…</p>`;
+  // role="status" — 화면을 못 보는 사람에게도 「여는 중」과 「다 열렸다」가 들린다
+  $("walls").innerHTML = `<p class="waking-note" role="status">서재를 여는 중…</p>`;
   $("census-n").textContent = "장서를 세는 중";
   /* 장서를 끝내 못 실었을 때 auth.js 가 부른다 — 빈 벽이라도 보여준다 */
   window.PostLibrosShowEmpty = () => {
