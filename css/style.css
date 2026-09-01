@@ -684,6 +684,12 @@
   }
   .photocard .phnote:empty { display: none; }
 
+  /* 셈이 설 수 없을 때 — 가짜 숫자 대신 사정을 적는다 */
+  .statempty {
+    margin: 8px 0 0; font-size: 12px; line-height: 1.7;
+    color: var(--parchment-dim); font-style: italic;
+  }
+
   /* ── 바닥: 책상과 램프, 오늘의 책 ─────────────────────── */
   .desk {
     position: relative; margin-top: 64px; padding: 58px 18px 84px;

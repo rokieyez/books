@@ -124,7 +124,29 @@
       w.latchIdx = shelf.length ? Math.min(28, shelf.length - 1) : -1;
     });
 
-    renderWalls();
+    // 기록의 벽도 실제 기록으로 갈아끼운다 (없으면 빈 벽)
+    try {
+      const items = await db.listArchive();
+      LEAVES.length = 0;
+      // renderWalls 는 설명을 l.x 에서 읽는다
+      items.forEach((it) => LEAVES.push({
+        tp: it.kind, t: it.title, x: (it.body || it.url || "").slice(0, 80),
+      }));
+      const wall = WALLS.find((w) => w.cat === "archive");
+      if (wall) wall.n = LEAVES.length;
+    } catch (err) {
+      console.error("[서재] 기록을 불러오지 못했습니다:", err);
+    }
+
+    // 궤짝도 — 표본 예시를 실제 후보로 바꾼다
+    try {
+      window.PostLibrosRenderCrate?.(await db.listPending());
+    } catch (err) {
+      console.error("[서재] 궤짝을 불러오지 못했습니다:", err);
+    }
+
+    // 서가만 다시 그리면 상단의 셈과 책상에 옛 숫자가 남는다
+    (window.PostLibrosRenderAll || renderWalls)();
     return books.length;
   }
 

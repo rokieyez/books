@@ -12,7 +12,7 @@
   <div class="inner">
     <span class="mark"><span class="tseal">藏</span>서가 뒤의 방</span>
     <input type="search" id="q" placeholder="책을 찾습니다 — 벽마다 응답 수가 보입니다" aria-label="장서 검색">
-    <span class="census">1,284 / 1,300 입고<i><b></b></i></span>
+    <span class="census" id="census">1,284 / 1,300 입고<i><b></b></i></span>
   </div>
 </div>
 
@@ -59,7 +59,7 @@
     <div class="statgrid">
       <div class="statpanel">
         <h4>분류별 장서</h4>
-        <p class="ps">1,284권 · 6개 분류</p>
+        <p class="ps" id="ps-cat"></p>
         <div id="catbars"></div>
       </div>
       <div class="statpanel">
@@ -69,13 +69,9 @@
       </div>
       <div class="statpanel">
         <h4>읽음 상태</h4>
-        <p class="ps">전체 1,284권 기준</p>
+        <p class="ps" id="ps-status"></p>
         <div class="stack" id="statusbar"></div>
-        <div class="legend">
-          <span><i style="background:var(--st-done)"></i>읽음 527 · 41%</span>
-          <span><i style="background:var(--st-doing)"></i>읽는 중 77 · 6%</span>
-          <span><i style="background:var(--st-todo)"></i>안 읽음 680 · 53%</span>
-        </div>
+        <div class="legend" id="statuslegend"></div>
       </div>
       <div class="statpanel">
         <h4>가장 많이 모은 저자</h4>
@@ -88,7 +84,7 @@
 
 <div class="wrap">
   <section class="crate" id="crate">
-    <div class="crate-label"><b>새로 도착한 궤짝</b><span>16권 · 꽂을 곳을 정해주세요</span></div>
+    <div class="crate-label"><b>새로 도착한 궤짝</b><span id="crate-count">16권 · 꽂을 곳을 정해주세요</span></div>
     <div class="cratewrap" id="cratewrap">
       <button class="cratelid" id="cratelid" aria-label="자물쇠를 눌러 궤짝을 연다">
         <span class="strap s1"></span><span class="strap s2"></span>
@@ -134,8 +130,8 @@
   <div class="candlewax"></div>
   <div class="openbook"><span class="ribbon"></span></div>
   <span class="lampline">바닥 · 책상 위 · 촛불이 켜져 있다</span>
-  <h3>난장이가 쏘아올린 작은 공</h3>
-  <p>오늘의 책 · 조세희 · 2025.12.01 입고 후 열어본 적 없음</p>
+  <h3 id="today-title">난장이가 쏘아올린 작은 공</h3>
+  <p id="today-sub">오늘의 책 · 조세희 · 2025.12.01 입고 후 열어본 적 없음</p>
   <button class="open-today" id="today-open">램프 아래에서 펼친다</button>
 </div>
 

@@ -32,6 +32,10 @@
         room.insertAdjacentHTML("beforeend",
           `<h4>기록의 방</h4><p class="roomsub">책이 아닌 것들 — 문서, 사진, 링크</p>
            <div class="roommeta"><span>기록 ${LEAVES.length}엽</span><span>이 방은 검색에 걸리지 않는다</span></div>`);
+        if (!LEAVES.length) {
+          room.insertAdjacentHTML("beforeend",
+            `<p class="statempty">아직 아무것도 들이지 않았습니다 — 문서·사진·링크가 여기 쌓입니다.</p>`);
+        }
         LEAVES.forEach(l => {
           const el = document.createElement("div"); el.className = "leafrow";
           el.innerHTML = `<span class="tp">${l.tp}</span><b></b><p></p>`;
@@ -165,6 +169,89 @@
   }
   /* ── 보기 전환: 서가 / 표지 / 목록 / 통계 ─────────────── */
   let curView = "walls";
+  /* 궤짝 — 확신이 갈려 사람 손을 기다리는 책들.
+     표본 화면에는 예시가 들어 있지만, 주인으로 들어오면 실제 후보로 갈아끼운다. */
+  function renderCrate(list) {
+    const box = document.querySelector(".cratebox");
+    const label = $("crate-count");
+    box.innerHTML = "";
+
+    if (!list.length) {
+      label.textContent = "비어 있음";
+      box.innerHTML = `<p class="note">궤짝이 비어 있습니다 — 확신이 갈리는 책이 생기면 여기 담깁니다.</p>`;
+      return;
+    }
+    label.textContent = `${list.length}권 · 꽂을 곳을 정해주세요`;
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = "책등은 읽었지만 어느 책인지 갈립니다 — 하나를 골라주세요.";
+    box.appendChild(note);
+
+    list.forEach((c) => {
+      const item = document.createElement("div");
+      item.className = "crateitem";
+      const guess = document.createElement("span");
+      guess.className = "guess";
+      guess.textContent = `"${c.raw_text || "읽지 못함"}"`;
+      const cands = document.createElement("div");
+      cands.className = "cands";
+      (c.candidates || []).forEach((cand) => {
+        const btn = document.createElement("button");
+        btn.className = "cand";
+        btn.textContent = [cand.title, cand.author].filter(Boolean).join(" — ");
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          try {
+            await window.PostLibrosDB.resolveCandidate(c.id, {
+              title: cand.title, author: cand.author || null,
+              category: cand.category || "문학",
+            });
+            item.classList.add("resolved");
+            await window.PostLibrosRefresh?.();
+          } catch (err) {
+            btn.disabled = false;
+            console.error("[궤짝] 꽂지 못했습니다:", err);
+          }
+        });
+        cands.appendChild(btn);
+      });
+      item.append(guess, cands);
+      box.appendChild(item);
+    });
+  }
+  window.PostLibrosRenderCrate = renderCrate;
+
+  /* 상단의 입고 수 — 표본이든 실제 장서든 지금 꽂혀 있는 만큼만 말한다 */
+  function renderCensus() {
+    // 벽이 스스로 밝힌 권수를 더한다. 화면에 그리는 책등은 그중 일부라
+    // 그린 개수를 세면 벽 이름표(287권 …)와 어긋난다.
+    const n = WALLS.filter(w => w.cat !== "archive").reduce((s, w) => s + (w.n || 0), 0);
+    const el = $("census");
+    if (!el) return;
+    el.firstChild.nodeValue = n
+      ? `${n.toLocaleString()}권 입고`
+      : "아직 비어 있음";
+  }
+
+  /* 책상 위 오늘의 책 — 아직 열어보지 않은 책 중에서 고른다 */
+  function renderToday() {
+    const books = allBooks();
+    const unread = books.filter(b => b.st !== "읽음");
+    const pick = (unread.length ? unread : books)[0] || null;
+    const t = $("today-title"), s = $("today-sub"), btn = $("today-open");
+    if (!pick) {
+      t.textContent = "책상이 비어 있다";
+      s.textContent = "아직 꽂힌 책이 없습니다 — 사진을 들이는 것부터 시작합니다";
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    t.textContent = pick.t;
+    s.textContent = `오늘의 책 · ${pick.a}${pick.year ? " · " + pick.year + " 입고" : ""}`;
+    todayBook = pick;
+  }
+  let todayBook = null;
+
   function bookWall(b) { return WALLS.find(w => w.books && w.books.includes(b)); }
   function allBooks() { return WALLS.filter(w => w.books).flatMap(w => w.books); }
   function filteredBooks() {
@@ -205,8 +292,9 @@
       box.appendChild(el);
     });
     $("cover-note").textContent = list.length > 48
-      ? `— 등불이 닿는 48권까지 — 실제로는 ${(1284 - 48).toLocaleString()}권이 이어진다 —`
-      : (q() ? `"${$("q").value.trim()}" — ${list.length}권 응답` : "");
+      ? `— 등불이 닿는 48권까지 — 어둠 속에 ${(list.length - 48).toLocaleString()}권이 더 있다 —`
+      : (q() ? `"${$("q").value.trim()}" — ${list.length}권 응답`
+             : (list.length ? "" : "아직 꽂힌 책이 없습니다."));
   }
 
   /* 목록 뷰 */
@@ -230,14 +318,44 @@
       + (q() ? ` (검색어: "${$("q").value.trim()}")` : " — 검색으로 좁혀보세요");
   }
 
-  /* 통계 뷰 */
-  const CATSTAT = [["문학",433],["역사",287],["과학",198],["예술",152],["사회",129],["기타",85]];
-  const YEARSTAT = [["'19",58],["'20",96],["'21",124],["'22",161],["'23",187],["'24",219],["'25",248],["'26",191]];
-  const AUTHSTAT = [["박경리",21],["시오노 나나미",15],["유홍준",13],["김훈",9],["헤르만 헤세",8]];
-  let statsDone = false;
+  /* 통계 뷰 — 숫자는 전부 지금 꽂혀 있는 책에서 센다.
+     표본이든 실제 장서든 같은 코드가 답을 낸다. */
+  function tally(list, pick) {
+    const m = new Map();
+    list.forEach((b) => {
+      const k = pick(b);
+      if (k === null || k === undefined || k === "") return;
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+    return [...m.entries()];
+  }
+
   function renderStats() {
-    if (statsDone) return;
-    statsDone = true;
+    const books = allBooks();
+    const n = books.length;
+
+    ["catbars", "yearcols", "statusbar", "authorbars"].forEach((id) => $(id).innerHTML = "");
+    $("statuslegend").innerHTML = "";
+
+    // 빈 서가에 가짜 숫자를 세우지 않는다
+    if (!n) {
+      $("ps-cat").textContent = "아직 꽂힌 책이 없습니다";
+      $("ps-status").textContent = "책을 들이면 여기에 셈이 섭니다";
+      $("catbars").innerHTML = `<p class="statempty">사진을 들이고 책등을 읽으면 이 칸이 채워집니다.</p>`;
+      return;
+    }
+
+    const CATSTAT = tally(books, (b) => b.cat).sort((a, b) => b[1] - a[1]);
+    const YEARSTAT = tally(books, (b) => b.year)
+      .sort((a, b) => a[0] - b[0])
+      .map(([y, v]) => ["'" + String(y).slice(2), v]);
+    const AUTHSTAT = tally(books, (b) => b.a).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    // "서가에 꽂힌" 이라고 못박는다 — 표본 화면에서는 벽이 밝힌 권수보다
+    // 실제로 그려진 책등이 적어서, 그냥 "전체"라고 하면 위의 입고 수와 어긋나 보인다
+    $("ps-cat").textContent = `서가에 꽂힌 ${n.toLocaleString()}권 · ${CATSTAT.length}개 분류`;
+    $("ps-status").textContent = `서가에 꽂힌 ${n.toLocaleString()}권 기준`;
+
     const grow = []; /* 막대는 0에서 자라난다 */
     const cb = $("catbars");
     const cmax = CATSTAT[0][1];
@@ -249,7 +367,9 @@
       cb.appendChild(el);
     });
     const yc = $("yearcols");
-    const ymax = Math.max(...YEARSTAT.map(y => y[1]));
+    // 입고 연도를 모르는 장서만 있을 수 있다 — 그때는 빈 칸으로 둔다
+    const ymax = YEARSTAT.length ? Math.max(...YEARSTAT.map(y => y[1])) : 0;
+    if (!YEARSTAT.length) yc.innerHTML = `<p class="statempty">입고 연도가 적힌 책이 아직 없습니다.</p>`;
     YEARSTAT.forEach(([y, v], i) => {
       const el = document.createElement("div"); el.className = "col";
       const showVal = v === ymax || i === YEARSTAT.length - 1;
@@ -259,15 +379,27 @@
       yc.appendChild(el);
     });
     const sb = $("statusbar");
-    [["읽음",41,"var(--st-done)","#F2EDE0"],["읽는 중",6,"var(--st-doing)","#241708"],["안 읽음",53,"var(--st-todo)","#F2EDE0"]].forEach(([nm,p,c,txt]) => {
-      const seg = document.createElement("i");
-      seg.style.cssText = `width:${p}%;background:${c};color:${txt};`;
-      if (p >= 10) seg.textContent = p + "%";
-      seg.title = `${nm} ${p}%`;
-      sb.appendChild(seg);
+    const lg = $("statuslegend");
+    [["읽음", "var(--st-done)", "#F2EDE0"],
+     ["읽는 중", "var(--st-doing)", "#241708"],
+     ["안 읽음", "var(--st-todo)", "#F2EDE0"]].forEach(([nm, c, txt]) => {
+      const cnt = books.filter((b) => b.st === nm).length;
+      const p = Math.round(cnt / n * 100);
+      if (cnt) {
+        const seg = document.createElement("i");
+        seg.style.cssText = `width:${p}%;background:${c};color:${txt};`;
+        if (p >= 10) seg.textContent = p + "%";
+        seg.title = `${nm} ${cnt}권 · ${p}%`;
+        sb.appendChild(seg);
+      }
+      const li = document.createElement("span");
+      li.innerHTML = `<i style="background:${c}"></i>`;
+      li.append(`${nm} ${cnt.toLocaleString()} · ${p}%`);
+      lg.appendChild(li);
     });
     const ab = $("authorbars");
-    const amax = AUTHSTAT[0][1];
+    const amax = AUTHSTAT.length ? AUTHSTAT[0][1] : 0;
+    if (!AUTHSTAT.length) ab.innerHTML = `<p class="statempty">지은이가 적힌 책이 아직 없습니다.</p>`;
     AUTHSTAT.forEach(([nm, v]) => {
       const el = document.createElement("div"); el.className = "hbar";
       el.innerHTML = `<span class="lb" style="font-size:11.5px"></span><span class="track"><span class="fill" style="width:0%;background:var(--brass-dim)"></span></span><span class="val">${v}권</span>`;
@@ -403,7 +535,22 @@
     const open = document.querySelector(".wallsec.open");
     if (open) { open.classList.remove("open"); syncBodyClass(); }
   });
-  $("today-open").addEventListener("click", () => openExlibris({ t:"난장이가 쏘아올린 작은 공", a:"조세희", cat:"문학", year: 2025 }, null));
+  $("today-open").addEventListener("click", () => {
+    if (todayBook) openExlibris(todayBook, bookWall(todayBook));
+  });
 
-  renderWalls(); updateLadder();
+  /* 데이터가 바뀌면 서가만이 아니라 셈과 책상도 함께 다시 그린다 —
+     한 군데만 갱신하면 옛 숫자가 남아 찌꺼기처럼 보인다 */
+  function renderAll() {
+    renderWalls();
+    renderCensus();
+    renderToday();
+    if (curView === "covers") renderCovers();
+    if (curView === "list") renderList();
+    if (curView === "stats") renderStats();
+    updateLadder();
+  }
+  window.PostLibrosRenderAll = renderAll;
+
+  renderAll();
   addEventListener("load", () => { layoutLadder(); updateLadder(); });
