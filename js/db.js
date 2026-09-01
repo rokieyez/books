@@ -13,7 +13,49 @@
     return;
   }
 
-  const client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey);
+  /* 탭 사이의 자물쇠 — 기다리다 갇히지 않게 한다.
+     supabase-js 는 여러 탭이 동시에 토큰을 고치지 못하도록 자물쇠를 걸고,
+     기본값은 "얻을 때까지 무한정 기다림"이다. 다른 탭이 쥔 채 멈춰 있으면
+     로그아웃조차 영영 돌아오지 않는다.
+     5초만 기다리고, 못 얻으면 그냥 진행한다. 갇히는 것보다 낫다 —
+     혼자 쓰는 서재라 두 탭이 같은 순간에 토큰을 고칠 일이 드물다. */
+  async function tabLock(name, _acquireTimeout, fn) {
+    if (typeof navigator === "undefined" || !navigator.locks) return fn();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      return await navigator.locks.request(name, { signal: ctrl.signal }, fn);
+    } catch (e) {
+      console.warn("[서재] 다른 탭의 자물쇠를 기다리다 포기하고 진행합니다:", name);
+      return fn();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, {
+    auth: { lock: tabLock },
+  });
+
+  /* 인증 요청이 응답 없이 매달리는 일이 있다.
+     supabase-js 는 탭 사이에 자물쇠를 걸어 인증 처리를 한 번에 하나씩만
+     하는데, 다른 탭이 그 자물쇠를 쥔 채 멈춰 있으면 여기서 영영 기다린다.
+     그러면 화면은 "…중"에서 굳고 이유도 보이지 않는다.
+     시간제한을 두되 결과 모양은 { data, error } 그대로 돌려준다 —
+     부르는 쪽이 실패를 늘 하던 방식으로 다루게 하기 위해서다. */
+  function guard(promise, ms, what) {
+    let timer;
+    const limit = new Promise((resolve) => {
+      timer = setTimeout(() => resolve({
+        data: null,
+        error: {
+          timedOut: true,
+          message: what + " 응답이 없습니다. 이 사이트의 다른 탭을 모두 닫고 다시 해보세요.",
+        },
+      }), ms);
+    });
+    return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
+  }
 
   const db = {
     client,
@@ -34,33 +76,46 @@
       // 주의: 주인 계정을 새로 만들어야 할 일이 생기면 이 값만 바꿔선 안 된다.
       // 대시보드의 가입 차단을 먼저 풀어야 한다 — 그러지 않으면 계정을
       // 만들 길이 없어진다.
-      return client.auth.signInWithOtp({
+      return guard(client.auth.signInWithOtp({
         email,
         options: {
           emailRedirectTo: location.origin + location.pathname,
           shouldCreateUser: false,
         },
-      });
+      }), 15000, "열쇠 보내기");
     },
     /* 비밀번호로 들어오기 — 평소에 쓰는 길.
        가입이 잠겨 있어도 이미 있는 계정의 로그인은 막히지 않는다. */
     async signInWithPassword(email, password) {
-      return client.auth.signInWithPassword({ email, password });
+      return guard(client.auth.signInWithPassword({ email, password }), 15000, "로그인");
     },
 
     /* 비밀번호 정하기·바꾸기 — 들어와 있는 동안에만 된다.
        그래서 처음 한 번은 메일 링크로 들어와야 한다. */
     async setPassword(password) {
-      return client.auth.updateUser({ password });
+      return guard(client.auth.updateUser({ password }), 15000, "비밀번호 변경");
     },
 
     async signOut() {
       // 재설정·로그아웃은 전체 세션을 끊는다 (지금 이 접속만 남기지 않는다)
-      return client.auth.signOut();
+      const r = await guard(client.auth.signOut(), 8000, "로그아웃");
+      if (r?.error?.timedOut) {
+        // 서버에 닿지 못해도 이 기기에서는 확실히 나가게 한다.
+        // 자물쇠에 갇힌 상태라 라이브러리를 한 번 더 부르면 같이 갇힌다 —
+        // 저장된 세션을 직접 지운다.
+        try {
+          Object.keys(localStorage)
+            .filter((k) => k.startsWith("sb-") && k.includes("auth"))
+            .forEach((k) => localStorage.removeItem(k));
+        } catch (e) {
+          console.warn("[서재] 저장된 세션을 지우지 못했습니다:", e);
+        }
+      }
+      return r;
     },
     async currentUser() {
-      const { data } = await client.auth.getUser();
-      return data.user ?? null;
+      const r = await guard(client.auth.getUser(), 8000, "세션 확인");
+      return r?.data?.user ?? null;
     },
 
     /* ── 장서 ── */

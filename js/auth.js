@@ -200,7 +200,10 @@
     });
 
     el("gate-out").addEventListener("click", async () => {
-      await db.signOut();
+      el("gate-out").disabled = true;
+      say("나가는 중…");
+      // signOut 은 시간제한이 걸려 있어 반드시 돌아온다 (막히면 저장된 세션을 직접 지운다)
+      try { await db.signOut(); } catch (err) { console.error("[열쇠] 나가기:", err); }
       location.reload();
     });
     el("gate-close").addEventListener("click", closeGate);
