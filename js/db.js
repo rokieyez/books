@@ -182,10 +182,13 @@
     },
 
     /* 한 권만 서지를 받아온다 — 서표의 단추.
-       이미 물어본 책이어도 다시 묻는다. */
-    async enrichBook(bookId) {
+       이미 물어본 책이어도 다시 묻는다. isbn 을 주면 검색 없이
+       그 번호로 정확히 조회한다 — 제목 검색이 못 찾는 책의 마지막 길. */
+    async enrichBook(bookId, isbn = null) {
       return guard(
-        client.functions.invoke("enrich-books", { body: { book_id: bookId } }),
+        client.functions.invoke("enrich-books", {
+          body: isbn ? { book_id: bookId, isbn } : { book_id: bookId },
+        }),
         30000,
         "서지 받아오기",
       );

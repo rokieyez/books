@@ -196,8 +196,47 @@ Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth) return reply({ error: "열쇠가 없습니다" }, 401);
 
-  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string } = {};
+  let body: { probe?: string; lookup?: string; limit?: number; book_id?: string; add_isbn?: string; isbn?: string } = {};
   try { body = await req.json(); } catch { /* 빈 몸통도 허용 */ }
+
+  /* ── 서표의 ISBN 직접 조회 — 이미 꽂힌 책에 번호로 서지를 붙인다 ──
+     제목 검색이 못 찾는 책의 마지막 길: 실물 뒤표지의 ISBN 을 사람이 적었다.
+     번호가 곧 신원이므로 조회 결과를 그대로 채운다. 단, 제목은 여기서도
+     갈아치우지 않는다 — 알라딘 제목을 알려만 주고 판단은 사람에게 남긴다. */
+  if (body.book_id && body.isbn) {
+    const isbn = String(body.isbn).replace(/[^0-9Xx]/g, "");
+    if (isbn.length !== 13 && isbn.length !== 10) {
+      return reply({ error: "ISBN 은 10자리나 13자리입니다: " + body.isbn }, 400);
+    }
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: auth } } },
+    );
+    const info = await aladinLookup(ttb, isbn);
+    if (!info?.title) return reply({ error: "알라딘에서 찾지 못했습니다 (" + isbn + ")" }, 404);
+
+    const patch: Record<string, unknown> = {
+      isbn: info.isbn13 || isbn,
+      enrich_tried_at: new Date().toISOString(),
+    };
+    if (info.pages) patch.page_count = info.pages;
+    if (info.sizeHeight) patch.size_height = info.sizeHeight;
+    if (info.sizeDepth) patch.size_depth = info.sizeDepth;
+    if (info.publisher) patch.publisher = info.publisher;
+    if (info.cover) patch.cover_url = info.cover;
+    if (info.year) patch.published_year = info.year;
+    if (info.category) patch.category = info.category;
+    if (info.author) patch.author = info.author;   // 번호가 신원이다 — 지은이는 믿고 고친다
+
+    const { error: e1 } = await db.from("books").update(patch).eq("id", body.book_id);
+    if (e1) {
+      // 다른 책이 이미 이 ISBN 을 갖고 있다 — 같은 책이 두 번 꽂힌 것이다
+      if (e1.code === "23505") return reply({ 겹침: true, 제목: info.title });
+      return reply({ error: "적지 못했습니다: " + e1.message }, 500);
+    }
+    return reply({ 채움: 1, 제목: info.title, 지은이: info.author, 쪽수: info.pages, 살펴볼것: [] });
+  }
 
   /* ── 바코드 입고 — ISBN 하나로 책을 통째로 들인다 ──
      뒤표지 바코드(EAN-13)가 곧 ISBN13 이다. 조회해서 서지가 완성된 채로

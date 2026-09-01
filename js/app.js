@@ -962,6 +962,7 @@
     $("x-a").value = b.a || "";
     $("x-enrich-note").textContent = "ISBN·표지·쪽수를 이 책만 다시 채웁니다";
     $("x-enrich").disabled = false;
+    $("x-isbn").value = b.isbn || "";
     syncBookmarkRow(b);
 
     // 기록은 있으면 보여주고, 없으면 청할 수 있게 둔다
@@ -1117,24 +1118,38 @@
   });
 
   /* ── 여백의 기록 — 자리를 옮길 때 적는다 ── */
-  /* 이 책 한 권만 서지를 받아온다 — 목록 전체를 돌릴 필요가 없다 */
+  /* 이 책 한 권만 서지를 받아온다 — 목록 전체를 돌릴 필요가 없다.
+     ISBN 칸에 번호를 적었으면 검색 없이 그 번호로 정확히 조회한다. */
   $("x-enrich").addEventListener("click", async () => {
     const b = openBook, db = window.PostLibrosDB;
     if (!b || !b.id || !db) return;
     const btn = $("x-enrich"), note = $("x-enrich-note");
+    const typed = $("x-isbn").value.replace(/[^0-9Xx]/g, "");
+    // 이미 저장된 번호를 그대로 두고 눌렀다면 검색 경로로 — 새로 적었을 때만 번호 조회
+    const isbn = typed && typed !== (b.isbn || "") ? typed : null;
+    if (isbn && isbn.length !== 13 && isbn.length !== 10) {
+      note.textContent = "ISBN 은 10자리나 13자리입니다.";
+      return;
+    }
     btn.disabled = true;
-    note.textContent = "알라딘에 묻는 중…";
+    note.textContent = isbn ? `${isbn} 로 조회하는 중…` : "알라딘에 묻는 중…";
     try {
-      const { data, error } = await db.enrichBook(b.id);
+      const { data, error } = await db.enrichBook(b.id, isbn);
       if (error || data?.error) throw new Error(data?.error || error.message);
+      if (data.겹침) {
+        note.textContent = `이미 같은 책이 꽂혀 있습니다 — ${data.제목}`;
+        $("x-enrich").disabled = false;
+        return;
+      }
       await window.PostLibrosRefresh?.();
       // 새 값으로 서표를 다시 편다 — 손에 든 책은 옛 모습이다
       const nb = allBooks().find((x) => x.id === b.id);
       if (nb && openBook === b) openExlibris(nb, bookWall(nb));
       const tag = $("x-enrich-note");
+      const aladinT = data.제목 || data.살펴볼것?.[0]?.알라딘;
       tag.textContent = data.채움
-        ? "받아왔습니다" + (data.살펴볼것?.length ? ` — 알라딘 제목: ${data.살펴볼것[0].알라딘}` : "")
-        : "알라딘에서 찾지 못했습니다 — 제목을 다듬어 다시 시도해 보세요";
+        ? "받아왔습니다" + (aladinT && nb && aladinT !== nb.t ? ` — 알라딘 제목: ${aladinT}` : "")
+        : "알라딘에서 찾지 못했습니다 — ISBN 을 적어 다시 시도해 보세요";
     } catch (err) {
       note.textContent = "받아오지 못했습니다 — " + (err.message || err);
     }

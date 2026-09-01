@@ -871,6 +871,10 @@
   /* 제목·지은이는 길다 — 남는 자리를 다 쓴다 */
   .x-edit #x-t { flex: 1 1 100%; width: auto; font-family: "Gowun Batang", serif; }
   .x-edit #x-a { flex: 1 1 100%; width: auto; }
+  .x-edit #x-isbn {
+    width: 132px; font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px; letter-spacing: .06em;
+  }
   .x-edit select:focus-visible, .x-edit input:focus-visible {
     outline: 2px solid var(--brass); outline-offset: 1px;
   }

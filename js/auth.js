@@ -199,6 +199,7 @@
         : 17 + ((h >> 5) % 9),
       pages: b.page_count || null,
       bookmark: b.bookmark_page || null,
+      isbn: b.isbn || null,
       year: b.acquired_on ? Number(b.acquired_on.slice(0, 4)) : null,
       st: b.read_status,
       // 서표에서 고칠 때 쓰는 원본 값들 — 화면용 loc 만으로는 되돌릴 수 없다
