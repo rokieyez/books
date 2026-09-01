@@ -226,6 +226,18 @@ async function googleBooks(isbn: string) {
   }
 }
 
+/* 알라딘 API 가 살아 있는지 한 번 묻는다 — 조회가 다 빈손일 때만 부른다.
+   하루 5,000건 한도를 다 쓰면 모든 호출이 {errorCode, errorMessage} 로
+   거부되는데, 그걸 「없는 번호」라고 말하면 사람이 번호를 의심하게 된다. */
+async function aladinDown(ttb: string): Promise<string | null> {
+  try {
+    const r = await aladin(ttb, "책", "Book", "Keyword");
+    const j = JSON.parse(r.text.replace(/;$/, ""));
+    if (j.errorCode != null) return String(j.errorMessage ?? j.errorCode);
+  } catch { /* 응답조차 없으면 판단 보류 */ }
+  return null;
+}
+
 /* 조회의 사다리 — ① ItemLookUp ② ISBN 검색(정확 일치만) ③ 알라딘 사이트
    ④ 구글 도서. ItemLookUp 은 절판·옛 책에서 곧잘 빈손이 된다. 사람이
    붙여넣은 번호가 오는 서표·바코드 길에서만 쓴다. */
@@ -447,7 +459,11 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: auth } } },
     );
     const info = await lookupHard(ttb, isbn);
-    if (!info?.title) return reply({ error: "알라딘·구글 도서 어디에도 없는 번호입니다 (" + isbn + ") — 번호를 다시 확인해 보세요" }, 404);
+    if (!info?.title) {
+      const down = await aladinDown(ttb);
+      if (down) return reply({ error: "알라딘 API 가 지금 응답을 거부합니다 (" + down + ") — 하루 호출 한도(5,000건)를 다 썼으면 내일 다시 눌러 주세요. 번호는 저장해 두지 않으니 그대로 두면 됩니다" }, 429);
+      return reply({ error: "알라딘·구글 도서 어디에도 없는 번호입니다 (" + isbn + ") — 번호를 다시 확인해 보세요" }, 404);
+    }
 
     const patch: Record<string, unknown> = {
       isbn: info.isbn13 || isbn,
@@ -485,7 +501,11 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: auth } } },
     );
     const info = await lookupHard(ttb, isbn);
-    if (!info?.title) return reply({ error: "알라딘·구글 도서 모두에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
+    if (!info?.title) {
+      const down = await aladinDown(ttb);
+      if (down) return reply({ error: "알라딘 API 가 지금 응답을 거부합니다 (" + down + ") — 하루 호출 한도(5,000건)를 다 썼으면 내일 다시 시도해 주세요" }, 429);
+      return reply({ error: "알라딘·구글 도서 모두에서 찾지 못했습니다 (" + isbn + ") — 작은 출판사 책은 없을 수 있습니다. 「사진에 없는 책은 손으로」로 꽂아 주세요" }, 404);
+    }
 
     const category = info.category || "문학";
     const { data: wall } = await db.rpc("wall_for_category", { cat: category });
@@ -526,6 +546,7 @@ Deno.serve(async (req) => {
       shape = {
         첫항목열쇠: j.item?.[0] ? Object.keys(j.item[0]) : null,
         부가정보: j.item?.[0]?.subInfo ?? null,
+        오류: j.errorMessage ?? null, 오류번호: j.errorCode ?? null,
       };
     } catch (e) {
       shape = { 파싱실패: String(e), 앞부분: text.slice(0, 500) };
@@ -542,6 +563,7 @@ Deno.serve(async (req) => {
       const j = JSON.parse(r.text.replace(/;$/, ""));
       shape = {
         위쪽열쇠: Object.keys(j),
+        오류: j.errorMessage ?? null, 오류번호: j.errorCode ?? null,
         건수: j.totalResults,
         첫항목열쇠: j.item?.[0] ? Object.keys(j.item[0]) : null,
         첫항목: j.item?.[0] ?? null,
