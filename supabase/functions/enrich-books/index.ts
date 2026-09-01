@@ -76,14 +76,24 @@ function catOf(path: string): string | null {
    그 벽만 창고가 된다 — 알라딘 분류명을 한 겹 더 읽어 단을 가른다.
    좁은 갈래부터 본다: 「소설/시/희곡>추리소설」은 추리이지 그냥 소설이 아니다. */
 function genreOf(path: string): string | null {
-  const p = path.replace(/\s/g, "");
-  if (!p) return null;
+  const p0 = path.replace(/\s/g, "");
+  if (!p0) return null;
+  /* 알라딘의 최상위 갈래 이름이 「소설/시/희곡」이다 — 그 안에 '시/희곡' 이
+     글자 그대로 들어 있어서, 그대로 검사하면 **모든 소설이 시와 희곡이 된다.**
+     실제로 그랬다: 「운명의 날」(범죄소설)·「베네치아에서의 죽음」·「권력과 영광」
+     까지 120권이 시와 희곡으로 꽂히고 소설은 4권이었다 (2026-09-02).
+     그래서 최상위 이름을 먼저 지워 두고, 그 아래 칸만 본다.
+     (분류 규칙을 손볼 때는 실제 categoryName 을 찍어 볼 것 —
+      `{"lookup":"<isbn13>"}` 살펴보기 모드가 분류명을 돌려준다) */
+  const 소설칸 = /소설\/시\/희곡/.test(p0);
+  const p = p0.replace(/소설\/시\/희곡/g, "▮");
   if (/추리|미스터리|스릴러|범죄/.test(p)) return "추리";
   if (/SF|과학소설|판타지|환상/.test(p)) return "환상과 SF";
-  if (/시\/희곡|시집|희곡|서사시|평론/.test(p)) return "시와 희곡";
+  // 시·희곡은 「그 칸 자체가 시」일 때만 — '역사'처럼 시가 스치는 말은 안 걸린다
+  if (/(^|>)(한국시|외국시|시|시\/에세이)(>|$)|시집|희곡|서사시|평론/.test(p)) return "시와 희곡";
   if (/에세이|산문/.test(p)) return "에세이";
   if (/고전/.test(p)) return "고전";
-  if (/소설/.test(p)) return "소설";
+  if (/소설/.test(p) || 소설칸) return "소설";
   return null;
 }
 

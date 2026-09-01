@@ -171,6 +171,35 @@
       return count ?? 0;
     },
 
+    /* 서재의 빈 칸을 한 번에 센다 — 들이기 첫머리의 「건강 상태」가 쓴다.
+       열을 하나씩 세는 질의를 여덟 번 던지지 않고, 장서를 한 번 훑어 센다
+       (어차피 화면이 방금 같은 것을 실어 왔으므로 캐시에 걸린다). */
+    async healthCounts() {
+      const books = await this.listBooks({ limit: 5000 });
+      const n = (f) => books.filter(f).length;
+      const [sum, photos, links] = await Promise.all([
+        this.listSummarizedIds().catch(() => []),
+        client.from("intake_photos").select("id, status").then((r) => r.data || []),
+        this.listAllLinks().catch(() => []),
+      ]);
+      return {
+        전체: books.length,
+        서지: n((b) => b.isbn),
+        갈래: n((b) => b.genre),
+        표지: n((b) => b.cover_url),
+        책등조각: n((b) => b.spine_url),
+        오릴것: n((b) => b.spine_box && !b.spine_url),
+        이름없음: n((b) => !b.author || b.author === ""),
+        읽음: n((b) => b.read_status === "읽음"),
+        메모: n((b) => b.memo && b.memo.trim()),
+        읽고메모없음: n((b) => b.read_status === "읽음" && !(b.memo && b.memo.trim())),
+        기록: sum.length,
+        사진: photos.length,
+        이음: links.length,
+        까닭: links.filter((l) => l.note && String(l.note).trim()).length,
+      };
+    },
+
     /* 지은이가 비어 있는 책들 — 「이름 없는 책들」 작업대의 재료 */
     async listAuthorless(limit = 200) {
       const { data, error } = await client.from("books")

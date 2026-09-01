@@ -61,6 +61,17 @@
   sec.className = "intake";
   sec.id = "intake";
   sec.innerHTML = `
+    <!-- 무엇부터 해야 하는지 매번 세어 보지 않아도 되게 —
+         빈 칸을 숫자로 보여주고, 그 자리에서 바로 채우는 단추를 준다.
+         순서는 값이 큰 것부터: 싼 것 먼저, 비싼 것 나중 -->
+    <div class="health" id="in-health">
+      <div class="crate-label">
+        <b>서재의 건강 상태</b>
+        <span id="hl-sub">세는 중…</span>
+      </div>
+      <div class="healthrows" id="hl-rows"></div>
+    </div>
+
     <div class="crate-label">
       <b>사진을 들인다</b>
       <span>책장을 찍어 올리면 이 방에 쌓인다</span>
@@ -172,6 +183,17 @@
       </div>
       <button type="button" class="enrich-go" id="in-summarize">만나는 책부터 기록을 짓는다</button>
       <div class="enrich-out" id="in-summarize-out"></div>
+    </div>
+
+    <div class="enrich">
+      <div class="enrich-head">
+        <b>여백에 한 줄씩</b>
+        <span>읽어 낸 책 중 여백이 빈 것만 불러 모읍니다 — 이 서재에서 AI 가 대신
+          쓸 수 없는 유일한 칸입니다. 칸을 벗어나면 그 자리에서 저장됩니다</span>
+      </div>
+      <button type="button" class="enrich-go" id="mg-load">여백이 빈 책을 부른다</button>
+      <div class="enrich-out" id="mg-out"></div>
+      <div class="nameless" id="mg-list"></div>
     </div>
 
     <div class="enrich">
@@ -839,6 +861,56 @@
         console.error("[이름 없는 책] 적지 못했습니다:", err);
       }
     }
+    /* ── 여백에 한 줄씩 ──
+       읽었는데 아무 말도 남기지 않은 책들. 한 권씩 서표를 열어 적으려면
+       스물여섯 번을 오가야 하므로, 한 화면에 늘어놓고 적게 한다. */
+    el("mg-load").addEventListener("click", async () => {
+      const out = el("mg-out"), host = el("mg-list");
+      out.innerHTML = `<p class="enrich-msg">읽은 책을 세는 중…</p>`;
+      host.innerHTML = "";
+      let books = [];
+      try {
+        const all = await db.listBooks({ limit: 5000 });
+        books = all.filter((b) => b.read_status === "읽음" && !(b.memo && b.memo.trim()));
+      } catch (err) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "부르지 못했습니다 — " + (err.message || err);
+        return;
+      }
+      if (!books.length) {
+        out.innerHTML = `<p class="enrich-msg good">읽은 책마다 여백에 한 줄이 있습니다.</p>`;
+        return;
+      }
+      out.innerHTML = `<p class="enrich-msg"></p>`;
+      out.querySelector("p").textContent =
+        `${books.length.toLocaleString()}권 — 한 줄이면 됩니다. 자리를 옮기면 저장됩니다`;
+      books.forEach((b) => {
+        const box = document.createElement("div");
+        box.className = "nmrow mgrow";
+        box.innerHTML = `<b></b>
+          <input type="text" placeholder="무엇이 남았는지 · 누구에게 권할지" aria-label="여백의 기록">
+          <span class="nmsay"></span>`;
+        box.querySelector("b").textContent = b.title + (b.author ? ` — ${b.author}` : "");
+        const input = box.querySelector("input");
+        const say = box.querySelector(".nmsay");
+        input.addEventListener("blur", async () => {
+          const memo = input.value.trim();
+          if (!memo || memo === (b.memo || "")) return;
+          say.textContent = "적는 중…";
+          try {
+            await db.updateBook(b.id, { memo });
+            b.memo = memo;
+            say.textContent = "적었습니다";
+            box.classList.add("done");
+            await window.PostLibrosRefresh?.();
+          } catch (err) {
+            say.textContent = "적지 못했습니다 — " + (err.message || err);
+          }
+        });
+        host.appendChild(box);
+      });
+    });
+
     el("nm-load").addEventListener("click", async () => {
       const out = el("nm-out"), host = el("nm-list");
       out.innerHTML = `<p class="enrich-msg">이름 없는 책을 세는 중…</p>`;
@@ -955,6 +1027,113 @@
       return aladinBlocked;
     }
     drawGauge(true);
+
+    /* ── 서재의 건강 상태 ──────────────────────────────────
+       1년 뒤에 돌아왔을 때 「무엇부터 하지」를 매번 세어 보지 않아도 되게.
+       빈 칸을 숫자로 세우고, 줄마다 그것을 채우는 자리로 데려다준다.
+       순서는 값이 큰 것부터가 아니라 **싼 것 먼저**다 — 알라딘 하루 한도가
+       있어서, 비싼 회차를 먼저 돌리면 싼 회차가 그날 못 돈다. */
+    async function drawHealth() {
+      const rows = el("hl-rows"), sub = el("hl-sub");
+      if (!rows) return;
+      let h;
+      try { h = await db.healthCounts(); }
+      catch (e) { sub.textContent = "세지 못했습니다 — " + (e?.message || e); return; }
+
+      const pct = (a, b) => (b ? Math.round(a / b * 100) : 0);
+      const 할일 = [
+        {
+          nm: "갈래", 있음: h.갈래, 전체: h.전체,
+          말: "문학 벽의 단을 가르는 값입니다 — 없으면 483권이 이름표 없는 한 덩어리로 섭니다",
+          값: "알라딘 조회 권당 1회 — 가장 쌉니다", 어디: "in-genre",
+        },
+        {
+          nm: "서지", 있음: h.서지, 전체: h.전체,
+          말: "ISBN·쪽수·크기·표지·펴낸곳. 표지도 판형 지도도 여기서 나옵니다",
+          값: "알라딘 조회 권당 2~3회", 어디: "in-enrich",
+        },
+        {
+          nm: "지은이", 있음: h.전체 - h.이름없음, 전체: h.전체,
+          말: "서가에 「지은이 미상」으로 서 있는 책들 — 방문자가 보는 얼굴입니다",
+          값: "아는 이름은 손으로 적는 편이 빠릅니다", 어디: "nm-load",
+        },
+        {
+          nm: "실물 책등", 있음: h.책등조각, 전체: h.전체,
+          말: h.오릴것
+            ? `자리 상자를 받은 ${h.오릴것}권이 오려지기를 기다립니다`
+            : `자리 상자가 한 권도 없습니다 — 사진 ${h.사진}장을 다시 읽어야 생깁니다`,
+          값: h.오릴것 ? "비용 없음 — 사진과 상자만 씁니다" : "AI 호출, 사진당",
+          어디: h.오릴것 ? "in-spines" : "in-shelfroll",
+        },
+        {
+          nm: "기록", 있음: h.기록, 전체: h.전체,
+          말: "방문자가 서표를 열었을 때 읽을 것이 있는지",
+          값: "AI 호출, 권당", 어디: "in-summarize",
+        },
+        {
+          nm: "이음의 까닭", 있음: h.까닭, 전체: h.이음,
+          말: h.이음
+            ? "화살표에 한마디가 붙어야 항로도가 항로도가 됩니다 — 서표의 이음 줄에서"
+            : "아직 이어 둔 책이 없습니다",
+          값: "사람만 쓸 수 있습니다", 어디: null,
+        },
+        {
+          nm: "여백의 메모", 있음: h.메모, 전체: h.읽음,
+          말: h.읽고메모없음
+            ? `읽은 책 ${h.읽음}권 중 ${h.읽고메모없음}권에 아직 한 줄도 없습니다 — 이 서재에서 AI 가 대신 못 쓰는 유일한 칸입니다`
+            : "읽은 책마다 한 줄이 있습니다",
+          값: "사람만 쓸 수 있습니다", 어디: "mg-load",
+        },
+      ];
+
+      const 빈칸 = 할일.filter((t) => t.있음 < t.전체);
+      sub.textContent = 빈칸.length
+        ? `${h.전체.toLocaleString()}권 · 채울 곳 ${빈칸.length}군데 — 위에서부터 하시면 됩니다`
+        : `${h.전체.toLocaleString()}권 · 빈 칸이 없습니다`;
+
+      rows.innerHTML = "";
+      할일.forEach((t) => {
+        const p = pct(t.있음, t.전체);
+        const row = document.createElement("div");
+        row.className = "hlrow" + (t.있음 >= t.전체 ? " done" : p < 25 ? " thin" : "");
+        row.innerHTML = `
+          <div class="hlname"><b></b><span class="hlnum"></span></div>
+          <i class="hlbar"><b style="width:${p}%"></b></i>
+          <p class="hlsay"></p>
+          <p class="hlcost"></p>`;
+        row.querySelector("b").textContent = t.nm;
+        row.querySelector(".hlnum").textContent =
+          `${t.있음.toLocaleString()} / ${t.전체.toLocaleString()} · ${p}%`;
+        row.querySelector(".hlsay").textContent = t.말;
+        row.querySelector(".hlcost").textContent = t.값;
+        if (t.어디 && t.있음 < t.전체) {
+          const go = document.createElement("button");
+          go.type = "button";
+          go.className = "hlgo";
+          go.textContent = "여기서 채운다 →";
+          go.addEventListener("click", () => {
+            const target = el(t.어디) || el("intake");
+            target.scrollIntoView({ behavior: "smooth", block: "center" });
+            // 어느 단추를 누르라는 것인지 잠깐 빛나게 한다
+            target.classList.add("pointed");
+            setTimeout(() => target.classList.remove("pointed"), 2400);
+            if (typeof target.focus === "function") target.focus({ preventScroll: true });
+          });
+          row.appendChild(go);
+        }
+        rows.appendChild(row);
+      });
+    }
+    drawHealth();
+    window.PostLibrosHealth = drawHealth;
+    /* 어떤 회차든 끝나면 서가를 다시 싣는다 — 그 길목 하나만 잡으면
+       단추마다 「끝났으니 다시 세라」를 적어 넣지 않아도 된다 */
+    const 원래새로고침 = window.PostLibrosRefresh;
+    window.PostLibrosRefresh = async (...a) => {
+      const r = await 원래새로고침?.(...a);
+      drawHealth().catch(() => {});
+      return r;
+    };
 
     /* 서지 채우기 — 알라딘에 물어 빈 칸을 메운다.
        장서 전체를 스무 권씩 수십 번 누르게 할 수는 없다. 한 번 누르면

@@ -129,7 +129,12 @@
     const host = $("walls"); host.innerHTML = "";
     wallEls.length = 0;
     syncBodyClass();
+    const owner = document.body.classList.contains("owner");
     WALLS.forEach((w) => {
+      /* 기록의 벽이 0엽인 채로 서 있으면, 방문자에게는 다섯째 벽이
+         「눌러도 아무것도 없는 방」이 된다. 아직 아무것도 안 들인 동안에는
+         방문자 화면에서 접어 둔다 — 주인에게는 늘 보인다(들일 자리니까). */
+      if (w.cat === "archive" && !owner && !LEAVES.length) return;
       const sec = document.createElement("section");
       sec.className = "wallsec";
       wallEls.push({ el: sec, w });
@@ -154,7 +159,8 @@
            <div class="roommeta"><span>기록 ${LEAVES.length}엽</span><span>이 방은 검색에 걸리지 않는다</span></div>`);
         if (!LEAVES.length) {
           room.insertAdjacentHTML("beforeend",
-            `<p class="statempty">아직 아무것도 들이지 않았습니다 — 문서·사진·링크가 여기 쌓입니다.</p>`);
+            `<p class="statempty">아직 아무것도 들이지 않았습니다 — 문서·사진·링크가 여기 쌓입니다.
+             <br><small>비어 있는 동안 이 벽은 방문자에게 보이지 않습니다.</small></p>`);
         }
         LEAVES.forEach(l => {
           const el = document.createElement("div"); el.className = "leafrow";
@@ -1338,6 +1344,7 @@
       }
     }
 
+    renderChronicle(books); // 독서 연대기 — 실제로 통과한 책들
     renderSizeMap(books);   // 판형 지도 — 실물 치수를 아는 책만
     renderLinkWeb(books);   // 이음의 별자리 — 데이터를 따로 받아와 그린다
     renderAuthorWeb(books); // 작가의 별자리 — 같은 작가의 책이 한 성좌로
@@ -1345,6 +1352,78 @@
     requestAnimationFrame(() => requestAnimationFrame(() => {
       grow.forEach(([el, prop, val]) => el.style[prop] = val);
     }));
+  }
+
+  /* ── 독서 연대기 ────────────────────────────────────────
+     읽어 낸 책은 서재의 5%뿐이라 벽을 훑어서는 만날 수 없고, 지금까지는
+     통계의 막대 하나로만 있었다. 해마다 줄을 세워 표지를 늘어놓는다 —
+     이 서재가 실제로 통과한 것들의 목록이자, 가장 읽을 만한 자리.
+     읽은 해를 모르는 책은 「해를 적지 않은 책」으로 맨 뒤에 따로 선다. */
+  function renderChronicle(books) {
+    const box = $("chron"), ps = $("ps-chron"), panel = $("chron-panel");
+    if (!box || !panel) return;
+    const read = books.filter((b) => b.st === "읽음");
+    if (!read.length) { panel.hidden = true; return; }
+    panel.hidden = false;
+
+    const byYear = new Map();
+    read.forEach((b) => {
+      const y = b.readYear || 0;
+      if (!byYear.has(y)) byYear.set(y, []);
+      byYear.get(y).push(b);
+    });
+    // 최근 해가 위. 해를 모르는 책(0)은 언제나 맨 뒤
+    const years = [...byYear.keys()].sort((a, b) => (b || -1) - (a || -1));
+
+    const pages = read.reduce((s, b) => s + (b.pages || 0), 0);
+    ps.textContent = `읽어 낸 ${read.length.toLocaleString()}권`
+      + (pages ? ` · ${pages.toLocaleString()}쪽` : "")
+      + ` · 해가 적힌 것 ${read.filter((b) => b.readYear).length}권`;
+
+    box.innerHTML = "";
+    years.forEach((y) => {
+      const mine = byYear.get(y).sort((a, b) => a.t.localeCompare(b.t, "ko"));
+      const row = document.createElement("div");
+      row.className = "chronyear";
+      const head = document.createElement("div");
+      head.className = "chronhead";
+      const p = mine.reduce((s, b) => s + (b.pages || 0), 0);
+      head.innerHTML = `<b></b><span></span>`;
+      head.querySelector("b").textContent = y ? `${y}년` : "해를 적지 않은 책";
+      head.querySelector("span").textContent =
+        `${mine.length}권` + (p ? ` · ${p.toLocaleString()}쪽` : "");
+      row.appendChild(head);
+
+      const strip = document.createElement("div");
+      strip.className = "chronstrip";
+      mine.forEach((b) => {
+        const it = document.createElement("button");
+        it.type = "button";
+        it.className = "chronbook" + (b.cover ? " hascover" : "");
+        it.style.setProperty("--cvr", b.c);
+        it.title = `${b.t} — ${b.a}`;
+        if (b.cover) {
+          const im = document.createElement("img");
+          im.loading = "lazy"; im.alt = ""; im.src = b.cover;
+          im.addEventListener("error", () => { it.classList.remove("hascover"); im.remove(); });
+          it.appendChild(im);
+        }
+        const cap = document.createElement("span");
+        cap.textContent = b.t;
+        it.appendChild(cap);
+        // 여백에 한 줄이 있으면 그것이 이 해의 말이 된다
+        if (b.memo) {
+          const m = document.createElement("i");
+          m.className = "chronmemo";
+          m.textContent = b.memo;
+          it.appendChild(m);
+        }
+        it.addEventListener("click", () => openExlibris(b, bookWall(b)));
+        strip.appendChild(it);
+      });
+      row.appendChild(strip);
+      box.appendChild(row);
+    });
   }
 
   /* ── 판형 지도 ─────────────────────────────────────────
@@ -2071,21 +2150,65 @@
   $("chart-png")?.addEventListener("click", () => {
     const cvs = $("linkweb");
     if (!cvs || cvs.hidden) return;
+    /* 머리에 제목과 셈, 발에 범례와 날짜를 붙인다 —
+       그림 한 장만 떠도 무엇을 보는 것인지 알 수 있어야 나눔물이 된다 */
+    const 머리 = 92, 발 = 56;
     const out = document.createElement("canvas");
-    out.width = cvs.width; out.height = cvs.height + 96;
+    out.width = cvs.width; out.height = cvs.height + (머리 + 발) * 2;
     const c = out.getContext("2d");
     c.fillStyle = "#100A04";
     c.fillRect(0, 0, out.width, out.height);
-    c.drawImage(cvs, 0, 72);
+    c.drawImage(cvs, 0, 머리 * 2);
     c.setTransform(2, 0, 0, 2, 0, 0);
+    const W2 = out.width / 2, H2 = out.height / 2;
+
     c.textAlign = "left";
     c.fillStyle = "#E2D5B8";
-    c.font = "700 22px 'Gowun Batang', serif";
-    c.fillText("이음의 항로도", 26, 34);
-    c.fillStyle = "rgba(163,148,122,.9)";
-    c.font = "11px 'IBM Plex Mono', monospace";
-    c.fillText("서가 뒤의 방 · rokiz.net/books", 26, 52);
-    c.fillText(new Date().toLocaleDateString("ko-KR"), 26, out.height / 2 - 12);
+    c.font = "700 24px 'Gowun Batang', serif";
+    c.fillText("이음의 항로도", 26, 38);
+
+    // 이 지도가 무엇을 담고 있는지 — 셈은 지금 그린 것에서 그대로 가져온다
+    const 걸린책 = chartPaths.flat();
+    const 읽음 = 걸린책.filter((b) => b.st === "읽음").length;
+    const 이름 = chartPaths.map((p) => p[0]?.pathName).filter(Boolean);
+    c.fillStyle = "rgba(224,177,94,.9)";
+    c.font = "12px 'IBM Plex Mono', monospace";
+    c.fillText(
+      `길 ${chartPaths.length}갈래 · 책 ${걸린책.length}권 · 읽어 낸 것 ${읽음}권`,
+      26, 60);
+    if (이름.length) {
+      c.fillStyle = "rgba(163,148,122,.85)";
+      c.font = "12px 'Gowun Batang', serif";
+      c.fillText(이름.map((n) => `「${n}」`).join("  "), 26, 78);
+    }
+    // 머리와 그림 사이에 가는 선 하나
+    c.strokeStyle = "rgba(224,177,94,.28)"; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(26, 머리 - 12); c.lineTo(W2 - 26, 머리 - 12); c.stroke();
+
+    // 범례 — 화살표의 굵기와 밝기가 뜻하는 것
+    const fy = H2 - 발 + 22;
+    c.beginPath(); c.moveTo(26, fy - 24); c.lineTo(W2 - 26, fy - 24); c.stroke();
+    const 범례 = [
+      ["굵은 화살", "손으로 그은 길"],
+      ["가는 화살", "시리즈 (저절로 이어진 것)"],
+      ["밝은 화살", "읽어 낸 책으로 들어가는 길"],
+    ];
+    let lx = 26;
+    범례.forEach(([k, v], i) => {
+      c.strokeStyle = i === 1 ? "rgba(163,148,122,.6)" : "rgba(224,177,94,.95)";
+      c.lineWidth = i === 0 ? 2.2 : i === 1 ? 1 : 2.2;
+      c.beginPath(); c.moveTo(lx, fy); c.lineTo(lx + 22, fy); c.stroke();
+      c.fillStyle = "rgba(163,148,122,.9)";
+      c.font = "10px 'IBM Plex Mono', monospace";
+      c.fillText(v, lx + 28, fy + 3.5);
+      lx += 28 + c.measureText(v).width + 26;
+    });
+    c.textAlign = "right";
+    c.fillStyle = "rgba(163,148,122,.7)";
+    c.font = "10px 'IBM Plex Mono', monospace";
+    c.fillText(`서가 뒤의 방 · rokiz.net/books · ${new Date().toLocaleDateString("ko-KR")}`,
+      W2 - 26, fy + 3.5);
+    c.textAlign = "left";
     let url;
     try { url = out.toDataURL("image/png"); }
     catch {
@@ -2095,7 +2218,7 @@
     }
     const a = document.createElement("a");
     a.href = url;
-    a.download = "서가뒤의방-항로도.png";
+    a.download = `서가뒤의방-항로도-${new Date().toISOString().slice(0, 10)}.png`;
     a.click();
   });
 
@@ -2358,6 +2481,14 @@
       $("x-memo").textContent = b.memo || "아직 여백에 적힌 말이 없다.";
     } else {
       $("x-memoedit").value = b.memo || "";
+      /* 읽어 낸 책인데 여백이 비어 있으면 — 이 서재에서 AI 가 대신 쓸 수 없는
+         유일한 칸이다. 빈 칸을 조용히 두지 않고 한 줄을 청한다.
+         (읽지 않은 책에는 청하지 않는다 — 아직 할 말이 없는 게 맞다) */
+      const 빈여백 = b.st === "읽음" && !(b.memo || "").trim();
+      $("x-memoedit").classList.toggle("asking", 빈여백);
+      $("x-memoedit").placeholder = 빈여백
+        ? `읽어 낸 책입니다 — 한 줄만 남겨 두세요. 무엇이 남았는지, 누구에게 권할지.`
+        : "여백에 적어 둘 말 — 자리를 옮기면 저장됩니다";
       document.querySelectorAll("#x-status button").forEach(btn =>
         btn.setAttribute("aria-selected", btn.dataset.st === b.st ? "true" : "false"));
       $("x-wall").value = b.wall || "";
@@ -2512,7 +2643,12 @@
 
   $("x-share")?.addEventListener("click", async (e) => {
     if (!openBook?.id) return;
-    const url = location.origin + location.pathname + "#book/" + openBook.id;
+    /* 나눔 쪽 주소를 준다 — 카톡·슬랙의 미리보기는 자바스크립트를 돌리지
+       않으므로 `#book/…` 을 붙이면 어느 책이든 같은 그림이 뜬다.
+       b/<id>.html 에는 그 책의 표지와 제목이 태그로 박혀 있다.
+       아직 안 지은 책이면 404.html 이 알아보고 서표로 돌려보낸다. */
+    const 뿌리 = location.origin + location.pathname.replace(/index\.html$/, "");
+    const url = `${뿌리}b/${openBook.id}.html`;
     const btn = e.currentTarget;
     const was = btn.textContent;
     try {
@@ -2636,6 +2772,7 @@
     const db = window.PostLibrosDB;
     if (!db?.listLinks || !b.id) { row.hidden = true; return; }
     row.hidden = false;
+    const owner = document.body.classList.contains("owner");
     const host = $("x-linklist");
     host.innerHTML = "";
     $("x-linkpick").innerHTML = "";
@@ -2696,16 +2833,19 @@
       go.textContent = other ? other.t : "(서가에 없는 책)";
       if (other) go.addEventListener("click", () => openExlibris(other, bookWall(other)));
       else go.disabled = true;
-      // 이은 까닭 — 있으면 띠 안에 작게, ✎ 로 적거나 고친다
+      /* 이은 까닭 — 있으면 띠 안에 작게, ✎ 로 적거나 고친다.
+         비어 있으면 주인에게만 「까닭을 적는다」로 보인다. 열아홉 개 이음의
+         까닭이 전부 비어 있었는데, 빈 칸이 아무 말도 하지 않아서였다 —
+         화살표에 한마디가 붙어야 항로도가 비로소 항로도가 된다. */
       const why = document.createElement("i");
-      why.className = "linknote";
-      why.textContent = l.note || "";
+      why.className = "linknote" + (!l.note && owner ? " askwhy" : "");
+      why.textContent = l.note || (owner ? "까닭을 적는다" : "");
       const pen = document.createElement("button");
       pen.type = "button";
       pen.className = "unlink pen";
       pen.textContent = "✎";
       pen.setAttribute("aria-label", "이은 까닭 적기");
-      pen.addEventListener("click", () => {
+      const askNote = () => {
         if (chip.querySelector("input")) return;   // 이미 적는 중
         const inp = document.createElement("input");
         inp.type = "text";
@@ -2720,7 +2860,8 @@
             l.note = v || null;
             renderAll();
           } catch (err) { console.error("[이음] 까닭을 적지 못했습니다:", err); }
-          why.textContent = l.note || "";
+          why.textContent = l.note || (owner ? "까닭을 적는다" : "");
+          why.classList.toggle("askwhy", !l.note && owner);
           inp.remove();
         };
         inp.addEventListener("blur", save);
@@ -2730,7 +2871,9 @@
         });
         chip.insertBefore(inp, pen);
         inp.focus();
-      });
+      };
+      pen.addEventListener("click", askNote);
+      why.addEventListener("click", askNote);   // 빈 까닭을 눌러도 열린다
       const del = document.createElement("button");
       del.type = "button";
       del.className = "unlink";

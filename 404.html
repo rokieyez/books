@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>없는 문 — 서가 뒤의 방</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/books/favicon.svg" type="image/svg+xml">
+<style>
+  html { color-scheme: dark }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; padding: 24px;
+    background: #171009; color: #A3947A;
+    font: 14px/1.9 "Gowun Batang", serif; text-align: center;
+  }
+  h1 { margin: 0; font-size: 20px; color: #E2D5B8; font-weight: 400; }
+  p { margin: 0; max-width: 34ch; }
+  a {
+    color: #E0B15E; text-decoration: none; border-bottom: 1px solid rgba(224,177,94,.4);
+    padding-bottom: 2px;
+  }
+  code { font-family: ui-monospace, monospace; font-size: 11px; opacity: .6; }
+</style>
+</head>
+<body>
+  <h1>이 문 뒤에는 아무것도 없습니다</h1>
+  <p id="say">주소를 다시 보시거나, 서재로 돌아가세요.</p>
+  <p><a href="/books/">서가 뒤의 방으로</a></p>
+  <code id="where"></code>
+<script>
+  /* 나눔 쪽(b/<책id>.html)은 손으로 다시 지을 때만 생긴다.
+     새로 꽂은 책의 링크를 아직 안 지었더라도 사람은 그 책에 닿아야 한다 —
+     주소에서 책 아이디만 주워 서재의 서표로 보낸다. (미리보기만 없다) */
+  var m = location.pathname.match(/\/b\/([0-9a-f-]{36})\.html$/i);
+  document.getElementById("where").textContent = location.pathname;
+  if (m) {
+    document.getElementById("say").textContent = "그 책의 서표로 가는 중…";
+    location.replace("/books/#book/" + m[1]);
+  }
+</script>
+</body>
+</html>
