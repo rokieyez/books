@@ -60,7 +60,11 @@ function decode(s: string) {
 function catOf(path: string): string | null {
   const p = path.replace(/\s/g, "");
   if (/소설|시\/희곡|에세이|시집|희곡/.test(p)) return "문학";
-  if (/역사|인물|고전/.test(p)) return "역사";
+  /* 「고전」을 역사로 보내면 안 된다 — 나니아 연대기 일곱 권, 오디세이아,
+     소포클레스 비극 전집, 봄봄, 메밀꽃 필 무렵이 전부 역사의 벽으로 갔다
+     (2026-09-01 에 발견). 고전은 거의 언제나 문학 고전이고, 진짜 역사서는
+     경로에 「역사」라는 말을 함께 달고 온다. */
+  if (/역사|인물/.test(p)) return "역사";
   if (/과학|공학|컴퓨터|모바일|의학|수학/.test(p)) return "과학";
   if (/예술|대중문화|만화|건축|사진|음악|미술/.test(p)) return "예술";
   if (/종교|기독교|불교|천주교|가톨릭|신학|성경|이슬람|힌두/.test(p)) return "종교";
@@ -386,6 +390,7 @@ async function plantCandidate(db: any, ttb: string, c: any, best: Record<string,
     page_count: info?.pages ?? null,
     size_height: info?.sizeHeight ?? null,
     size_depth: info?.sizeDepth ?? null,
+    genre: info?.genre ?? null,
     wall,
     shelf: photo.shelf ?? null,
     spine_photo_id: c.photo_id ?? null,
@@ -656,6 +661,7 @@ Deno.serve(async (req) => {
       const j = JSON.parse(text.replace(/;$/, ""));
       shape = {
         첫항목열쇠: j.item?.[0] ? Object.keys(j.item[0]) : null,
+        분류명: j.item?.[0]?.categoryName ?? null,
         부가정보: j.item?.[0]?.subInfo ?? null,
         오류: j.errorMessage ?? null, 오류번호: j.errorCode ?? null,
       };

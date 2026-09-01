@@ -317,6 +317,12 @@
     from { transform: rotate(-8deg) translateY(-5px); }
     to { transform: rotate(-11deg) translateY(-8px); }
   }
+  /* 아직 아무것도 안 꽂힌 벽 — 빈 널빤지만 있으면 고장으로 보인다 */
+  .wallempty {
+    margin: 4px 0 14px; padding: 18px 4px 4px; text-align: center;
+    font-family: "Gowun Batang", serif; font-size: 12.5px;
+    color: var(--parchment-dim); letter-spacing: .06em; opacity: .8;
+  }
   .plank {
     position: relative;
     width: 100%; height: 9px; margin: 0 0 9px; border-radius: 1px;
@@ -1134,6 +1140,16 @@
     clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
     box-shadow: 0 2px 3px rgba(0,0,0,.4);
   }
+  /* 좁은 화면에서는 촛대가 「램프 아래에서 펼친다」 글자 위로 올라탄다 —
+     책상 소품은 가운데를 기준으로 놓여 있는데 단추는 화면을 꽉 채우기 때문.
+     폰에서는 촛대를 아예 왼쪽 끝에 세우고 단추를 조금 줄인다. */
+  @media (max-width: 560px) {
+    .desk { padding-bottom: 96px; }
+    .desk .candlestick { left: 18px; transform: none; }
+    .desk .candlewax { left: 29px; transform: none; }
+    .desk .open-today { padding: 10px 16px; font-size: 13px; letter-spacing: .08em; }
+    .desk .dicebtn { margin-left: 8px; padding: 6px; }
+  }
   .desk .lampline {
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .22em;
     color: var(--brass-dim); display: block; margin-bottom: 12px;
@@ -1233,8 +1249,14 @@
     position: absolute; left: 50%; bottom: 33px; transform: translateX(-50%);
     z-index: 2;
   }
+  /* 좁은 화면에서 이 줄이 눌리면 탭 묶음이 통째로 잘린다 — 실제로 「통계」가
+     화면 밖으로 밀려 폰에서는 별자리·리듬·기록에 갈 길이 아예 없었다.
+     묶음은 줄어들지 않게 하고(flex:none), 그래도 모자라면 잘리는 대신 접힌다. */
   @media (max-width: 560px) {
-    .viewrow .viewseg button { padding: 8px 13px; font-size: 12px; }
+    .viewrow { flex-wrap: wrap; justify-content: center; max-width: 94vw; row-gap: 8px; }
+    .viewrow .viewseg { flex: none; }
+    .viewrow .viewseg button { padding: 8px 10px; font-size: 12px; letter-spacing: .04em; }
+    .viewrow .heightsort { padding: 0 10px; font-size: 12px; letter-spacing: .04em; }
   }
   .viewseg {
     display: flex; border: 1px solid var(--wood3); border-radius: 2px; overflow: hidden;
@@ -1560,11 +1582,63 @@
   .readpath[hidden] { display: none; }
 
   /* ── 주사위 — 오늘의 책 옆의 둘째 단추, 한 걸음 물러난 톤 ── */
-  .desk .open-today.rand {
-    margin-left: 10px; color: var(--parchment-dim); border-color: var(--line);
+  /* ── 주사위 — 「다음에 뭘 읽지」에 서재가 답하는 단추 ──
+     글자를 걷고 상아 주사위 하나만 남긴다. 눈은 3×3 아홉 칸 중
+     면에 맞는 자리만 켜서 그린다 — 그림 파일이 필요 없다. */
+  .desk .dicebtn {
+    appearance: none; cursor: pointer; background: none; border: 0; padding: 8px;
+    margin-left: 14px; position: relative; z-index: 1; line-height: 0;
+    vertical-align: middle;
   }
-  .desk .open-today.rand:hover, .desk .open-today.rand:focus-visible {
-    color: var(--brass); border-color: var(--brass-dim);
+  .desk .dicebtn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .die {
+    display: grid; width: 42px; height: 42px; padding: 5px; box-sizing: border-box;
+    grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+    border-radius: 7px;
+    background: linear-gradient(155deg, #F2E7CE, #D9C69C 62%, #B9A075);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.75),
+      inset 0 -2px 3px rgba(90,64,30,.35),
+      0 5px 12px rgba(0,0,0,.5);
+    transform-origin: 50% 60%;
+  }
+  .die i {
+    display: block; margin: auto; width: 7px; height: 7px; border-radius: 50%;
+    background: radial-gradient(circle at 34% 30%, #55391B, #241708 70%);
+    box-shadow: inset 0 1px 1px rgba(0,0,0,.5);
+    visibility: hidden;
+  }
+  /* 눈 자리 — 1 2 3 / 4 5 6 / 7 8 9 */
+  .die[data-face="1"] i:nth-child(5),
+  .die[data-face="2"] i:nth-child(1), .die[data-face="2"] i:nth-child(9),
+  .die[data-face="3"] i:nth-child(1), .die[data-face="3"] i:nth-child(5), .die[data-face="3"] i:nth-child(9),
+  .die[data-face="4"] i:nth-child(1), .die[data-face="4"] i:nth-child(3),
+  .die[data-face="4"] i:nth-child(7), .die[data-face="4"] i:nth-child(9),
+  .die[data-face="5"] i:nth-child(1), .die[data-face="5"] i:nth-child(3), .die[data-face="5"] i:nth-child(5),
+  .die[data-face="5"] i:nth-child(7), .die[data-face="5"] i:nth-child(9),
+  .die[data-face="6"] i:nth-child(1), .die[data-face="6"] i:nth-child(3), .die[data-face="6"] i:nth-child(4),
+  .die[data-face="6"] i:nth-child(6), .die[data-face="6"] i:nth-child(7), .die[data-face="6"] i:nth-child(9) {
+    visibility: visible;
+  }
+  .desk .dicebtn:hover .die, .desk .dicebtn:focus-visible .die {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.75),
+      inset 0 -2px 3px rgba(90,64,30,.35),
+      0 6px 16px rgba(0,0,0,.55), 0 0 20px rgba(224,177,94,.4);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .desk .dicebtn:hover .die { transform: translateY(-2px) rotate(-6deg); transition: transform .2s ease; }
+    /* 던진 주사위 — 두 번 튕기고 제자리에 눕는다 (한 바퀴의 배수로 끝나야 반듯하다) */
+    .die.rolling { animation: diceRoll .78s cubic-bezier(.3,.7,.4,1) both; }
+    @keyframes diceRoll {
+      0%   { transform: translateY(0) rotate(0deg) scale(1); }
+      16%  { transform: translateY(-22px) rotate(160deg) scale(1.08); }
+      38%  { transform: translateY(0) rotate(330deg) scale(.94); }
+      52%  { transform: translateY(-11px) rotate(470deg) scale(1.04); }
+      74%  { transform: translateY(0) rotate(620deg) scale(.97); }
+      87%  { transform: translateY(-3px) rotate(690deg) scale(1.01); }
+      100% { transform: translateY(0) rotate(720deg) scale(1); }
+    }
   }
 
   /* ── 궤짝의 책등 조각 — 흐린 글자를 사람 눈으로 대조한다 ── */

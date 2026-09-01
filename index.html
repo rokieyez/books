@@ -220,8 +220,14 @@
   <!-- 읽는 중인 책들이 책상 위에 실제로 쌓인다 -->
   <div class="deskpile" id="deskpile"></div>
   <button class="open-today" id="today-open">램프 아래에서 펼친다</button>
-  <!-- "다음에 뭘 읽지"는 서재가 답한다 — 안 읽은 책 중 아무거나 -->
-  <button class="open-today rand" id="today-rand" title="안 읽은 책 중에서 뽑는다">주사위를 굴린다</button>
+  <!-- "다음에 뭘 읽지"는 서재가 답한다 — 안 읽은 책 중 아무거나.
+       글자 대신 주사위 그림 하나. 눈 아홉 칸 중 면에 맞는 것만 켜진다 -->
+  <button class="dicebtn" id="today-rand" title="주사위를 굴린다 — 안 읽은 책 중에서 한 권"
+          aria-label="주사위를 굴린다 — 안 읽은 책 중에서 한 권을 뽑는다">
+    <span class="die" id="die" data-face="5" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    </span>
+  </button>
 </div>
 
 <footer class="colophon">서가 뒤의 방 · rokiz.net</footer>

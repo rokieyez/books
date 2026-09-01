@@ -83,7 +83,7 @@ const PROMPT = `이 사진은 개인 서재의 책장을 찍은 것입니다. �
 - 왼쪽에서 오른쪽 순서로 기록합니다.
 - 제목은 책등에 적힌 그대로 옮깁니다. 아는 책이라고 해서 정식 서명으로 고쳐 쓰지 마세요.
 - 글자가 흐리거나 일부만 보이면 보이는 만큼만 적고 confidence 를 낮게 주세요.
-- 전집이라면 권 번호를 volume 에 따로 적습니다.
+- 전집이라면 권 번호를 volume 에 따로 적습니다. 제목에 이미 권 표시가 들어 있으면 volume 은 비워 둡니다.
 - 책이 아닌 물건(액자, 소품 등)은 넣지 않습니다.
 - 글자가 전혀 보이지 않는 책은 넣지 않습니다.
 - 추측으로 지어내지 마세요. 확실하지 않으면 confidence 를 낮추는 것이 낫습니다.
@@ -211,7 +211,14 @@ Deno.serve(async (req) => {
     if (!title) return;
     const conf = Number(b.confidence ?? 0);
     const vol = String(b.volume ?? "").trim();
-    const full = vol ? `${title} ${vol}` : title;
+    /* 권 번호가 제목에 이미 들어 있으면 또 붙이지 않는다.
+       AI 가 「죽음의 한 연구 상」을 읽고 volume 에도 "상"을 적어 주는 일이
+       있어, 그대로 이으면 「죽음의 한 연구 상 상」이 된다 (실제로 세 권이
+       그렇게 꽂혔다, 2026-09-01). */
+    const volTail = vol
+      ? new RegExp("(^|[\\s·-])" + vol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$").test(title)
+      : false;
+    const full = vol && !volTail ? `${title} ${vol}` : title;
     const author = String(b.author ?? "").trim();
     const cat = String(b.category ?? "문학");
     const box = boxOf(b);

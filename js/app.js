@@ -277,7 +277,23 @@
            아홉이 몰려 있어, 한 줄이 무엇을 모아 둔 줄인지 말할 수 없다.
            갈래(genre)를 아는 책이 넉넉히 쌓이면 그 벽만 단을 갈래로 가른다 —
            소설 한 단, 고전 한 단, 에세이 한 단. 널빤지에 이름표가 붙는다. */
-        const lines = shelfLines(shelved, w);
+        /* 아직 한 권도 없는 벽 — 빈 널빤지 셋만 세워 두면 화면이 고장 난
+           것처럼 보인다. 비어 있다는 사실을 말로 적어 둔다. */
+        if (!w.books.length) {
+          const none = document.createElement("p");
+          none.className = "wallempty";
+          none.textContent = "이 벽은 아직 비어 있습니다 — 문은 그대로 열립니다";
+          panel.appendChild(none);
+          // 걸쇠는 책등 사이에 끼어 있으므로, 책이 없으면 문고리도 사라진다.
+          // 빈 벽에도 열 길을 남긴다
+          const line = document.createElement("div");
+          line.className = "shelfline";
+          line.appendChild(makeLatch());
+          panel.appendChild(line);
+          const pk = document.createElement("div"); pk.className = "plank";
+          panel.appendChild(pk);
+        }
+        const lines = w.books.length ? shelfLines(shelved, w) : [];
         lines.forEach(({ label, books }, s) => {
           const line = document.createElement("div"); line.className = "shelfline";
           books.forEach((b, k) => {
@@ -2313,14 +2329,35 @@
     if (todayBook) openExlibris(todayBook, bookWall(todayBook));
   });
 
-  /* 주사위 — "다음에 뭘 읽지"는 서재가 답한다. 안 읽은 책을 우선 뽑는다. */
+  /* 주사위 — "다음에 뭘 읽지"는 서재가 답한다. 안 읽은 책을 우선 뽑는다.
+     책은 누르는 순간 이미 정해져 있고, 구르는 눈은 눈요기다 — 굴러가는
+     동안 결과를 바꾸면 「던져서 나온 것」이라는 느낌이 오히려 옅어진다.
+     모션을 줄여 달라고 한 사람에게는 굴리지 않고 곧장 펼친다. */
+  const DICE_MS = 780;
+  let diceRolling = false;
+  const eyeOf = () => String(1 + Math.floor(Math.random() * 6));
   $("today-rand")?.addEventListener("click", () => {
+    if (diceRolling) return;
     const all = allBooks();
     const unread = all.filter((b) => b.st === "안 읽음");
     const pool = unread.length ? unread : all;
     if (!pool.length) return;
     const b = pool[Math.floor(Math.random() * pool.length)];
-    openExlibris(b, bookWall(b));
+    const die = $("die");
+    if (noMotion || !die) { openExlibris(b, bookWall(b)); return; }
+    diceRolling = true;
+    // 애니메이션을 다시 태우려면 클래스를 뗀 뒤 한 번 재계산시켜야 한다
+    die.classList.remove("rolling");
+    void die.offsetWidth;
+    die.classList.add("rolling");
+    const flip = setInterval(() => { die.dataset.face = eyeOf(); }, 85);
+    setTimeout(() => {
+      clearInterval(flip);
+      die.dataset.face = eyeOf();
+      die.classList.remove("rolling");
+      diceRolling = false;
+      openExlibris(b, bookWall(b));
+    }, DICE_MS);
   });
 
   /* 키 순서 토글 — 서가 뷰에서만 보인다 */
