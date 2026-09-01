@@ -184,7 +184,8 @@
   function mount() {
     const crate = document.getElementById("crate");
     if (!crate || !crate.parentNode) return;
-    crate.parentNode.insertBefore(sec, crate);
+    // 궤짝 뒤에 놓는다 (nextSibling 이 없으면 맨 뒤에 붙는다)
+    crate.parentNode.insertBefore(sec, crate.nextSibling);
 
     const drop = el("in-drop");
     const picker = el("in-file");
