@@ -175,6 +175,7 @@
       wall: b.wall || null,
       shelfNo: b.shelf ?? null,
       memo: b.memo || "",
+      cover: b.cover_url || null,
       loc: [b.wall, b.shelf ? b.shelf + "단" : null].filter(Boolean).join(" ") || "자리 미정",
       paper: (h >> 9) % 6 === 0,
       lean: (h >> 12) % 19 === 0,

@@ -664,6 +664,35 @@
   .byhand-msg.good { color: var(--st-done); }
   .byhand-msg.bad { color: var(--wax); }
 
+  /* 서지 채우기 */
+  .enrich {
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px dashed rgba(74,58,34,.55);
+  }
+  .enrich-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .enrich-head b { font-family: "Gowun Batang", serif; font-size: 13.5px; letter-spacing: .05em; }
+  .enrich-head span { font-size: 11.5px; color: var(--parchment-dim); }
+  .enrich-go {
+    appearance: none; cursor: pointer; padding: 7px 16px;
+    font: inherit; font-size: 12px; color: var(--brass);
+    background: rgba(224,177,94,.12);
+    border: 1px solid var(--brass-dim); border-radius: 2px;
+  }
+  .enrich-go:hover, .enrich-go:focus-visible { background: rgba(224,177,94,.24); outline: none; }
+  .enrich-go:disabled { opacity: .45; cursor: default; }
+  .enrich-msg {
+    margin: 10px 0 2px; font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; color: var(--brass-dim); letter-spacing: .06em; line-height: 1.7;
+  }
+  .enrich-msg.good { color: var(--st-done); }
+  .enrich-msg.bad { color: var(--wax); }
+  .enrich-list {
+    margin: 0 0 8px; padding-left: 16px;
+    font-size: 11.5px; color: var(--parchment-dim); line-height: 1.8;
+  }
+  .enrich-list b { color: var(--parchment); font-weight: 500; }
+  .enrich-list i { color: var(--brass-dim); font-style: italic; }
+
   .intake-shelf { margin-top: 18px; }
   .intake-empty {
     margin: 10px 0 0; font-size: 11.5px;
@@ -1059,6 +1088,19 @@
 
   /* 표지 뷰 */
   .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 14px; margin-top: 26px; }
+  /* 진짜 표지가 있는 책 — 그림이 주인이고 글자는 아래에만 얹는다.
+     인라인 style 로 배경 그림이 들어오므로 크기·위치만 잡아 준다. */
+  .cover.hascover {
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+    justify-content: flex-end; padding: 0;
+  }
+  .cover.hascover b, .cover.hascover span {
+    background: linear-gradient(0deg, rgba(10,7,3,.92), rgba(10,7,3,0));
+    width: 100%; padding: 0 9px;
+  }
+  .cover.hascover b { padding-top: 18px; }
+  .cover.hascover span { padding-bottom: 9px; }
+
   .cover { /* 가죽 장정 — 금박 압인 프레임 */
     aspect-ratio: 2 / 3; appearance: none; border: none; cursor: pointer; text-align: left;
     padding: 12px 11px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;

@@ -93,6 +93,15 @@
       <span class="byhand-msg" id="bh-msg"></span>
     </form>
 
+    <div class="enrich">
+      <div class="enrich-head">
+        <b>서지를 채운다</b>
+        <span>알라딘에 물어 ISBN·출판사·표지·분류를 넣고 지은이 오탈자를 바로잡습니다</span>
+      </div>
+      <button type="button" class="enrich-go" id="in-enrich">20권씩 채운다</button>
+      <div class="enrich-out" id="in-enrich-out"></div>
+    </div>
+
     <div class="intake-shelf" id="in-shelfroll"></div>`;
 
   const el = (id) => document.getElementById(id);
@@ -136,6 +145,12 @@
     queueBusy = false;
     sec.classList.remove("busy");
     await renderShelf();
+  }
+
+  /* 알라딘에서 온 글자를 화면에 넣기 전에 — 서지에는 <, & 가 섞여 있다 */
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   }
 
   function fmt(bytes) {
@@ -260,6 +275,33 @@
     drop.addEventListener("drop", (ev) => {
       ev.preventDefault();
       if (!queueBusy && ev.dataTransfer?.files?.length) take(ev.dataTransfer.files);
+    });
+
+    /* 서지 채우기 — 알라딘에 물어 빈 칸을 메운다 */
+    el("in-enrich").addEventListener("click", async () => {
+      const btn = el("in-enrich"), out = el("in-enrich-out");
+      btn.disabled = true;
+      out.innerHTML = `<p class="enrich-msg">알라딘에 묻는 중… (20권이면 1분쯤)</p>`;
+      const { data, error } = await db.enrichBooks(20);
+      btn.disabled = false;
+
+      if (error || data?.error) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "채우지 못했습니다 — " + (data?.error || error.message);
+        return;
+      }
+
+      const lines = [`<p class="enrich-msg good">${data.채움}권을 채웠습니다 · 못 찾음 ${data.못찾음} · 겹침 ${data.겹침} · 아직 ${data.남음}권 남음</p>`];
+      if (data.고침?.length) {
+        lines.push(`<p class="enrich-msg">바로잡은 지은이</p><ul class="enrich-list">` +
+          data.고침.map((c) => `<li>${esc(c.제목)} — ${esc(c.지은이전)} → <b>${esc(c.지은이후)}</b></li>`).join("") + `</ul>`);
+      }
+      if (data.살펴볼것?.length) {
+        lines.push(`<p class="enrich-msg">제목이 조금 다릅니다 — 맞는지 보고 서표에서 고치세요</p><ul class="enrich-list">` +
+          data.살펴볼것.map((s) => `<li>${esc(s.지금)} <i>(알라딘: ${esc(s.알라딘)})</i></li>`).join("") + `</ul>`);
+      }
+      out.innerHTML = lines.join("");
+      await window.PostLibrosRefresh?.();
     });
 
     /* 손으로 한 권 — AI 가 놓쳤거나 사진에 없는 책 */

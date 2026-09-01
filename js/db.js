@@ -150,6 +150,16 @@
       return data;
     },
 
+    /* 서지를 채운다 — 알라딘에 물어 ISBN·출판사·표지·분류를 넣는다.
+       한 번에 여러 권을 도니 넉넉히 기다린다. */
+    async enrichBooks(limit = 20) {
+      return guard(
+        client.functions.invoke("enrich-books", { body: { limit } }),
+        180000,
+        "서지 채우기",
+      );
+    },
+
     /* 책을 뺀다 — 잘못 읽힌 것을 지운다.
        요약은 book_id 를 따라 함께 지워진다 (on delete cascade). */
     async removeBook(id) {

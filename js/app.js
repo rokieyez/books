@@ -372,6 +372,11 @@
       el.innerHTML = `<b></b><span></span>`;
       el.querySelector("b").textContent = b.t;
       el.querySelector("span").textContent = b.a;
+      // 알라딘에서 받아 온 진짜 표지가 있으면 그것을 깐다
+      if (b.cover) {
+        el.classList.add("hascover");
+        el.style.backgroundImage = `url("${b.cover}")`;
+      }
       el.addEventListener("click", () => openExlibris(b, bookWall(b)));
       box.appendChild(el);
     });

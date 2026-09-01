@@ -47,6 +47,26 @@ function similar(a: string, b: string): number {
   return 1 - d[m][n] / Math.max(m, n);
 }
 
+/* 알라딘은 제목·설명에 HTML 실체를 그대로 담아 보낸다 (&lt; &amp; 등) */
+function decode(s: string) {
+  return s
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
+}
+
+/* 알라딘의 분류 경로를 이 서재의 다섯 갈래로 옮긴다.
+   예: "국내도서>소설/시/희곡>한국소설>2000년대 이전 한국소설" → 문학 */
+function catOf(path: string): string | null {
+  const p = path.replace(/\s/g, "");
+  if (/소설|시\/희곡|에세이|시집|희곡/.test(p)) return "문학";
+  if (/역사|인물|고전/.test(p)) return "역사";
+  if (/과학|공학|컴퓨터|모바일|의학|수학/.test(p)) return "과학";
+  if (/예술|대중문화|만화|건축|사진|음악|미술/.test(p)) return "예술";
+  if (/사회|정치|경제|경영|법|교육|자기계발|인문학|철학|종교/.test(p)) return "사회";
+  return null;   // 알아볼 수 없으면 원래 분류를 그대로 둔다
+}
+
 async function aladin(key: string, query: string) {
   const params = new URLSearchParams({
     ttbkey: key,
@@ -110,6 +130,7 @@ Deno.serve(async (req) => {
   if (!books?.length) return reply({ 채움: 0, 남음: 0, 말: "채울 책이 없습니다" });
 
   const changes: Array<Record<string, unknown>> = [];
+  const suggests: Array<Record<string, unknown>> = [];
   let filled = 0, missed = 0, clashed = 0;
 
   for (const b of books) {
@@ -131,23 +152,31 @@ Deno.serve(async (req) => {
 
     const patch: Record<string, unknown> = {};
     if (found.isbn13 || found.isbn) patch.isbn = String(found.isbn13 || found.isbn);
-    if (found.publisher) patch.publisher = String(found.publisher);
+    if (found.publisher) patch.publisher = decode(String(found.publisher));
     if (found.cover) patch.cover_url = String(found.cover);
     const yr = String(found.pubDate ?? "").slice(0, 4);
     if (/^\d{4}$/.test(yr)) patch.published_year = Number(yr);
 
-    // 거의 같은데 조금 다르면 책등을 잘못 읽은 것이다 — 정식 표기로 고친다.
-    // 아주 같거나(고칠 것 없음) 많이 다르면(다른 책) 손대지 않는다.
+    // 알라딘의 분류가 AI 의 짐작보다 정확하다 — 알아볼 수 있으면 바꿔 단다
+    const cat = catOf(String(found.categoryName ?? ""));
+    if (cat) patch.category = cat;
+
+    /* 제목은 자동으로 갈아치우지 않는다.
+       「죽음의 한 연구 상」을 검색하면 단권본 「죽음의 한 연구」가 잡힌다.
+       닮았다고 고쳐 버리면 상·하 구분이 사라지고, 둘 다 같은 제목이 되어
+       서로 부딪힌다. 잘못 읽힌 것 같으면 알려만 주고 판단은 사람에게 남긴다. */
+    const aladinTitle = decode(String(found.title ?? "")).trim();
+    const suggest = (sim >= 0.72 && sim < 1 && aladinTitle && norm(aladinTitle) !== norm(b.title))
+      ? { 지금: b.title, 알라딘: aladinTitle } : null;
+
+    // 지은이는 고친다 — 「박상룡」처럼 한 글자 틀린 것이 대부분이고,
+    // 권 구분 같은 정보를 잃을 위험이 없다.
     let fixed = null;
-    if (sim >= 0.72 && sim < 1 && found.title) {
-      patch.title = String(found.title).trim();
-      fixed = { 전: b.title, 후: patch.title };
-    }
     if (found.author && sim >= 0.72) {
-      const a = String(found.author).split(/[,(]/)[0].trim();
+      const a = decode(String(found.author)).split(/[,(]/)[0].trim();
       if (a && norm(a) !== norm(b.author || "")) {
         patch.author = a;
-        fixed = { ...(fixed ?? {}), 지은이전: b.author, 지은이후: a };
+        fixed = { 제목: b.title, 지은이전: b.author || "(없음)", 지은이후: a };
       }
     }
 
@@ -160,10 +189,14 @@ Deno.serve(async (req) => {
     }
     filled++;
     if (fixed) changes.push(fixed);
+    if (suggest) suggests.push(suggest);
   }
 
   const { count } = await db.from("books")
     .select("id", { count: "exact", head: true }).is("isbn", null);
 
-  return reply({ 채움: filled, 못찾음: missed, 겹침: clashed, 남음: count ?? 0, 고침: changes });
+  return reply({
+    채움: filled, 못찾음: missed, 겹침: clashed, 남음: count ?? 0,
+    고침: changes, 살펴볼것: suggests,
+  });
 });
