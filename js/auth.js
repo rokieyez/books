@@ -242,6 +242,25 @@
     };
   }
 
+  /* ── 작업대를 늦게 싣는다 ──────────────────────────────
+     js/intake.js 는 51KB 인데 오로지 주인의 것이다 (사진 들이기·궤짝·백업).
+     예전에는 index.html 이 모두에게 내려보냈다 — 첫 화면 짐 368KB 중
+     칠분의 일을, 방문자는 결코 열 수 없는 화면에 쓰고 있었다.
+     주인이 확인된 뒤 한 번만 부른다. intake.js 는 readyState 를 보고
+     스스로 mount 하므로, 늦게 와도 그대로 붙는다. */
+  let workbenchAsked = false;
+  function loadWorkbench() {
+    if (workbenchAsked) return;
+    workbenchAsked = true;
+    const s = document.createElement("script");
+    s.src = "js/intake.js";
+    s.onerror = () => {
+      workbenchAsked = false;   // 다음 울림에 다시 시도할 수 있게
+      console.error("[작업대] js/intake.js 를 싣지 못했습니다");
+    };
+    document.body.appendChild(s);
+  }
+
   /* ── 세션 상태를 화면에 반영 ── */
   /* 마지막으로 장서를 실어 온 사람 — 같은 사람이면 다시 싣지 않는다.
      onAuthStateChange 는 토큰이 갱신될 때마다(한 시간에 한 번쯤) 울리는데,
@@ -256,6 +275,7 @@
       keyBtn.title = user.email + " 로 들어와 있습니다";
       keyBtn.classList.add("in");
       document.body.classList.add("owner");
+      loadWorkbench();   // 작업대는 주인이 들어온 뒤에야 내려온다
       el("gate-who").textContent = user.email;
       if (loadedFor === user.id) return;   // 토큰 갱신일 뿐 — 서가는 그대로 둔다
       try {
@@ -405,8 +425,8 @@
        끝내 못 실으면(통신 장애 등) 빈 벽이라도 보여준다 — 「여는 중」에
        영원히 갇히는 것이 최악이다. */
     loadRealLibrary().catch((err) => {
-      console.error("[서재] 장서를 불러오지 못했습니다:", err);
-      window.PostLibrosShowEmpty?.();
+      // 까닭을 함께 넘긴다 — 화면이 「비어 있음」과 「못 열었음」을 구별해야 한다
+      window.PostLibrosShowEmpty?.(err || new Error("알 수 없는 이유"));
     });
     db.currentUser().then(reflect).catch((err) => {
       console.error("[열쇠] 세션을 확인하지 못했습니다:", err);

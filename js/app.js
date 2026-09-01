@@ -3141,10 +3141,57 @@
   // role="status" — 화면을 못 보는 사람에게도 「여는 중」과 「다 열렸다」가 들린다
   $("walls").innerHTML = `<p class="waking-note" role="status">서재를 여는 중…</p>`;
   $("census-n").textContent = "장서를 세는 중";
-  /* 장서를 끝내 못 실었을 때 auth.js 가 부른다 — 빈 벽이라도 보여준다 */
-  window.PostLibrosShowEmpty = () => {
+  /* 「여는 중」의 끝을 정해 둔다 ─────────────────────────
+     장서 싣기가 실패하면 auth.js 가 ShowEmpty 를 부르지만, **싣기가 아예
+     시작되지 못하면** 아무도 부르지 않는다. jsdelivr 가 죽어 supabase-js 가
+     안 오는 경우가 그렇다 — db.js 가 PostLibrosDB 를 못 만들고, 화면은
+     「서재를 여는 중…」에 영원히 머문다 (2026-09-02 확인: 24초 뒤에도 그대로).
+     어떤 까닭이든 열두 셈을 넘기면 못 열었다고 말한다. */
+  setTimeout(() => {
+    if (!document.body.classList.contains("waking")) return;
+    window.PostLibrosShowEmpty?.(new Error(
+      window.PostLibrosDB
+        ? "서재가 열두 셈 안에 답하지 않았습니다"
+        : "서재로 가는 길(supabase-js)을 싣지 못했습니다"));
+  }, 12000);
+  /* 장서를 끝내 못 실었을 때 auth.js 가 부른다.
+     예전에는 그냥 renderAll() 을 불렀는데, 그러면 벽 다섯이 전부
+     「이 벽은 아직 비어 있습니다」라고 말한다 — 통신이 끊긴 것을
+     **텅 빈 서재**로 보여주는 셈이라, 화면이 거짓말을 한다.
+     못 연 것과 비어 있는 것은 다르다. 그렇게 말하고, 다시 열 문을 준다. */
+  window.PostLibrosShowEmpty = (err) => {
     document.body.classList.remove("waking");
-    renderAll();
+    if (!err) { renderAll(); return; }
+    console.error("[서재] 장서를 불러오지 못했습니다:", err);
+    $("walls").innerHTML = "";
+    const box = document.createElement("div");
+    box.className = "loadfail";
+    box.setAttribute("role", "alert");
+    box.innerHTML = `
+      <b>서재를 열지 못했습니다</b>
+      <p>책은 그대로 있습니다 — 지금 이 화면이 서재에 닿지 못했을 뿐입니다.
+         잠시 뒤 다시 열어 보세요.</p>
+      <button type="button" class="failgo">다시 열어 본다</button>
+      <code class="failwhy"></code>`;
+    box.querySelector(".failwhy").textContent = String(err?.message || err || "").slice(0, 160);
+    box.querySelector(".failgo").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = "여는 중…";
+      /* 길 자체를 못 실은 경우에는 auth.js 도 서지 못해 PostLibrosRefresh 가
+         없다 — 그때는 다시 부를 것이 없으므로 문서를 통째로 다시 연다 */
+      if (!window.PostLibrosRefresh) { location.reload(); return; }
+      try { await window.PostLibrosRefresh(); }
+      catch (again) {
+        btn.disabled = false; btn.textContent = "다시 열어 본다";
+        box.querySelector(".failwhy").textContent = String(again?.message || again).slice(0, 160);
+      }
+    });
+    $("walls").appendChild(box);
+    $("census-n").textContent = "서재를 열지 못했습니다";
+    $("foyerline").textContent = "";
+    $("today-title").textContent = "—";
+    $("today-sub").textContent = "서재에 닿지 못했습니다 — 위의 「다시 열어 본다」를 눌러 보세요";
+    ["showcase", "paths", "crate"].forEach((id) => { const e2 = $(id); if (e2) e2.hidden = true; });
   };
 
   addEventListener("load", () => { layoutLadder(); updateLadder(); });
