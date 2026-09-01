@@ -703,6 +703,49 @@
   }
   .photocard .phnote:empty { display: none; }
 
+  /* ── 기록의 벽에 들이는 자리 (주인만) ─────────────────── */
+  .leafrow { position: relative; }
+  .leafdel {
+    position: absolute; top: 8px; right: 0;
+    appearance: none; cursor: pointer; padding: 2px 7px;
+    font: inherit; font-size: 10px; letter-spacing: .04em;
+    color: var(--parchment-dim); background: rgba(23,16,9,.7);
+    border: 1px solid var(--line); border-radius: 2px;
+    opacity: 0; transition: opacity .2s;
+  }
+  .leafrow:hover .leafdel, .leafdel:focus-visible {
+    opacity: 1; outline: none; color: var(--wax); border-color: var(--wax);
+  }
+  .leafadd {
+    display: flex; flex-direction: column; gap: 7px;
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px dashed rgba(74,58,34,.6);
+  }
+  .leafadd-row { display: flex; gap: 7px; align-items: center; }
+  .leafadd select, .leafadd input, .leafadd textarea {
+    background: #1B1108; color: var(--parchment);
+    border: 1px solid var(--line); border-radius: 2px;
+    padding: 6px 8px; font: inherit; font-size: 12px; line-height: 1.6;
+  }
+  .leafadd input { flex: 1; min-width: 0; }
+  .leafadd textarea { width: 100%; resize: vertical; }
+  .leafadd select:focus-visible, .leafadd input:focus-visible,
+  .leafadd textarea:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+  .leafadd-go {
+    flex: none; appearance: none; cursor: pointer; padding: 6px 14px;
+    font: inherit; font-size: 12px; color: var(--brass);
+    background: rgba(224,177,94,.12);
+    border: 1px solid var(--brass-dim); border-radius: 2px;
+  }
+  .leafadd-go:hover, .leafadd-go:focus-visible {
+    background: rgba(224,177,94,.24); outline: none;
+  }
+  .leafadd-go:disabled { opacity: .45; cursor: default; }
+  .leafadd-msg {
+    margin: 0; font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; color: var(--brass-dim); letter-spacing: .06em;
+  }
+
   /* ── 서표에서 책을 고치는 자리 (주인만) ───────────────── */
   .x-edit {
     display: flex; flex-direction: column; gap: 10px;

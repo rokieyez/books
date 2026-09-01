@@ -161,6 +161,18 @@
     },
 
     /* ── 기록의 방 ── */
+    async addArchiveItem(item) {
+      const { data, error } = await client
+        .from("archive_items").insert(item).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async removeArchiveItem(id) {
+      const { error } = await client.from("archive_items").delete().eq("id", id);
+      if (error) throw error;
+    },
+
     async listArchive({ tag = null, search = null } = {}) {
       let qy = client.from("archive_items").select("*").order("created_at", { ascending: false });
       if (tag) qy = qy.contains("tags", [tag]);

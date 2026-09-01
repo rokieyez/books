@@ -4,6 +4,62 @@
   function anyOpen() { return !!document.querySelector(".wallsec.open"); }
   function syncBodyClass() { document.body.classList.toggle("door-open", anyOpen()); }
 
+  /* 기록의 벽에 무언가를 들이는 자리 — 주인에게만 보인다.
+     검색에 걸리지 않는 방이라는 세계관은 그대로 두고, 넣는 길만 연다. */
+  function archiveForm() {
+    const box = document.createElement("form");
+    box.className = "leafadd";
+    box.innerHTML = `
+      <div class="leafadd-row">
+        <select id="lf-kind" aria-label="종류">
+          <option value="문서">문서</option>
+          <option value="링크">링크</option>
+          <option value="사진">사진</option>
+        </select>
+        <input type="text" id="lf-title" placeholder="제목" aria-label="제목" required>
+      </div>
+      <textarea id="lf-body" rows="2" placeholder="내용, 또는 주소(https://…)" aria-label="내용"></textarea>
+      <div class="leafadd-row">
+        <input type="text" id="lf-tags" placeholder="꼬리표 — 쉼표로 나눠서" aria-label="꼬리표">
+        <button type="submit" class="leafadd-go">들인다</button>
+      </div>
+      <p class="leafadd-msg" id="lf-msg" hidden></p>`;
+
+    box.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const kind = box.querySelector("#lf-kind").value;
+      const title = box.querySelector("#lf-title").value.trim();
+      const body = box.querySelector("#lf-body").value.trim();
+      const tags = box.querySelector("#lf-tags").value
+        .split(",").map(s => s.trim()).filter(Boolean);
+      const msg = box.querySelector("#lf-msg");
+      if (!title) return;
+
+      const go = box.querySelector(".leafadd-go");
+      go.disabled = true;
+      msg.hidden = false;
+      msg.textContent = "들이는 중…";
+      try {
+        // 주소처럼 생겼으면 url 칸에 넣는다 — 나중에 눌러 열 수 있게
+        const isUrl = /^https?:\/\//i.test(body);
+        await window.PostLibrosDB.addArchiveItem({
+          kind, title, tags,
+          body: isUrl ? null : (body || null),
+          url: isUrl ? body : null,
+        });
+        box.reset();
+        msg.textContent = "들였습니다.";
+        await window.PostLibrosRefresh?.();
+      } catch (err) {
+        msg.textContent = "들이지 못했습니다 — " + (err.message || err);
+        console.error("[기록] 들이지 못했습니다:", err);
+      } finally {
+        go.disabled = false;
+      }
+    });
+    return box;
+  }
+
   const wallEls = [];
   function renderWalls() {
     const host = $("walls"); host.innerHTML = "";
@@ -41,8 +97,32 @@
           el.innerHTML = `<span class="tp">${l.tp}</span><b></b><p></p>`;
           el.querySelector("b").textContent = l.t;
           el.querySelector("p").textContent = l.x;
+          if (l.id && document.body.classList.contains("owner")) {
+            const del = document.createElement("button");
+            del.className = "leafdel";
+            del.textContent = "버린다";
+            del.setAttribute("aria-label", l.t + " 버리기");
+            del.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              if (!del.dataset.sure) {
+                del.dataset.sure = "1";
+                del.textContent = "정말?";
+                setTimeout(() => {
+                  if (!del.dataset.sure) return;
+                  delete del.dataset.sure; del.textContent = "버린다";
+                }, 3000);
+                return;
+              }
+              try {
+                await window.PostLibrosDB.removeArchiveItem(l.id);
+                await window.PostLibrosRefresh?.();
+              } catch (err) { console.error("[기록] 버리지 못했습니다:", err); }
+            });
+            el.appendChild(del);
+          }
           room.appendChild(el);
         });
+        if (document.body.classList.contains("owner")) room.appendChild(archiveForm());
       } else {
         room.insertAdjacentHTML("beforeend",
           `<h4>${w.nm} 뒤의 방</h4><p class="roomsub">이 벽의 안쪽 — 아껴 읽는 책들이 여기 산다</p>

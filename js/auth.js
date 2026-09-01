@@ -130,7 +130,8 @@
       LEAVES.length = 0;
       // renderWalls 는 설명을 l.x 에서 읽는다
       items.forEach((it) => LEAVES.push({
-        tp: it.kind, t: it.title, x: (it.body || it.url || "").slice(0, 80),
+        id: it.id, tp: it.kind, t: it.title,
+        x: (it.body || it.url || "").slice(0, 80),
       }));
       const wall = WALLS.find((w) => w.cat === "archive");
       if (wall) wall.n = LEAVES.length;
