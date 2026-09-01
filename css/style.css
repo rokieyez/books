@@ -1016,7 +1016,10 @@
   .exlibris {
     position: fixed; z-index: 50; left: 50%; top: 50%;
     transform: translate(-50%, -50%) scale(.96); opacity: 0; pointer-events: none;
-    transition: opacity .22s ease, transform .22s ease;
+    /* 닫힌 서표는 보이지만 않는 게 아니라 아예 없어야 한다 —
+       visibility 를 빼면 탭 키가 안 보이는 단추 사이를 헤맨다 */
+    visibility: hidden;
+    transition: opacity .22s ease, transform .22s ease, visibility 0s .22s;
     width: min(420px, calc(100vw - 32px)); max-height: 82vh; overflow-y: auto; scrollbar-width: none;
     background: linear-gradient(174deg, #33220F, #241708);
     border: 1px solid var(--brass-dim);
@@ -1024,7 +1027,10 @@
     padding: 26px 28px 24px;
   }
   .exlibris::-webkit-scrollbar { display: none; }
-  .exlibris.show { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+  .exlibris.show {
+    opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto;
+    visibility: visible; transition: opacity .22s ease, transform .22s ease, visibility 0s;
+  }
   .exlibris .close {
     position: absolute; top: 10px; right: 13px; appearance: none; border: none;
     background: none; cursor: pointer; color: var(--parchment-dim); font-size: 20px; line-height: 1;

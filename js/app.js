@@ -687,6 +687,7 @@
 
   /* ── 서표 ─────────────────────────────────────────────── */
   let openBook = null;   /* 지금 펼쳐 둔 책 — 고칠 때 대상이 된다 */
+  let returnFocus = null;
 
   function openExlibris(b, w) {
     openBook = b;
@@ -695,6 +696,9 @@
     $("x-byline").textContent = `${b.a}${b.year ? " · " + b.year + " 입고" : ""}`;
     $("veil").classList.add("show");
     $("exlibris").classList.add("show");
+    // 닫으면 원래 있던 자리로 돌아가도록 표를 남긴다
+    returnFocus = document.activeElement;
+    $("x-close").focus();
 
     const owner = document.body.classList.contains("owner");
     const db = window.PostLibrosDB;
@@ -767,8 +771,13 @@
     }
   }
   function closeExlibris() {
+    // ESC 로 닫으면 여백에 적던 글이 blur 를 못 만나 사라진다 — 먼저 흘려보낸다
+    if (document.activeElement === $("x-memoedit")) $("x-memoedit").blur();
     $("veil").classList.remove("show");
     $("exlibris").classList.remove("show");
+    openBook = null;
+    try { returnFocus?.focus(); } catch {}
+    returnFocus = null;
   }
   $("x-close").addEventListener("click", closeExlibris);
   $("veil").addEventListener("click", closeExlibris);
@@ -872,6 +881,11 @@
     renderWalls();
     renderCensus();
     renderToday();
+    // 주인 앞에서는 진짜 장서다 — 「데이터는 예시」를 걷는다
+    document.querySelector(".colophon").textContent =
+      document.body.classList.contains("owner")
+        ? "서가 뒤의 방 · rokiz.net"
+        : "서가 뒤의 방 — 여기 보이는 것은 표본입니다";
     if (curView === "covers") renderCovers();
     if (curView === "list") renderList();
     if (curView === "stats") renderStats();
