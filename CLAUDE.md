@@ -48,6 +48,22 @@
 
 사진에 벽·단을 적어 두었으면 그것이 우선이다 — 실제로 찍은 자리가 더 정확하니까. 비워 두면 분류로 정하고 한 단에 서른 권씩 채운다. 어디까지나 1차 배정이고, 서표에서 한 권씩 고칠 수 있다.
 
+## 알라딘
+
+공식 매뉴얼이 구글 문서로만 있어 읽히지 않는다. **아래는 실제 응답을 찍어 확인한 것**이다 (`enrich-books` 의 살펴보기 모드: `{"probe":"검색어"}`).
+
+```
+https://www.aladin.co.kr/ttb/api/ItemSearch.aspx
+  ?ttbkey=…&Query=…&QueryType=Keyword&MaxResults=5&start=1
+  &SearchTarget=Book&output=js&Version=20131101
+```
+
+`item[]` 안에 `title` `author`("박상륭 (지은이)" 꼴) `pubDate`("2020-07-01") `isbn` `isbn13` `cover` `publisher` `categoryName`("국내도서>소설/시/희곡>…") 이 온다. **제목·설명에 HTML 실체(`&lt;` `&amp;`)가 섞여 오므로 반드시 풀어서 쓸 것.**
+
+- **제목은 자동으로 고치지 않는다.** 「죽음의 한 연구 상」을 검색하면 단권본이 잡힌다. 고치면 상·하가 같은 제목이 되어 중복 색인에 부딪힌다. 알리기만 하고 판단은 사람에게 남긴다
+- 지은이는 고친다 — 잃을 정보가 없다
+- 하루 5,000건 제한. 20권씩 나눠 돈다
+
 ## 로드맵 (2026-09-01 기준)
 
 1. **1단계 (완료)** — 시안을 정적 사이트 구조로 이식
@@ -57,15 +73,21 @@
    - (완료) 책장 사진 업로드 — `js/intake.js`. 3000px 초과분만 줄인다: 나중에 책등을 잘라 확대해 읽어야 할 수 있어 원본 해상도를 함부로 버리지 않는다
    - (완료) AI 비전으로 책등 인식 — Edge Function `recognize-spines`. 확신도 0.85 이상이면 벽에 꽂고 아래면 궤짝으로. **비밀값 `ANTHROPIC_API_KEY` 가 있어야 돈다**
    - (완료) 중복 방지, 벽·단 자동 배정, 손으로 들이기, 서가에서 빼기
-   - (남음) 알라딘 Open API 서지 조회 — ISBN·출판사·표지를 채우고 오탈자를 바로잡는다 (**TTB 키 필요 — 사용자가 발급해야 함**). 규격을 공식 문서로 확인하지 못했으니 붙일 때 실제 응답을 먼저 찍어볼 것
+   - (완료) 알라딘 Open API 서지 조회 — Edge Function `enrich-books`. 아래 「알라딘」 참조
 5. **5단계 (완료)** — AI 요약은 미리 만들지 않는다. Edge Function `summarize-book` — 책을 처음 열 때만 짓고 그 뒤로는 저장된 것을 읽는다. 모르는 책이면 지어내지 말라고 일러 두었다
 6. **6단계 (완료)** — 배포. GitHub Pages + www.rokiz.net/books, HTTPS 강제, 파비콘·공유 이미지·404. 기록의 벽에 실제로 들이고 버릴 수 있다
 
 ### 아직 남은 것 (사용자 손이 필요)
 
-- 알라딘 TTB 키 (서지 보강)
 - [Leaked Password Protection 켜기](https://supabase.com/dashboard/project/gaeumegwhxxnfvrhbknp/settings/auth) — 보안 린터가 지적하는 유일한 항목
 - 커스텀 SMTP — 기본 메일 서비스는 시간당 몇 통뿐이라 예비 문이 정작 급할 때 안 열릴 수 있다
+
+### Edge Functions 비밀값
+
+| 이름 | 쓰는 곳 |
+|---|---|
+| `ANTHROPIC_API_KEY` | `recognize-spines`, `summarize-book` |
+| `ALADIN_TTB_KEY` | `enrich-books` |
 
 ## 규약
 
