@@ -103,8 +103,9 @@
 
   /* ── 서재를 표본에서 진짜 장서로 바꾼다 ── */
   async function loadRealLibrary() {
-    // 쪽 단위로 끝까지 읽는다 — 상한은 db.js 의 기본값(5,000)에 맡긴다
-    const books = await db.listBooks();
+    /* 처음에는 쪽 단위로 끝까지, 그다음부터는 바뀐 줄만 받는다.
+       이 함수는 책 한 권을 고칠 때마다 불리니 매번 544권을 다시 받으면 안 된다. */
+    const books = await db.syncBooks();
 
     // 실물 책등 조각의 서명 주소 — 비공개 버킷이라 한 번에 받아 둔다
     let spineSigned = new Map();
@@ -312,6 +313,10 @@
         console.error("[서재] 장서를 불러오지 못했습니다:", err);
       }
     } else {
+      /* 정말 나간 것일 때만 간직한 장서를 버린다 — RLS 가 보여 주는 것이
+         달라질 수 있으므로. onAuthStateChange 는 세션을 읽는 도중에도 null 로
+         한 번 울리는데, 그 소리에 버리면 방금 실어 온 544권을 또 받는다. */
+      if (loadedFor) db.forgetBooks?.();
       loadedFor = null;
       keyBtn.textContent = "열쇠";
       keyBtn.classList.remove("in");

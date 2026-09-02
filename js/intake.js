@@ -546,7 +546,7 @@
       btn.disabled = true;
       out.innerHTML = `<p class="enrich-msg">장서를 세는 중…</p>`;
       try {
-        const rows = await db.listBooks({ limit: 5000 });
+        const rows = await db.syncBooks();
         // 아이디는 되들이기(수정 왕복)의 열쇠다 — 사람이 읽을 일은 없어 맨 뒤에 둔다
         const cols = ["title", "author", "category", "publisher", "isbn", "published_year",
                       "page_count", "size_height", "size_depth", "bookmark_page",
@@ -699,7 +699,7 @@
       out.innerHTML = `<p class="enrich-msg">읽은 책을 세는 중…</p>`;
       try {
         const [rows, haveIds] = await Promise.all([
-          db.listBooks({ limit: 5000 }),
+          db.syncBooks(),
           db.listSummarizedIds(),
         ]);
         const have = new Set(haveIds);
@@ -870,7 +870,7 @@
       host.innerHTML = "";
       let books = [];
       try {
-        const all = await db.listBooks({ limit: 5000 });
+        const all = await db.syncBooks();
         books = all.filter((b) => b.read_status === "읽음" && !(b.memo && b.memo.trim()));
       } catch (err) {
         out.innerHTML = `<p class="enrich-msg bad"></p>`;

@@ -68,6 +68,36 @@
   const SIGN_SECONDS = 12 * 3600;
   const SIGN_MARGIN_MS = 10 * 60 * 1000;
 
+  /* 장서도 한 번 받아 두고 그다음부터는 바뀐 줄만 덧댄다.
+     책 한 권을 고칠 때마다 서가를 다시 그리는데, 그때마다 544권(447KB)을
+     통째로 다시 받으면 손질 스무 번에 9MB 다 — 무료 요금제의 Egress 는
+     그렇게 닳는다 (2026-09-02).
+     books_touch 트리거가 손댈 때마다 updated_at 을 새로 적어 두니,
+     가장 늦은 시각 뒤에 손댄 줄만 물어 오면 된다. 시각은 서버가 적은 것을
+     그대로 되돌려 준다 — 브라우저 시계가 어긋나도 상관없도록. */
+  const bookCache = { rows: null, mark: null };
+
+  /* 화면은 벽·단·자리 순으로 놓인 장서를 기대한다 (listBooks 의 order 와 같다).
+     비어 있는 자리는 뒤로 — PostgREST 의 오름차순 기본값(NULLS LAST)과 맞춘다. */
+  function byShelfOrder(a, b) {
+    const cmp = (x, y) => {
+      if (x === y) return 0;
+      if (x === null || x === undefined) return 1;
+      if (y === null || y === undefined) return -1;
+      return x < y ? -1 : 1;
+    };
+    return cmp(a.wall, b.wall) || cmp(a.shelf, b.shelf)
+      || cmp(a.slot, b.slot) || cmp(a.id, b.id);
+  }
+
+  function keepBooks(rows) {
+    bookCache.rows = rows.slice().sort(byShelfOrder);
+    bookCache.mark = rows.reduce(
+      (m, b) => (b.updated_at && (!m || b.updated_at > m) ? b.updated_at : m), null,
+    );
+    return bookCache.rows;
+  }
+
   const db = {
     client,
 
@@ -156,6 +186,40 @@
       return out;
     },
 
+    /* 서가를 다시 그릴 때 쓰는 장서 — 처음에는 전부, 그다음부터는 바뀐 것만.
+       한 권 고치고 부르면 한 줄(수백 바이트)만 오간다. 걸러 보는 목록
+       (listBooks 의 wall·search) 은 이 길을 쓰지 않는다. */
+    async syncBooks() {
+      if (!bookCache.rows || !bookCache.mark) {
+        return keepBooks(await this.listBooks({ limit: 5000 }));
+      }
+      // 경계에 걸친 줄을 놓치지 않도록 gte 로 묻고 id 로 덮어쓴다
+      const { data, error } = await client.from("books").select("*")
+        .gte("updated_at", bookCache.mark);
+      if (error) throw error;
+      /* 한 번에 돌려주는 줄 수에는 상한(1,000)이 있다 — 서지 채우기처럼
+         수백 권을 한꺼번에 손댄 뒤라면 조용히 잘렸을 수 있으니 다 읽는다 */
+      if (data.length >= 1000) return keepBooks(await this.listBooks({ limit: 5000 }));
+
+      const merged = new Map(bookCache.rows.map((b) => [b.id, b]));
+      data.forEach((b) => merged.set(b.id, b));
+
+      /* 지워진 책은 updated_at 으로 알 길이 없다 — 권수가 어긋나면 다시 다 읽는다.
+         셈만 묻는 질의(head)라 줄은 한 줄도 오지 않는다. */
+      let n = merged.size;
+      try { n = await this.countBooks(); } catch (e) { console.warn("[장서] 권수를 세지 못했습니다:", e); }
+      if (n !== merged.size) return keepBooks(await this.listBooks({ limit: 5000 }));
+
+      return keepBooks([...merged.values()]);
+    },
+
+    /* 다음 번에 장서를 통째로 다시 읽게 한다 — 손으로 지웠을 때처럼
+       셈으로도 잡히지 않을 만한 일이 있었으면 이것을 부른다. */
+    forgetBooks() {
+      bookCache.rows = null;
+      bookCache.mark = null;
+    },
+
     async countBooks() {
       const { count, error } = await client
         .from("books")
@@ -182,9 +246,9 @@
 
     /* 서재의 빈 칸을 한 번에 센다 — 들이기 첫머리의 「건강 상태」가 쓴다.
        열을 하나씩 세는 질의를 여덟 번 던지지 않고, 장서를 한 번 훑어 센다
-       (어차피 화면이 방금 같은 것을 실어 왔으므로 캐시에 걸린다). */
+       (화면이 방금 같은 것을 실어 왔으므로 syncBooks 가 간직한 것을 그대로 쓴다). */
     async healthCounts() {
-      const books = await this.listBooks({ limit: 5000 });
+      const books = await this.syncBooks();
       const n = (f) => books.filter(f).length;
       const [sum, photos, links] = await Promise.all([
         this.listSummarizedIds().catch(() => []),
@@ -323,6 +387,9 @@
     async removeBook(id) {
       const { error } = await client.from("books").delete().eq("id", id);
       if (error) throw error;
+      // 간직한 장서에서도 빼 준다 — 그래야 다음 syncBooks 가 권수를 보고
+      // 544권을 통째로 다시 읽지 않는다
+      if (bookCache.rows) bookCache.rows = bookCache.rows.filter((b) => b.id !== id);
     },
 
     /* 손으로 한 권 들인다 — AI 가 놓친 책을 직접 꽂을 때 */
