@@ -183,6 +183,23 @@
      - 두께: 실제 등두께(mm)가 있으면 그것을 (1.1px/mm), 없으면 쪽수로 어림,
        그것도 없으면 제목 해시로 물러난다 — 항상 같은 모습이 되도록 결정적으로. */
   const CLOTH = ["#5C3A22", "#6E2A1E", "#2E4630", "#28323E", "#4A2E3A", "#77522A", "#3A3A30"];
+  /* 알라딘은 표지가 없을 때 「No Image」 그림(noimg_sum_b.gif)의 주소를 돌려준다 —
+     그걸 표지로 걸면 표지 뷰에 회색 안내판이 액자에 걸린다. 표지가 없는 것으로 친다 */
+  function realCover(url) {
+    return url && !/\/noimg/i.test(url) ? url : null;
+  }
+  /* 책등 색이 밝으면(사진에서 읽은 흰 책·미색 책) 금박 글자가 안 보인다 —
+     상대 휘도로 어두운 잉크를 쓸지 정한다. 0.35 가 경계: #c0c0c0 는 밝고 #77522A 는 어둡다 */
+  function isLightColor(hex) {
+    const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex || "").trim());
+    if (!m) return false;
+    let c = m[1];
+    if (c.length === 3) c = c.split("").map((x) => x + x).join("");
+    const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const r = lin(parseInt(c.slice(0, 2), 16)), g = lin(parseInt(c.slice(2, 4), 16)), bl = lin(parseInt(c.slice(4, 6), 16));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl > 0.35;
+  }
+  window.PostLibrosIsLight = isLightColor;
   function shapeForShelf(b, spineSigned) {
     let h = 0;
     for (let i = 0; i < b.title.length; i++) h = (h * 31 + b.title.charCodeAt(i)) >>> 0;
@@ -190,6 +207,7 @@
     const spineImg = (b.spine_url && spineSigned?.get(b.spine_url)) || null;
     const boxRatio = (spineImg && b.spine_box && b.spine_box.h > 0)
       ? b.spine_box.w / b.spine_box.h : null;
+    const color = b.spine_color || CLOTH[h % CLOTH.length];
     return {
       spineImg,
       boxRatio,
@@ -197,7 +215,9 @@
       t: b.title,
       a: b.author || "지은이 미상",
       cat: b.category || "문학",
-      c: b.spine_color || CLOTH[h % CLOTH.length],
+      c: color,
+      // 밝은 천에는 어두운 잉크 — 책등과 가짜 표지가 같이 쓴다
+      ink: isLightColor(color),
       h: b.size_height
         ? Math.max(70, Math.min(130, Math.round(b.size_height * 0.52)))
         : 78 + (h % 40),
@@ -234,7 +254,7 @@
       wall: b.wall || null,
       shelfNo: b.shelf ?? null,
       memo: b.memo || "",
-      cover: b.cover_url || null,
+      cover: realCover(b.cover_url),
       loc: [b.wall, b.shelf ? b.shelf + "단" : null].filter(Boolean).join(" ") || "자리 미정",
       paper: (h >> 9) % 6 === 0,
       lean: (h >> 12) % 19 === 0,

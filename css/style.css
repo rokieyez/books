@@ -19,6 +19,9 @@
     --st-done: #3E8A5F;
     --st-doing: #BC852D;
     --st-todo: #5C79D0;
+    /* 밝은 천(흰 책·미색 책)에 찍는 먹 — 금박이 안 보이는 자리에서만 쓴다 */
+    --ink: #2A1C0E;
+    --ink-dim: rgba(42,28,14,.55);
   }
   * { box-sizing: border-box; }
   /* hidden 속성은 브라우저 기본 스타일의 display:none 으로만 걸려 있어서,
@@ -42,6 +45,10 @@
     font-family: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
     font-weight: 300; line-height: 1.75;
     -webkit-font-smoothing: antialiased;
+    /* 한글은 기본값이면 아무 글자 사이에서나 꺾인다 — 「비블리아 고서 / 당 사건수첩」
+       처럼 낱말 한가운데가 갈라진다. 어절 단위로만 꺾고, 어절 하나가 칸보다
+       길 때만 부순다 (break-word 는 min-content 를 건드리지 않는다) */
+    word-break: keep-all; overflow-wrap: break-word;
   }
   body::before { /* 서재 전체를 감싸는 어둠의 비네트 */
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
@@ -118,7 +125,14 @@
   .topbar .census:hover .cnum, .topbar .census:focus-visible .cnum { color: var(--brass); }
   .topbar .census:focus-visible { outline: 1px solid var(--brass-dim); outline-offset: 4px; }
   .topbar .census[aria-pressed="true"] .cnum { color: var(--brass); }
-  @media (max-width: 560px) { .topbar .census { display: none; } }
+  @media (max-width: 560px) {
+    .topbar .census { display: none; }
+    /* 390px 에서 찾기 칸이 「책을 찾습니」에서 잘렸다 — 여백을 줄여 일곱 글자를 들인다 */
+    .topbar .inner { padding: 8px 40px 8px 12px; gap: 10px; }
+    .topbar .mark { font-size: 14px; letter-spacing: .06em; gap: 7px; }
+    .topbar input { padding: 7px 10px; }
+    .keybtn { padding: 6px 11px; letter-spacing: .08em; }
+  }
 
   /* ── 사다리 ──────────────────────────────────────────── */
   .ladder {
@@ -278,7 +292,15 @@
     transition: transform 1.3s cubic-bezier(.6, 0, .2, 1), opacity .5s ease .8s;
   }
 
+  /* 빈 벽 — 방문자에게는 뒤로 물러나 낮은 띠로 접힌다. 문고리 한 권만 오른쪽 끝에 남는다 */
+  .wallsec.empty { margin-top: 30px; }
+  .wallsec.empty .panel { padding: 18px 12px 10px; }
+  .wallsec.empty .wallempty { margin: 0 0 6px; padding: 0 4px; }
+  .wallsec.empty .shelfline { justify-content: flex-end; padding-right: 8px; }
+
   .shelfline { display: flex; align-items: flex-end; justify-content: center; gap: 2px; flex-wrap: wrap; }
+  /* 책이 없는 단도 단이다 — 높이가 0 이면 널빤지 셋이 사다리처럼 포개진다 */
+  .shelfline:empty { min-height: 84px; }
   /* 실물 책등 — 사진에서 오려 낸 조각. 글자는 그림 안에 이미 있다.
      채도를 살짝 눌러 어두운 서가에 스며들게 한다 */
   .tome.realspine {
@@ -301,6 +323,12 @@
     background-size: 100% 44px; background-position: 0 5px; background-repeat: no-repeat;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     transition: transform .16s ease;
+  }
+  /* 사진에서 읽은 흰 책·미색 책 — 크림 위의 금박은 안 읽힌다. 먹으로 찍고 금줄도 먹줄로 */
+  .tome.ink {
+    color: var(--ink);
+    background-image: repeating-linear-gradient(180deg, transparent 0 12px, rgba(42,28,14,.28) 12px 13px, transparent 13px 19px);
+    box-shadow: inset -2px 0 4px rgba(0,0,0,.22), inset 1px 0 2px rgba(255,255,255,.35), inset 0 0 0 1px rgba(0,0,0,.08);
   }
   .tome:hover, .tome:focus-visible { transform: translateY(-6px); outline: none; }
   .tome.dim { opacity: .2; }
@@ -325,6 +353,7 @@
     margin: 4px 0 14px; padding: 18px 4px 4px; text-align: center;
     font-family: "Gowun Batang", serif; font-size: 12.5px;
     color: var(--parchment-dim); letter-spacing: .06em; opacity: .8;
+    text-wrap: balance;
   }
   .plank {
     position: relative;
@@ -341,6 +370,11 @@
   }
   /* 이름표가 붙은 단은 아래로 조금 더 숨을 준다 */
   .plank.labeled { margin-bottom: 20px; }
+  /* 전화기에서는 9px 이 읽히지 않는다 — 한 치수 키운다 */
+  @media (max-width: 560px) {
+    .planklabel { font-size: 10.5px; letter-spacing: .08em; opacity: .85; }
+    .plank.labeled { margin-bottom: 22px; }
+  }
 
   /* ── 서가 뒤의 방 ────────────────────────────────────── */
   .room {
@@ -1302,10 +1336,15 @@
     opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto;
     visibility: visible; transition: opacity .22s ease, transform .22s ease, visibility 0s;
   }
+  /* 닫기 — 카드 모서리에 붙여 두고 닿는 면은 padding 으로 넓힌다.
+     음수 margin 으로 밀어내면 카드의 overflow 에 잘려 닿는 면이 도로 줄어든다 */
   .exlibris .close {
-    position: absolute; top: 10px; right: 13px; appearance: none; border: none;
-    background: none; cursor: pointer; color: var(--parchment-dim); font-size: 20px; line-height: 1;
+    position: absolute; top: 0; right: 0; appearance: none; border: none;
+    padding: 10px 14px; background: none; cursor: pointer;
+    color: var(--parchment-dim); font-size: 20px; line-height: 1;
   }
+  .exlibris .close:hover { color: var(--parchment); }
+  .exlibris .close:focus-visible { outline: 2px solid var(--brass); outline-offset: -6px; border-radius: 2px; }
   .exlibris .mark {
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .16em;
     color: var(--brass-dim); display: block; margin-bottom: 13px;
@@ -1325,20 +1364,55 @@
   }
   /* 표지 대신 실물 책등 조각 — 세로로 길어 폭을 줄인다 */
   .x-cover.spine { width: 34px; }
-  .exlibris .byline { margin: 0 0 14px; font-size: 13px; color: var(--parchment-dim); }
+  .exlibris .byline { margin: 0 0 6px; font-size: 13px; color: var(--parchment-dim); }
+  /* 읽음 상태 한 줄 — 서지 밑, 점 하나와 말 한마디 */
+  .x-state { margin: 0 0 14px; font-size: 12.5px; letter-spacing: .02em; color: var(--parchment-dim); }
+  .x-state .st-dot { margin-right: 6px; }
   .exlibris .rule { height: 1px; background: linear-gradient(90deg, transparent, var(--brass-dim) 30%, transparent 50%, var(--brass-dim) 70%, transparent); margin: 13px 0; }
   .exlibris h4 {
     margin: 0 0 5px; font-family: "Cormorant", serif; font-style: italic;
     font-size: 12.5px; letter-spacing: .24em; color: var(--brass-dim); text-transform: uppercase;
   }
-  .exlibris p.body { margin: 0 0 4px; font-size: 13.5px; line-height: 1.8; }
+  /* 기록은 문단 사이에 빈 줄을 두고 온다 — pre-line 이 없으면 한 덩이로 뭉친다 */
+  .exlibris p.body { margin: 0 0 4px; font-size: 13.5px; line-height: 1.8; white-space: pre-line; }
+  /* 기록 다음에 오는 「여백의 기록」 머리는 숨을 한 번 쉰다 */
+  .exlibris #x-full h4:not(:first-child) { margin-top: 16px; }
+  /* AI 가 자신 없어 한 기록 — 본문 위에 걸리는 작은 주의 줄 */
+  .exlibris .hedge {
+    margin: 0 0 10px; padding: 2px 0 2px 10px; font-size: 12px; font-style: italic;
+    color: var(--parchment-dim); border-left: 2px solid var(--brass-dim);
+  }
+  .exlibris .hedge[hidden] { display: none; }
+  /* 방문자에게 보이는 이음 — 기록 아래, 누르면 건너가는 줄들 */
+  .x-kin { margin-top: 16px; }
+  .x-kin[hidden] { display: none; }
+  .x-kinlist { display: flex; flex-direction: column; gap: 4px; }
+  .kinrow {
+    display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: baseline;
+    width: 100%; text-align: left; appearance: none; cursor: pointer;
+    padding: 7px 10px; font: inherit; color: var(--parchment);
+    background: rgba(23,16,9,.5); border: 1px solid var(--line); border-radius: 2px;
+  }
+  .kinrow:hover, .kinrow:focus-visible { border-color: var(--brass-dim); outline: none; }
+  .kinrow:hover b, .kinrow:focus-visible b { color: var(--brass); }
+  .kinrow b { font-weight: 400; font-size: 13px; }
+  .kinrow .kindir {
+    font-style: normal; font-size: 10px; letter-spacing: .04em; white-space: nowrap;
+    padding: 1px 6px; border: 1px solid var(--line); border-radius: 2px; color: var(--parchment-dim);
+  }
+  .kinrow[data-d="다음에"] .kindir { color: var(--brass); border-color: var(--brass-dim); }
+  .kinrow[data-d="먼저"] .kindir { color: var(--st-doing); border-color: rgba(188,133,45,.6); }
+  .kinrow[data-d="나란히"] .kindir { color: var(--st-todo); border-color: rgba(92,121,208,.5); }
+  .kinrow .kinwhy { grid-column: 2; font-size: 11.5px; font-style: italic; color: var(--parchment-dim); }
   .exlibris .marginalia {
     margin: 0; padding: 10px 14px; font-size: 13px;
     border-left: 2px solid var(--wax); background: rgba(142,47,35,.1);
   }
   .exlibris .undeciphered { margin: 0; font-size: 13px; font-style: italic; color: var(--parchment-dim); }
-  .exlibris .sealmark { /* 봉랍 장서인 */
-    position: absolute; right: 22px; bottom: 18px;
+  /* 봉랍 장서인 — 카드 흐름의 맨 끝에 오른쪽으로 붙인다. 모서리에 absolute 로
+     두었더니 이음 줄이나 여백 위에 얹혀 글을 가렸다 */
+  .exlibris .sealmark {
+    margin: 14px -4px -6px auto;
     width: 42px; height: 42px; border-radius: 50%;
     background: radial-gradient(circle at 36% 30%, #A6473A, var(--wax) 58%, #6E2118);
     box-shadow: 0 3px 8px rgba(0,0,0,.4);
@@ -1362,12 +1436,16 @@
   }
   /* 좁은 화면에서 이 줄이 눌리면 탭 묶음이 통째로 잘린다 — 실제로 「통계」가
      화면 밖으로 밀려 폰에서는 별자리·리듬·기록에 갈 길이 아예 없었다.
-     묶음은 줄어들지 않게 하고(flex:none), 그래도 모자라면 잘리는 대신 접힌다. */
+     묶음은 줄어들지 않게 하고(flex:none), 그래도 모자라면 잘리는 대신 접힌다.
+     그런데 접힌 줄은 바닥에 붙어 「위로」 자라므로 — 390px 에서 두 줄이 되며
+     「지금 펼쳐 둔 책」 단추를 덮고 양초와 겹쳤다. 좁은 화면에서는 바닥에서
+     떼어 글 흐름 안에 앉힌다. 양초는 마루(아래 88px)에 그대로 남는다. */
   @media (max-width: 560px) {
-    .viewrow { flex-wrap: wrap; justify-content: center; row-gap: 8px; padding: 0 8px; }
+    .viewrow { position: static; margin-top: 22px; padding: 0 8px; }
     .viewrow .viewseg { flex: none; }
     .viewrow .viewseg button { padding: 8px 10px; font-size: 12px; letter-spacing: .04em; }
-    .viewrow .heightsort { padding: 0 10px; font-size: 12px; letter-spacing: .04em; }
+    .viewrow .heightsort { padding: 0 10px; font-size: 11.5px; letter-spacing: .04em; }
+    .viewrow .filterset { border-left: none; padding-left: 0; }
   }
   .viewseg {
     display: flex; border: 1px solid var(--wood3); border-radius: 2px; overflow: hidden;
@@ -1452,17 +1530,38 @@
   .ledger th {
     font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 10px;
     letter-spacing: .18em; color: var(--brass-dim); text-align: left;
-    padding: 11px 16px; border-bottom: 1px solid var(--wood3); white-space: nowrap;
+    padding: 11px 12px; border-bottom: 1px solid var(--wood3); white-space: nowrap;
   }
-  .ledger td { padding: 8px 16px; border-bottom: 1px dashed var(--line); white-space: nowrap; color: var(--parchment); }
-  .ledger td.t { font-family: "Gowun Batang", serif; font-weight: 700; color: #E8CE93; }
+  .ledger td { padding: 8px 12px; border-bottom: 1px dashed var(--line); white-space: nowrap; color: var(--parchment); }
+  /* 제목 칸만 접힌다 — 일곱 칸을 전부 한 줄로 못 박으면 1440px 에서도 표가 오른쪽으로 잘렸다.
+     제목이 길면 두 줄, 나머지 칸(저자·상태·해·위치)은 짧아서 그대로 한 줄 */
+  .ledger td.t { font-family: "Gowun Batang", serif; font-weight: 700; color: #E8CE93; white-space: normal; min-width: 200px; line-height: 1.5; }
+  /* 분류(장서의 아홉이 문학)와 입고(모두 같은 해)는 한 눈에 같은 값이다 — 좁은 화면에서는 걷는다 */
+  @media (max-width: 720px) {
+    .ledger td:nth-child(3), .ledger th:nth-child(3),
+    .ledger td:nth-child(6), .ledger th:nth-child(6) { display: none; }
+  }
+  /* 전화기에서는 제목·저자·상태 세 칸만 — 일곱 칸을 옆으로 밀어 두면 상태 칸이
+     화면 밖에 있다는 걸 아무도 모른다. 읽은 해와 위치는 서표에서 본다 */
+  @media (max-width: 560px) {
+    .ledger td:nth-child(5), .ledger th:nth-child(5),
+    .ledger td:nth-child(7), .ledger th:nth-child(7) { display: none; }
+    .ledger td { padding: 8px 8px; }
+    /* 칸 너비는 머리글이 정한다 — 제목이 남는 폭을 다 가져간다 */
+    table.ledger { table-layout: fixed; }
+    .ledger th:nth-child(2) { width: 30%; }
+    .ledger th:nth-child(4) { width: 82px; }
+    .ledger td.t { min-width: 0; padding-left: 12px; }
+    .ledger td:nth-child(2) { white-space: normal; font-size: 12.5px; overflow-wrap: anywhere; }
+    .ledger td:nth-child(4) { padding-right: 12px; }
+  }
   .ledger tbody tr:hover td { background: rgba(224,177,94,.06); cursor: pointer; }
   /* 머리글을 눌러 정렬한다 — 누른 칸에만 화살표가 남는다 */
   .ledger th { padding: 0; }
   .sortbtn {
     font: inherit; color: inherit; letter-spacing: inherit;
     background: none; border: 0; cursor: pointer;
-    padding: 11px 16px; width: 100%; text-align: left;
+    padding: 11px 12px; width: 100%; text-align: left;
     transition: color .2s, background .2s;
   }
   .sortbtn:hover { color: var(--brass); background: rgba(224,177,94,.05); }
@@ -1544,6 +1643,13 @@
   .hbar .track { height: 12px; background: rgba(0,0,0,.45); border-radius: 0 4px 4px 0; }
   .hbar .fill { display: block; height: 100%; background: var(--brass); border-radius: 0 4px 4px 0; transition: width .9s cubic-bezier(.25, .6, .3, 1); }
   .hbar .val { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--parchment-dim); text-align: right; font-variant-numeric: tabular-nums; }
+  /* 「갈래 미정」— 셈에 아직 안 든 몫은 막대 없이 한 줄 글로 */
+  #catbars .undecided {
+    margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--line);
+    font-size: 11.5px; color: var(--parchment-dim); font-style: italic;
+  }
+  /* 갈래 이름이 「환상과 SF」처럼 길다 — 이름 칸을 조금 더 준다 */
+  #catbars .hbar { grid-template-columns: 84px 1fr 48px; }
   .cols { display: flex; align-items: flex-end; gap: 7px; height: 118px; padding-top: 16px; }
   .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
   .col i { display: block; width: 100%; max-width: 30px; background: var(--brass); border-radius: 4px 4px 0 0; transition: height .9s cubic-bezier(.25, .6, .3, 1); }
@@ -1558,6 +1664,7 @@
     text-align: center; padding: 26px 16px;
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
     color: var(--parchment-dim); letter-spacing: .16em;
+    text-wrap: balance; /* 「들어왔습 / 니다」— 판권장의 마지막 줄이 두 글자로 끝나지 않게 */
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1678,26 +1785,32 @@
   /* 거름망 단추가 셋으로 늘면서 이 줄이 눌려 탭 글자가 「서 / 가」로 쪼개졌다.
      넓은 화면에서도 접히게 하고, 탭 글자는 절대 줄바꿈하지 않게 못 박는다. */
   .viewrow {
-    display: flex; align-items: stretch; gap: 8px;
-    flex-wrap: wrap; justify-content: center; row-gap: 8px;
+    display: flex; align-items: stretch; gap: 14px;
+    flex-wrap: wrap; justify-content: center; row-gap: 10px;
   }
   .viewseg button, .viewrow .heightsort { white-space: nowrap; }
+  /* 거름망 묶음 — 탭 오른쪽에 가는 금 하나로 갈라 선다 */
+  .filterset {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+    border-left: 1px solid var(--line); padding-left: 14px;
+  }
+  /* 거름망은 알약꼴 — 네모난 탭과 한눈에 다르게 읽힌다. 켜지기 전엔 그림자 없이
+     한 걸음 물러서 있고, 켜지면 놋쇠 테두리에 촛불빛이 안쪽에 고인다 */
   .heightsort {
     appearance: none; cursor: pointer;
-    font-family: "Gowun Batang", serif; font-weight: 700; font-size: 12.5px;
-    letter-spacing: .08em; color: var(--parchment-dim);
-    border: 1px solid var(--wood3); border-radius: 2px;
-    background: rgba(36,23,8,.6); padding: 0 13px;
-    box-shadow: 0 6px 14px rgba(0,0,0,.35);
+    font-family: "Gowun Batang", serif; font-weight: 700; font-size: 11.5px;
+    letter-spacing: .06em; color: var(--parchment-dim);
+    border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(36,23,8,.35); padding: 0 12px; min-height: 28px;
+    transition: color .2s ease, border-color .2s ease, background .2s ease;
   }
-  .heightsort:hover, .heightsort:focus-visible { color: var(--parchment); outline: none; }
-  .heightsort[aria-pressed="true"] { color: var(--brass); border-color: var(--brass-dim); }
-  /* 읽은 책만 — 켜져 있으면 촛불이 켜진 것처럼 안쪽이 은은하게 밝다 */
-  .readpath[aria-pressed="true"] {
-    background: rgba(224,177,94,.13);
-    box-shadow: 0 6px 14px rgba(0,0,0,.35), inset 0 0 12px rgba(224,177,94,.16);
-  }
+  .heightsort:hover, .heightsort:focus-visible { color: var(--parchment); border-color: var(--wood3); outline: none; }
+  .heightsort:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .heightsort[aria-pressed="true"] { color: var(--brass); border-color: var(--brass-dim); background: rgba(224,177,94,.1); }
+  /* 켜진 거름망은 셋이 같은 옷 — 알약 안쪽에 촛불빛이 고인다 */
+  .heightsort[aria-pressed="true"] { box-shadow: inset 0 0 12px rgba(224,177,94,.14); }
   .readpath[hidden] { display: none; }
+  @media (prefers-reduced-motion: reduce) { .heightsort { transition: none; } }
 
   /* ── 주사위 — 오늘의 책 옆의 둘째 단추, 한 걸음 물러난 톤 ── */
   /* ── 주사위 — 「다음에 뭘 읽지」에 서재가 답하는 단추 ──
@@ -1843,6 +1956,20 @@
     outline: none; border-color: var(--brass-dim);
     box-shadow: 0 8px 22px rgba(224,177,94,.25);
   }
+  /* 좁은 화면에서 액자 여섯을 두 줄씩 쌓으면 첫 서가까지 한 화면 반을 내려야 한다 —
+     진열장은 옆으로 미는 한 줄 띠가 된다. 마지막 액자가 반쯤 잘려 보여 더 있음을 알린다 */
+  @media (max-width: 560px) {
+    .showgrid {
+      display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 12px;
+      scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin; scrollbar-color: var(--wood3) transparent;
+    }
+    .showframe { flex: 0 0 112px; scroll-snap-align: start; }
+    .paths { margin-bottom: 20px; }
+    .pathrow { grid-template-columns: 1fr; gap: 8px; }
+    .pathcard { padding: 10px 12px; gap: 3px; }
+    .pathcard .pathwho { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  }
 
   /* ── 읽기 리듬 — 91일 밭 ── */
   #rhythmgrid {
@@ -1908,6 +2035,8 @@
 
   /* ── 걸어 볼 만한 길 — 현관에 걸리는 이음 ── */
   .paths { margin: 0 0 28px; }
+  /* 진열장·길은 서가 보기에서만 — body.view-walls 는 setView 가 켠다 */
+  body:not(.view-walls) .showcase, body:not(.view-walls) .paths { display: none; }
   .pathrow {
     display: grid; gap: 12px; margin-top: 12px;
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -1961,6 +2090,14 @@
     font-size: 8.5px; letter-spacing: .22em; color: rgba(226,213,184,.28);
   }
   .cover.hascover .cvrframe { display: none; }
+  /* 밝은 천의 가짜 표지 — 테·활자·제목이 모두 먹으로 바뀐다 */
+  .cover.ink:not(.hascover) { color: var(--ink); }
+  .cover.ink:not(.hascover) b { border-top-color: var(--ink-dim); }
+  .cover.ink:not(.hascover) span { color: var(--ink-dim); }
+  .cover.ink .cvrframe { border-color: rgba(42,28,14,.3); }
+  .cover.ink .cvrframe::before { border-color: rgba(42,28,14,.14); }
+  .cover.ink .cvrframe em { color: rgba(42,28,14,.42); }
+  .cover.ink .cvrframe u { color: rgba(42,28,14,.4); }
   /* 테는 자리 잡힌 요소라 그냥 두면 제목 위에 얹힌다 — 글자를 앞으로 올린다 */
   .cover b, .cover span { position: relative; z-index: 1; }
 
@@ -2035,10 +2172,7 @@
     content: ""; position: absolute; left: 50%; top: 50%;
     width: 30px; height: 26px; transform: translate(-50%, -50%);
   }
-  .exlibris .close {
-    padding: 10px 14px; margin: -10px -14px;   /* 자리는 그대로, 닿는 면만 넓힌다 */
-    top: 4px; right: 6px;
-  }
+  /* 서표의 닫기는 기본 규칙에서 이미 padding 으로 넓혀 두었다(.exlibris .close) */
   .pilebook { min-height: 30px; }
 
   @media (max-width: 560px) {
@@ -2046,12 +2180,11 @@
     .viewrow .heightsort { min-height: 34px; padding: 0 12px; }
     .ladder .dot { width: 9px; height: 9px; }
     .ladder .dot::after { width: 34px; height: 30px; }
-    .exlibris .close { font-size: 24px; padding: 12px 16px; margin: -12px -16px; }
+    .exlibris .close { font-size: 24px; padding: 12px 16px; }
     .x-share { padding: 8px 0; font-size: 11px; }
     .pilebook { min-height: 34px; }
     .findnote { align-items: stretch; }
     .findgo { padding: 9px 12px; }
-    .pathrow { grid-template-columns: 1fr; }
     .sizemap { gap: 14px; justify-content: space-between; }
   }
 
@@ -2060,6 +2193,7 @@
     margin: 14px auto 0; max-width: 56ch;
     font-family: "IBM Plex Mono", monospace; font-size: 11px;
     letter-spacing: .04em; color: var(--brass-dim); line-height: 1.7;
+    text-wrap: balance; /* 「…이음 19 / 개.」처럼 마지막 낱말 하나가 홀로 떨어지지 않게 */
   }
   .foyerline:empty { display: none; }
 
@@ -2083,10 +2217,6 @@
     font-family: "IBM Plex Mono", monospace; font-size: 11px;
     color: var(--brass-dim); font-variant-numeric: tabular-nums;
   }
-  .sumonly[aria-pressed="true"], .coveronly[aria-pressed="true"] {
-    color: var(--brass); border-color: var(--brass-dim);
-  }
-
   @media (prefers-reduced-motion: reduce) { .nowopen { transition: none; } }
 
   /* ── 서재를 열지 못했을 때 ────────────────────────────
@@ -2194,13 +2324,31 @@
     border-radius: 1px 3px 3px 1px; box-shadow: 0 6px 14px rgba(0,0,0,.5);
     transition: transform .16s ease;
   }
-  .chronbook:not(.hascover)::before {
-    content: ""; display: block; width: 86px; height: 124px;
-    border-radius: 1px 3px 3px 1px;
-    background: var(--cvr, #4A3218);
-    box-shadow: inset 0 0 0 1px rgba(224,177,94,.2), 0 6px 14px rgba(0,0,0,.5);
+  /* 표지 없는 책의 얼굴 — 표지 뷰의 가짜 표지와 같은 문법: 테 두 겹, 첫 글자, 분류 */
+  .chronbook .chronface {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 5px; width: 86px; height: 124px; border-radius: 1px 3px 3px 1px;
+    background: var(--cvr, #4A3218); font-style: normal;
+    box-shadow: inset 0 0 0 1px rgba(224,177,94,.2), inset 8px 0 12px -7px rgba(0,0,0,.5), 0 6px 14px rgba(0,0,0,.5);
+    transition: transform .16s ease;
   }
-  .chronbook:hover img, .chronbook:focus-visible img { transform: translateY(-4px); }
+  .chronbook .chronface::before {
+    content: ""; position: absolute; inset: 7px; border: 1px solid rgba(226,213,184,.2);
+  }
+  .chronbook .chronface em {
+    font-family: "Gowun Batang", serif; font-style: normal; font-size: 28px; line-height: 1;
+    color: rgba(226,213,184,.32);
+  }
+  .chronbook .chronface u {
+    text-decoration: none; font-family: "IBM Plex Mono", monospace;
+    font-size: 8px; letter-spacing: .2em; color: rgba(226,213,184,.28);
+  }
+  .chronbook.ink .chronface::before { border-color: rgba(42,28,14,.3); }
+  .chronbook.ink .chronface em { color: rgba(42,28,14,.42); }
+  .chronbook.ink .chronface u { color: rgba(42,28,14,.4); }
+  .chronbook.hascover .chronface { display: none; }
+  .chronbook:hover img, .chronbook:focus-visible img,
+  .chronbook:hover .chronface, .chronbook:focus-visible .chronface { transform: translateY(-4px); }
   .chronbook > span {
     font-size: 11px; line-height: 1.45; color: var(--parchment-dim);
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -2211,7 +2359,15 @@
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
 
+  /* 좁은 화면의 통계 칸은 안쪽이 260px 남짓 — 86px 표지는 두 권에서 끊긴다.
+     조금 줄여 한 줄에 세 권을 세운다 */
+  @media (max-width: 560px) {
+    .chronstrip { gap: 12px; }
+    .chronbook, .chronbook img, .chronbook .chronface { width: 76px; }
+    .chronbook img, .chronbook .chronface { height: 110px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .pointed { animation: none; outline: 2px solid var(--brass); }
-    .chronbook img { transition: none; }
+    .chronbook img, .chronbook .chronface { transition: none; }
   }

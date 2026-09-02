@@ -36,7 +36,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant:ital,wght@0,500;1,500&family=Noto+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<!-- view-walls: 진열장·길은 서가 보기에서만 보인다 — setView 가 바꾼다 -->
+<body class="view-walls">
 <div class="topbar">
   <div class="inner">
     <span class="mark"><span class="tseal">藏</span>서가 뒤의 방</span>
@@ -83,18 +84,22 @@
       <button id="tab-stats" role="tab" data-v="stats" aria-selected="false"
               aria-controls="v-stats" tabindex="-1">통계</button>
     </div>
-    <!-- 실물 높이 자료가 쌓이면 진짜 서가처럼 키 순서로도 볼 수 있다 -->
-    <button class="heightsort" id="heightsort" aria-pressed="false"
-            title="실물 키 순서로 꽂아 본다">키 순서</button>
-    <!-- 이 서재가 실제로 통과한 책들 — 대부분은 아직 기다리는 책이라
-         그냥 둘러보면 좀처럼 마주치지 않는다 -->
-    <button class="heightsort readpath" id="readpath" aria-pressed="false"
-            title="이 서재가 실제로 읽어 낸 책만 남긴다">읽은 책만</button>
-    <!-- 기록은 서표를 열어야만 보인다 — 어디 있는지 물어볼 수 있게 -->
-    <button class="heightsort sumonly" id="sumonly" aria-pressed="false" hidden
-            title="AI 가 지어 둔 기록이 딸린 책만 남긴다">기록 있는 책만</button>
-    <button class="heightsort coveronly" id="coveronly" aria-pressed="false"
-            title="진짜 표지가 걸린 책만 남긴다">표지 있는 것만</button>
+    <!-- 거름망 — 탭과 같은 옷을 입고 나란히 서면 「보기 여덟 개」로 읽힌다.
+         탭은 자리를 바꾸는 것, 거름망은 남기는 것 — 묶음을 나누고 옷도 달리 입힌다 -->
+    <div class="filterset" role="group" aria-label="거름망">
+      <!-- 실물 높이 자료가 쌓이면 진짜 서가처럼 키 순서로도 볼 수 있다 -->
+      <button class="heightsort" id="heightsort" aria-pressed="false"
+              title="실물 키 순서로 꽂아 본다">키 순서</button>
+      <!-- 이 서재가 실제로 통과한 책들 — 대부분은 아직 기다리는 책이라
+           그냥 둘러보면 좀처럼 마주치지 않는다 -->
+      <button class="heightsort readpath" id="readpath" aria-pressed="false"
+              title="이 서재가 실제로 읽어 낸 책만 남긴다">읽은 책만</button>
+      <!-- 기록은 서표를 열어야만 보인다 — 어디 있는지 물어볼 수 있게 -->
+      <button class="heightsort sumonly" id="sumonly" aria-pressed="false" hidden
+              title="AI 가 지어 둔 기록이 딸린 책만 남긴다">기록 있는 책만</button>
+      <button class="heightsort coveronly" id="coveronly" aria-pressed="false"
+              title="진짜 표지가 걸린 책만 남긴다">표지 있는 것만</button>
+    </div>
   </div>
 </div>
 
@@ -152,7 +157,9 @@
   <section id="v-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0" hidden>
     <div class="statgrid">
       <div class="statpanel">
-        <h4>분류별 장서</h4>
+        <!-- 한 분류가 장서의 아홉을 차지하면 「문학 507권」 막대 하나는 아무것도 말하지
+             않는다 — 그때는 갈래(소설·추리·고전…)로 갈라 보인다. 제목도 app.js 가 바꾼다 -->
+        <h4 id="h-cat">분류별 장서</h4>
         <p class="ps" id="ps-cat"></p>
         <div id="catbars"></div>
       </div>
@@ -169,7 +176,7 @@
       </div>
       <div class="statpanel">
         <h4>가장 많이 모은 저자</h4>
-        <p class="ps">전집·시리즈 포함</p>
+        <p class="ps" id="ps-author">전집·시리즈 포함</p>
         <div id="authorbars"></div>
       </div>
       <div class="statpanel">
@@ -298,6 +305,9 @@
     <div class="x-head-t">
       <h3 id="x-title"></h3>
       <p class="byline" id="x-byline"></p>
+      <!-- 읽음 상태는 방문자에게도 사실이다 — 점 하나와 한마디.
+           주인은 아래 고침 자리에서 바꾸고, 바꾸면 이 줄이 따라 바뀐다 -->
+      <p class="x-state" id="x-state"><span class="st-dot"></span><span id="x-state-t"></span></p>
       <!-- 이 책 한 권만 그대로 건네줄 수 있는 주소 -->
       <button class="x-share" id="x-share" type="button">이 책의 주소를 복사한다</button>
       <!-- 이 책을 만난 자리 — 인식에 쓴 원본 책장 사진 (주인만) -->
@@ -404,6 +414,9 @@
 
   <div id="x-full">
     <h4>Summarium</h4>
+    <!-- AI 가 자신 없는 책의 첫 문장 「이 책은 확실히 알지 못합니다」를
+         본문에서 떼어 여기 작은 주의 줄로 건다 — app.js paintSummary -->
+    <p class="hedge" id="x-hedge" hidden>AI 가 확실히 아는 책이 아닙니다 — 제목과 서지에서 짐작한 기록입니다.</p>
     <p class="body" id="x-summary"></p>
     <h4>여백의 기록</h4>
     <p class="marginalia" id="x-memo"></p>
@@ -414,6 +427,12 @@
     <h4>Summarium</h4>
     <p class="undeciphered" id="x-none">이 책의 기록은 아직 없습니다.</p>
     <button class="genbtn" id="x-gen">지금 기록을 부탁한다</button>
+  </div>
+  <!-- 방문자에게 보이는 이음 — 읽기 전용. 이음은 주인만 맺지만, 맺어 둔 길은
+       누구나 따라 걸을 수 있어야 한다. 주인은 위 고침 자리의 이음 줄을 본다 -->
+  <div class="x-kin" id="x-kin" hidden>
+    <h4>이어 읽기</h4>
+    <div class="x-kinlist" id="x-kinlist"></div>
   </div>
   <div class="sealmark">藏</div>
 </div>

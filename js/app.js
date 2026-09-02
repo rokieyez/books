@@ -89,9 +89,8 @@
      자격이 없으므로 그냥 예전처럼 스물둘씩 끊는다. */
   const SHELF_CAP = 22, SHELF_ROWS = 3;
   function shelfLines(shelved, w) {
-    const flat = () => Array.from({ length: SHELF_ROWS }, (_, s) => ({
-      label: null, books: shelved.slice(s * SHELF_CAP, (s + 1) * SHELF_CAP),
-    }));
+    // 한 줄로 넘긴다 — 판의 폭에 맞춰 단을 가르는 건 reflowLines 의 몫이다
+    const flat = () => [{ label: null, books: shelved.slice(0, SHELF_ROWS * SHELF_CAP) }];
     const total = allBooks().length;
     // 서재의 40%를 넘게 가진 벽만 — 다른 벽은 나눌 만큼 두껍지 않다
     if (!total || (w.books?.length || 0) / total < 0.4) return flat();
@@ -125,12 +124,62 @@
     return lines;
   }
 
+  /* 한 단은 한 줄이어야 널빤지가 책 밑에 온다. 전화기에서는 스물두 권이
+     두세 줄로 접히고 마지막 줄의 한 권이 허공에 떠 있었다 — 판의 폭을 재어
+     한 줄에 들어갈 만큼씩 단을 다시 가른다. 줄 수가 정해지면 폭을 고르게
+     나눠 마지막 단에 한 권만 남는 일이 없게 한다. 갈래 이름표는 첫 단에만.
+     빈 단은 빈 널빤지로 그대로 둔다 — 뒤의 방이 설 높이가 거기서 나온다. */
+  function reflowLines(lines, maxW) {
+    if (!(maxW > 60)) return lines;
+    const out = [];
+    lines.forEach(({ label, books }) => {
+      if (!books.length) { out.push({ label, books }); return; }
+      const widths = books.map((b) => (b.w2 || 20) + 2);   // 책등 폭 + 사이 틈
+      const total = widths.reduce((a, x) => a + x, 0);
+      const n = Math.max(1, Math.ceil(total / maxW));
+      const target = total / n;
+      let row = [], used = 0, first = true, left = n;
+      const flush = () => {
+        if (!row.length) return;
+        out.push({ label: first ? label : null, books: row });
+        first = false; row = []; used = 0; left--;
+      };
+      books.forEach((b, i) => {
+        const wb = widths[i];
+        // 마지막 단이 아니면 목표 폭에 닿는 순간 줄을 바꾼다. 마지막 단은 넘칠 때만
+        if (row.length && (used + wb > maxW || (left > 1 && used >= target))) flush();
+        row.push(b); used += wb;
+      });
+      flush();
+    });
+    return out;
+  }
+  let lastWallW = 0;   // 마지막으로 단을 가른 판의 폭 — 폭이 바뀌면 다시 가른다
+
   function renderWalls() {
     const host = $("walls"); host.innerHTML = "";
     wallEls.length = 0;
+    /* 판 안쪽 폭 — #walls(.wrap) 의 안여백과 판의 좌우 테두리 10px 씩,
+       안여백 12px 씩을 뺀다(.panel). 벽 보기가 아니어서 폭이 0 이면 화면 폭에서 어림한다 */
+    const vw = document.documentElement.clientWidth;
+    const cs = getComputedStyle(host);
+    const hostW = host.clientWidth
+      ? host.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)
+      : Math.min(880, vw - (vw >= 990 ? 36 : 64));
+    const shelfW = hostW - 44 - 4;   // 4px 는 여유 — 딱 맞으면 한 권이 넘어간다
+    lastWallW = host.clientWidth;
     syncBodyClass();
     const owner = document.body.classList.contains("owner");
-    WALLS.forEach((w) => {
+    /* 벽의 차례는 data.js 가 정하지만, 빈 벽이 맨 앞에 서면 들어온 사람이
+       처음 만나는 서가가 「아직 비어 있습니다」다 (역사의 벽이 실제로 그랬다).
+       책이 있는 벽을 먼저, 빈 벽은 책 벽 뒤·기록의 벽 앞으로 물린다.
+       주인에게는 원래 차례 — 빈 벽도 들일 자리이므로 늘 같은 자리에 있어야 한다. */
+    const ordered = owner ? WALLS : [
+      ...WALLS.filter((w) => w.cat !== "archive" && w.books?.length),
+      ...WALLS.filter((w) => w.cat !== "archive" && !w.books?.length),
+      ...WALLS.filter((w) => w.cat === "archive"),
+    ];
+    ordered.forEach((w) => {
       /* 기록의 벽이 0엽인 채로 서 있으면, 방문자에게는 다섯째 벽이
          「눌러도 아무것도 없는 방」이 된다. 아직 아무것도 안 들인 동안에는
          방문자 화면에서 접어 둔다 — 주인에게는 늘 보인다(들일 자리니까). */
@@ -204,7 +253,7 @@
         const line = document.createElement("div"); line.className = "shelfline";
         w.featured.forEach(b => {
           const el = document.createElement("button");
-          el.className = "tome" + (b.paper ? " paper" : "");
+          el.className = "tome" + (b.paper ? " paper" : "") + (b.ink ? " ink" : "");
           el.style.cssText = `background-color:${b.c};height:${Math.round(b.h*.85)}px;width:${Math.max(17, b.w2)}px;font-size:10.5px;`;
           if (b.spineImg) {
             el.classList.add("realspine");
@@ -292,6 +341,7 @@
         /* 아직 한 권도 없는 벽 — 빈 널빤지 셋만 세워 두면 화면이 고장 난
            것처럼 보인다. 비어 있다는 사실을 말로 적어 둔다. */
         if (!w.books.length) {
+          sec.classList.add("empty");   // 빈 벽은 낮은 띠로 접힌다 — 큰 널빤지 셋을 비워 두지 않는다
           const none = document.createElement("p");
           none.className = "wallempty";
           /* 「비어 있습니다」로 끝내면 서재가 고장 난 것처럼 읽힌다.
@@ -310,16 +360,19 @@
           const pk = document.createElement("div"); pk.className = "plank";
           panel.appendChild(pk);
         }
-        const lines = w.books.length ? shelfLines(shelved, w) : [];
-        lines.forEach(({ label, books }, s) => {
+        const lines = w.books.length ? reflowLines(shelfLines(shelved, w), shelfW) : [];
+        // 단이 셋보다 적으면 빈 널빤지로 채운다 — 뒤의 방은 판의 높이만큼만 열린다
+        while (lines.length && lines.length < SHELF_ROWS) lines.push({ label: null, books: [] });
+        let seq = 0;   // 걸쇠 자리는 단이 어떻게 갈리든 몇 번째 책인지로 센다
+        lines.forEach(({ label, books }) => {
           const line = document.createElement("div"); line.className = "shelfline";
-          books.forEach((b, k) => {
-            const idx = s*22 + k;
-            if (idx === w.latchIdx) line.appendChild(makeLatch());
+          books.forEach((b) => {
+            if (seq++ === w.latchIdx) line.appendChild(makeLatch());
             const el = document.createElement("button"); el.className = "tome";
             if (b.paper) el.classList.add("paper");
             if (b.lean) el.classList.add("lean");
             if (b.folio) el.classList.add("folio");
+            if (b.ink) el.classList.add("ink");   // 밝은 천 — 금박 대신 먹으로
             if (sifting() && !passes(b)) el.classList.add("dim");
             // 들인 지 한 해가 넘도록 안 읽은 책에는 먼지가 앉는다 —
             // 오래 기다린 책이 눈에 띄어야 언젠가 뽑힌다
@@ -885,6 +938,10 @@
     $("desk").hidden = v !== "walls";
     const hs = $("heightsort");
     if (hs) hs.hidden = v !== "walls";
+    /* 진열장과 길은 현관의 것 — 표지 뷰에서는 같은 표지가 두 번 걸리고,
+       목록·통계에서는 표 위에 액자가 얹힌다. 서가 보기에서만 보인다.
+       (hidden 은 자료 유무를 따라 renderShowcase 가 쥐고 있으므로 class 로 가린다) */
+    document.body.classList.toggle("view-walls", v === "walls");
     $("v-covers").hidden = v !== "covers";
     $("v-list").hidden = v !== "list";
     $("v-stats").hidden = v !== "stats";
@@ -948,7 +1005,7 @@
     const list = filteredBooks();
     list.slice(0, coversShown).forEach(b => {
       const el = document.createElement("button");
-      el.className = "cover";
+      el.className = "cover" + (b.ink ? " ink" : "");
       el.style.setProperty("--cvr", b.c);
       /* 표지가 없는 책도 표지 뷰에서는 표지를 입는다 — 알라딘이 모르는 책이
          빈 색종이로만 서 있으면, 그 칸은 「없는 책」처럼 읽힌다. 천 색 위에
@@ -1013,6 +1070,13 @@
      제목 끝의 권수를 접고, 같은 밑동·지은이가 두 권 이상이면 시리즈로 본다.
      정렬이나 검색 중에는 접지 않는다 — 그때는 낱권이 답이다. */
   const SERIES_RE = /^(.*?)[\s·-]+(\d{1,3})$/;
+  /* 같은 무리인가 — 사람이 적은 시리즈 이름이 먼저, 없으면 제목 밑동+지은이.
+     항로도의 굵기와 현관의 길 고르기가 같은 기준을 쓴다 */
+  const seriesKeyOf = (b) => {
+    if (b.series) return "손␟" + b.series;
+    const m = b.t.match(SERIES_RE);
+    return m ? m[1].trim().toLowerCase() + "␟" + (b.a || "") : null;
+  };
   const expandedSeries = new Set();
   function seriesRows(list) {
     const groups = new Map(), order = [];
@@ -1151,7 +1215,13 @@
       const h4El = yearPanel.querySelector("h4");
       if (h4El) h4El.textContent = usePub ? "펴낸 해" : "연도별 입고";
     }
-    const AUTHSTAT = tally(books, (b) => b.a).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    /* 「지은이 미상」은 사람이 아니다 — 58권이 1등으로 올라앉으면 표가 거짓말을 한다 */
+    const UNKNOWN_AUTHOR = "지은이 미상";
+    const anon = books.filter((b) => b.a === UNKNOWN_AUTHOR).length;
+    const AUTHSTAT = tally(books.filter((b) => b.a !== UNKNOWN_AUTHOR), (b) => b.a)
+      .sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const psAuthor = $("ps-author");
+    if (psAuthor) psAuthor.textContent = "전집·시리즈 포함" + (anon ? ` · 지은이를 모르는 ${anon.toLocaleString()}권은 뺐습니다` : "");
 
     // "서가에 꽂힌" 이라고 못박는다 — 표본 화면에서는 벽이 밝힌 권수보다
     // 실제로 그려진 책등이 적어서, 그냥 "전체"라고 하면 위의 입고 수와 어긋나 보인다
@@ -1160,14 +1230,39 @@
 
     const grow = []; /* 막대는 0에서 자라난다 */
     const cb = $("catbars");
-    const cmax = CATSTAT[0][1];
-    CATSTAT.forEach(([nm, v]) => {
+    /* 한 분류가 장서의 여든을 넘기면 분류 막대는 「거의 다 문학」 한 줄이다 —
+       그 분류 안의 갈래로 갈라 보인다. 갈래를 아직 모르는 책은 마지막 줄에 따로 센다 */
+    const top = CATSTAT[0];
+    const inTop = books.filter((b) => b.cat === top[0]);
+    const GENRESTAT = tally(inTop, (b) => b.genre).sort((a, b) => b[1] - a[1]);
+    const byGenre = top[1] / n >= 0.8 && GENRESTAT.length >= 2;
+    const hCat = $("h-cat");
+    if (hCat) hCat.textContent = byGenre ? `${top[0]}의 갈래` : "분류별 장서";
+    let BARS = CATSTAT;
+    if (byGenre) {
+      const known = GENRESTAT.reduce((s, [, v]) => s + v, 0);
+      const rest = n - top[1];
+      $("ps-cat").textContent =
+        `${top[0]} ${top[1].toLocaleString()}권이 장서의 ${Math.round(top[1] / n * 100)}% — 갈래를 아는 ${known.toLocaleString()}권을 가른다`
+        + (rest ? ` · 나머지 분류 ${rest.toLocaleString()}권` : "");
+      BARS = GENRESTAT;
+    }
+    const cmax = BARS[0][1];
+    BARS.forEach(([nm, v]) => {
       const el = document.createElement("div"); el.className = "hbar";
       el.innerHTML = `<span class="lb"></span><span class="track"><span class="fill" style="width:0%"></span></span><span class="val">${v}권</span>`;
       el.querySelector(".lb").textContent = nm;
       grow.push([el.querySelector(".fill"), "width", Math.round(v/cmax*100) + "%"]);
       cb.appendChild(el);
     });
+    /* 갈래를 아직 모르는 몫은 막대로 그리지 않는다 — 아는 갈래보다 많을 때가 흔해서
+       같은 자로 재면 막대가 칸을 넘고, 자를 따로 쓰면 거짓말이 된다. 한 줄 글로만 센다 */
+    const undecided = byGenre ? top[1] - GENRESTAT.reduce((s, [, v]) => s + v, 0) : 0;
+    if (undecided > 0) {
+      const note = document.createElement("p"); note.className = "undecided";
+      note.textContent = `갈래 미정 ${undecided.toLocaleString()}권 — 아직 가르지 않은 몫`;
+      cb.appendChild(note);
+    }
     const yc = $("yearcols");
     // 입고 연도를 모르는 장서만 있을 수 있다 — 그때는 빈 칸으로 둔다
     const ymax = YEARSTAT.length ? Math.max(...YEARSTAT.map(y => y[1])) : 0;
@@ -1406,9 +1501,17 @@
       mine.forEach((b) => {
         const it = document.createElement("button");
         it.type = "button";
-        it.className = "chronbook" + (b.cover ? " hascover" : "");
+        it.className = "chronbook" + (b.cover ? " hascover" : "") + (b.ink ? " ink" : "");
         it.style.setProperty("--cvr", b.c);
         it.title = `${b.t} — ${b.a}`;
+        // 표지가 없으면 표지 뷰와 같은 가짜 표지 — 첫 글자를 활자처럼 찍은 천 표지.
+        // 그림이 못 오면 img 가 사라지고 이 얼굴이 대신 남는다
+        const face = document.createElement("i");
+        face.className = "chronface"; face.setAttribute("aria-hidden", "true");
+        face.innerHTML = "<em></em><u></u>";
+        face.querySelector("em").textContent = (b.t || "?").trim()[0] || "?";
+        face.querySelector("u").textContent = b.cat || "";
+        it.appendChild(face);
         if (b.cover) {
           const im = document.createElement("img");
           im.loading = "lazy"; im.alt = ""; im.src = b.cover;
@@ -1788,11 +1891,6 @@
 
     /* 기계가 이은 시리즈와 사람이 그은 길을 구별한다 — 굵기가 달라진다.
        (예전에는 시리즈를 아예 숨겼는데, 그러면 화면이 통째로 비었다) */
-    const seriesKeyOf = (b) => {
-      if (b.series) return "손␟" + b.series;
-      const m = b.t.match(SERIES_RE);
-      return m ? m[1].trim().toLowerCase() + "␟" + (b.a || "") : null;
-    };
     const isAuto = (l) => {
       const ka = seriesKeyOf(byId.get(l.book_id));
       return !!(ka && ka === seriesKeyOf(byId.get(l.linked_book_id)));
@@ -2097,9 +2195,15 @@
     }
     chains.sort((a, b) => b.length - a.length);
 
-    /* 이름 붙인 길이 먼저, 그다음 가장 긴 길. 다 합쳐 넷까지 */
+    /* 이름 붙인 길이 먼저, 그다음 가장 긴 길. 다 합쳐 넷까지.
+       다만 한 시리즈의 1→2→3 권만 이어 둔 길은 「걸어 볼 만한 길」이 아니라
+       그냥 차례다 — 목록에서 이미 접혀 보인다. 이름을 붙인 것이 아니면 현관에 걸지 않는다 */
+    const sameSeries = (c) => {
+      const k = seriesKeyOf(c[0]);   // 「백야행 1 → 백야행 2」처럼 제목만으로 무리인 것도 차례다
+      return !!k && c.every((b) => seriesKeyOf(b) === k);
+    };
     const named = chains.filter((c) => c[0].pathName);
-    const rest = chains.filter((c) => !c[0].pathName);
+    const rest = chains.filter((c) => !c[0].pathName && !sameSeries(c));
     foyerPaths = [...named, ...rest].slice(0, 4);
     if (!foyerPaths.length) { sec.hidden = true; return; }
 
@@ -2400,7 +2504,16 @@
     scrollTo({ top: p * maxScroll(), behavior: "smooth" });
   });
   addEventListener("scroll", updateLadder, { passive: true });
-  addEventListener("resize", () => { layoutLadder(); updateLadder(); });
+  addEventListener("resize", () => {
+    layoutLadder(); updateLadder();
+    // 판의 폭이 한 권 넘게 달라졌으면 단을 다시 가른다 — 회전한 전화기가 주로 그렇다
+    clearTimeout(renderWalls._rt);
+    renderWalls._rt = setTimeout(() => {
+      const host = $("walls");
+      if (document.body.classList.contains("door-open")) return;   // 열린 문을 닫아 버리지 않는다
+      if (host?.clientWidth && Math.abs(host.clientWidth - lastWallW) > 24) renderWalls();
+    }, 180);
+  });
 
   /* ── 궤짝: 자물쇠 → 뚜껑 열림 ─────────────────────────── */
   $("cratelid").addEventListener("click", () => {
@@ -2458,8 +2571,8 @@
     }
     $("x-title").textContent = b.t;
     $("x-byline").textContent =
-      `${b.a}${b.pages ? " · " + b.pages.toLocaleString() + "쪽" : ""}${b.year ? " · " + b.year + " 입고" : ""}`
-      + (b.readYear ? ` · ${b.readYear} 읽음` : "");
+      `${b.a}${b.pages ? " · " + b.pages.toLocaleString() + "쪽" : ""}${b.year ? " · " + b.year + " 입고" : ""}`;
+    paintState(b);
     $("veil").classList.add("show");
     $("exlibris").classList.add("show");
     /* 서표에 고유 주소를 준다 — 이 책 한 권을 그대로 건네줄 수 있어야 한다.
@@ -2483,9 +2596,12 @@
     // 시리즈 잇기는 주인의 것 — 주인 분기가 무리를 세어 다시 편다
     const slBtn = $("x-serieslink");
     if (slBtn) slBtn.hidden = true;
+    // 이음 목록 — 방문자에게는 읽기 전용 줄로, 주인에게는 고침 자리 안에서
+    if ($("x-kin")) $("x-kin").hidden = true;
     if (!owner) {
       // 여백의 기록은 읽기 전용으로
       $("x-memo").textContent = b.memo || "아직 여백에 적힌 말이 없다.";
+      renderKin(b);
     } else {
       $("x-memoedit").value = b.memo || "";
       /* 읽어 낸 책인데 여백이 비어 있으면 — 이 서재에서 AI 가 대신 쓸 수 없는
@@ -2555,7 +2671,7 @@
     db.getSummary(b.id).then((s) => {
       if (openBook !== b) return;          // 그새 다른 책을 폈다면 버린다
       if (s) {
-        $("x-summary").textContent = s.summary;
+        paintSummary(s.summary);
         $("x-full").hidden = false;
         $("x-pending").hidden = true;
         // 방문자에게는 여백(메모)이 x-full 안에 있으니 함께 보인다
@@ -2580,6 +2696,7 @@
     try {
       await db.updateBook(b.id, patch);
       applyLocal?.(b);
+      paintState(b);   // 상태·갈피·읽은 해를 고쳤으면 머리의 한 줄도 따라간다
       const tag = $("x-saved");
       tag.hidden = false;
       clearTimeout(saveBook._t);
@@ -2704,10 +2821,82 @@
       $("x-none").textContent = "짓지 못했습니다 — " + (data?.error || error.message);
       return;
     }
-    $("x-summary").textContent = data.summary;
+    paintSummary(data.summary);
     $("x-full").hidden = false;
     $("x-pending").hidden = true;
   });
+
+  /* AI 가 자신 없는 책은 첫 문장을 「이 책은 확실히 알지 못합니다」로 연다
+     (summarize-book 의 약속). 그 문장을 본문 첫 줄로 두면 뒤따르는 기록 전체가
+     믿음을 잃는다 — 첫 줄을 떼어 작은 주의 줄(#x-hedge)로 걸고, 제목에서
+     짐작한 본문은 그대로 둔다. 일곱 기록 중 셋이 이 문장으로 열리고 있었다. */
+  const HEDGE_RE = /^\s*이 책은 확실히 알지 못합니다[^\n]*\n*/;
+  function paintSummary(text) {
+    const m = (text || "").match(HEDGE_RE);
+    const note = $("x-hedge");
+    if (note) note.hidden = !m;
+    $("x-summary").textContent = m ? text.slice(m[0].length).trim() : (text || "");
+  }
+
+  /* 읽음 상태 한 줄 — 방문자도 본다. 점 색은 목록·통계와 같은 세 색이고,
+     읽는 중이면 갈피 쪽수를, 읽었으면 읽은 해를 곁들인다. */
+  function paintState(b) {
+    const el = $("x-state");
+    if (!el) return;
+    const st = b.st || "안 읽음";
+    el.querySelector(".st-dot").style.background = STCOLOR[st] || STCOLOR["안 읽음"];
+    let t = st;
+    if (st === "읽음" && b.readYear) t = `${b.readYear}년에 읽음`;
+    else if (st === "읽는 중" && b.bookmark) t = `읽는 중 · ${b.bookmark.toLocaleString()}쪽에 갈피`;
+    else if (st === "안 읽음") t = "아직 안 읽음";
+    $("x-state-t").textContent = t;
+  }
+
+  /* 방문자용 이음 — 읽기 전용. 어느 쪽으로 이어졌는지와 까닭만 보이고,
+     누르면 그 책의 서표로 건너간다. 먼저 → 다음에 → 나란히 차례로 세운다. */
+  async function renderKin(b) {
+    const box = $("x-kin"), host = $("x-kinlist");
+    if (!box || !host) return;
+    box.hidden = true;
+    host.innerHTML = "";
+    const db = window.PostLibrosDB;
+    if (!db?.listLinks || !b.id) return;
+    let links = [];
+    try { links = await db.listLinks(b.id); }
+    catch (err) { console.error("[이음] 읽지 못했습니다:", err); return; }
+    if (openBook !== b) return;   // 그새 다른 책을 폈다
+    const order = { "먼저": 0, "다음에": 1, "나란히": 2 };
+    links
+      .map((l) => {
+        const otherId = l.book_id === b.id ? l.linked_book_id : l.book_id;
+        const other = allBooks().find((x) => x.id === otherId);
+        const d = l.kind === "나란히" ? "나란히" : l.book_id === b.id ? "다음에" : "먼저";
+        return { l, other, d };
+      })
+      .filter((k) => k.other)
+      .sort((p, q) => order[p.d] - order[q.d])
+      .forEach(({ l, other, d }) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "kinrow";
+        row.dataset.d = d;
+        const dir = document.createElement("i");
+        dir.className = "kindir";
+        dir.textContent = d === "다음에" ? "이 책 다음에" : d === "먼저" ? "이 책보다 먼저" : "나란히";
+        const title = document.createElement("b");
+        title.textContent = other.t;
+        row.append(dir, title);
+        if (l.note) {
+          const why = document.createElement("i");
+          why.className = "kinwhy";
+          why.textContent = l.note;
+          row.appendChild(why);
+        }
+        row.addEventListener("click", () => openExlibris(other, bookWall(other)));
+        host.appendChild(row);
+      });
+    box.hidden = !host.children.length;
+  }
 
   /* ── 읽음 상태 ── */
   document.querySelectorAll("#x-status button").forEach((btn) => {
@@ -3311,6 +3500,17 @@
   // role="status" — 화면을 못 보는 사람에게도 「여는 중」과 「다 열렸다」가 들린다
   $("walls").innerHTML = `<p class="waking-note" role="status">서재를 여는 중…</p>`;
   $("census-n").textContent = "장서를 세는 중";
+  /* 검색칸의 안내말 — 좁은 화면에서는 긴 문장이 「책을 찾습니」로 잘려
+     문장이 아니라 오타로 읽힌다. 폭에 맞는 길이로 바꿔 단다 */
+  {
+    const narrow = matchMedia("(max-width: 560px)");
+    const fit = () => {
+      const q = $("q");
+      if (q) q.placeholder = narrow.matches ? "책을 찾습니다" : "책을 찾습니다 — 벽마다 응답 수가 보입니다";
+    };
+    fit();
+    narrow.addEventListener?.("change", fit);
+  }
   /* 「여는 중」의 끝을 정해 둔다 ─────────────────────────
      장서 싣기가 실패하면 auth.js 가 ShowEmpty 를 부르지만, **싣기가 아예
      시작되지 못하면** 아무도 부르지 않는다. jsdelivr 가 죽어 supabase-js 가
