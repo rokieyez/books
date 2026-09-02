@@ -677,15 +677,34 @@
 
   /* 궤짝 항목마다 원본 사진에서 그 책등만 오려 곁들인다.
      자리 상자(spine_box, 0~1000 비율)와 사진 경로가 있을 때만.
-     사진 한 장에 후보가 여럿이라, 서명 주소와 그림은 장마다 한 번만 받는다. */
+     사진 한 장에 후보가 여럿이라, 서명 주소와 그림은 장마다 한 번만 받는다.
+     오려 낸 조각은 후보별로 간직한다 — 궤짝은 책 한 권 고칠 때마다 다시 그려지는데,
+     그때마다 원본 사진(장당 1MB) 스무 장을 새로 내려받던 것이 하루 4GB 였다.
+     조각(64×96)만 남기고 원본은 놓아준다. */
+  const spineCrops = new Map();   // candidate id → canvas
   async function decorateCrate(list, box) {
     const db = window.PostLibrosDB;
     if (!db?.photoUrl) return;
     const withBox = list.filter((c) => c.spine_box && c.intake_photos?.storage_path && c.id);
     if (!withBox.length) return;
 
+    const place = (c, cv) => {
+      const el = box.querySelector(`.crateitem[data-cid="${c.id}"]`);
+      if (!el) return;   // 그새 화면이 다시 그려졌다
+      el.prepend(cv);
+      el.classList.add("hascrop");
+    };
+
+    // 이미 오려 둔 조각은 그대로 붙인다 — 네트워크를 타지 않는다
+    const fresh = [];
+    for (const c of withBox) {
+      const kept = spineCrops.get(c.id);
+      if (kept) place(c, kept); else fresh.push(c);
+    }
+    if (!fresh.length) return;
+
     const urls = new Map();
-    for (const path of new Set(withBox.map((c) => c.intake_photos.storage_path))) {
+    for (const path of new Set(fresh.map((c) => c.intake_photos.storage_path))) {
       try { urls.set(path, await db.photoUrl(path)); }
       catch (e) { console.warn("[궤짝] 사진 열쇠를 못 받았습니다:", e); }
     }
@@ -697,9 +716,7 @@
       im.src = url;
     });
 
-    for (const c of withBox) {
-      const el = box.querySelector(`.crateitem[data-cid="${c.id}"]`);
-      if (!el) continue;   // 그새 화면이 다시 그려졌다
+    for (const c of fresh) {
       const url = urls.get(c.intake_photos.storage_path);
       if (!url) continue;
       let im = imgs.get(url);
@@ -719,9 +736,11 @@
       cv.setAttribute("role", "img");
       cv.setAttribute("aria-label", "사진에서 오려 낸 책등 — " + (c.raw_text || "제목 미상"));
       cv.getContext("2d").drawImage(im, sx, sy, sw, sh, 0, 0, W * 2, H * 2);
-      el.prepend(cv);
-      el.classList.add("hascrop");
+      spineCrops.set(c.id, cv);
+      place(c, cv);
     }
+    // 원본은 조각을 뜨고 나면 필요 없다 — 붙들고 있으면 사진 한 장에 수십 MB 다
+    imgs.forEach((im) => { im.src = ""; });
   }
 
   /* 상단의 입고 수 — 표본이든 실제 장서든 지금 꽂혀 있는 만큼만 말한다.

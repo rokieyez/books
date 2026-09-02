@@ -59,6 +59,15 @@
     return r;
   }
 
+  /* 사진의 서명 주소는 한 번 받으면 돌려 쓴다.
+     주소가 매번 달라지면 브라우저도 CDN 도 「처음 보는 사진」으로 알고 통째로
+     다시 받는다 — 서가를 다시 그릴 때마다 사진 스무 장(20MB)이 새로 내려와
+     하루 4GB 가 그렇게 샜다 (2026-09-02 로그). 열두 시간짜리로 받아 두고
+     만료 10분 전까지는 같은 주소를 준다. 같은 주소면 브라우저 캐시가 먼저 답한다. */
+  const signedUrls = new Map();   // storage_path → { url, exp }
+  const SIGN_SECONDS = 12 * 3600;
+  const SIGN_MARGIN_MS = 10 * 60 * 1000;
+
   const db = {
     client,
 
@@ -448,9 +457,11 @@
       const ext = (type.split("/")[1] || "jpg").replace("jpeg", "jpg");
       const path = `${user.id}/${stamp}-${rand}.${ext}`;
 
+      // 경로에 시각·난수가 들어 같은 사진이 바뀔 일이 없다 — 브라우저와 CDN 이
+      // 하루 동안 붙들고 있어도 된다 (기본값은 한 시간)
       const { error: upErr } = await client.storage
         .from("intake")
-        .upload(path, blob, { contentType: type, upsert: false });
+        .upload(path, blob, { contentType: type, upsert: false, cacheControl: "86400" });
       if (upErr) throw upErr;
 
       // 줄을 만들지 못하면 올라간 파일만 남아 떠돈다 — 지우고 실패를 알린다
@@ -476,12 +487,16 @@
       return data;
     },
 
-    /* 버킷이 비공개라 <img src> 로 바로 못 쓴다 — 한 시간짜리 열쇠를 받아온다 */
-    async photoUrl(storagePath, seconds = 3600) {
+    /* 버킷이 비공개라 <img src> 로 바로 못 쓴다 — 열쇠를 받아온다.
+       같은 사진은 같은 열쇠를 돌려준다 (위 signedUrls 참고). */
+    async photoUrl(storagePath, seconds = SIGN_SECONDS) {
+      const kept = signedUrls.get(storagePath);
+      if (kept && kept.exp - Date.now() > SIGN_MARGIN_MS) return kept.url;
       const { data, error } = await client.storage
         .from("intake")
         .createSignedUrl(storagePath, seconds);
       if (error) throw error;
+      signedUrls.set(storagePath, { url: data.signedUrl, exp: Date.now() + seconds * 1000 });
       return data.signedUrl;
     },
 
