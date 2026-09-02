@@ -109,6 +109,8 @@
     <span id="findnote-t"></span>
     <button type="button" class="findgo" id="findgo">목록에서 전부 본다</button>
   </p>
+  <!-- 어느 벽도 응답하지 않았을 때 — 글자가 반쯤 맞는 책 셋 -->
+  <div class="near" id="wallnear" hidden></div>
 </div>
 
 <div class="wrap">
@@ -151,7 +153,11 @@
       </table>
     </div>
     <p class="list-note" id="listnote"></p>
+    <!-- 찾지 못했을 때 — 글자가 반쯤 맞는 책 셋을 내민다 (app.js renderNear) -->
+    <div class="near" id="listnear" hidden></div>
     <button class="listmore" id="listmore" hidden>더 본다</button>
+    <!-- 종이로도 남길 수 있게 — 인쇄 때는 지금 보이는 줄이 아니라 장서 전체가 찍힌다 -->
+    <button class="printbtn" id="printbtn" type="button">장서 목록을 인쇄한다</button>
   </section>
 
   <section id="v-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0" hidden>
@@ -173,6 +179,9 @@
         <p class="ps" id="ps-status"></p>
         <div class="stack" id="statusbar"></div>
         <div class="legend" id="statuslegend"></div>
+        <!-- 막대 하나로는 칸이 비어 보인다 — 읽은 책의 평균 쪽수, 가장 두꺼운 책,
+             가장 오래 기다린 책 같은 셈이 각주로 붙는다 (app.js) -->
+        <p class="statfoot" id="statusfoot" hidden></p>
       </div>
       <div class="statpanel">
         <h4>가장 많이 모은 저자</h4>
@@ -307,9 +316,14 @@
       <p class="byline" id="x-byline"></p>
       <!-- 읽음 상태는 방문자에게도 사실이다 — 점 하나와 한마디.
            주인은 아래 고침 자리에서 바꾸고, 바꾸면 이 줄이 따라 바뀐다 -->
-      <p class="x-state" id="x-state"><span class="st-dot"></span><span id="x-state-t"></span></p>
+      <p class="x-state" id="x-state"><span class="st-dot"></span><span id="x-state-t"></span>
+        <!-- 읽는 중이고 쪽수를 알면 — 갈피가 어디쯤인지 한 눈금 -->
+        <span class="x-prog" id="x-prog" hidden><b></b></span>
+      </p>
       <!-- 이 책 한 권만 그대로 건네줄 수 있는 주소 -->
       <button class="x-share" id="x-share" type="button">이 책의 주소를 복사한다</button>
+      <!-- 목록·표지에서 연 책은 벽의 어디에 꽂혀 있는지 모른다 — 서가로 데려간다 -->
+      <button class="x-share x-locate" id="x-locate" type="button" hidden></button>
       <!-- 이 책을 만난 자리 — 인식에 쓴 원본 책장 사진 (주인만) -->
       <button class="x-share x-photo" id="x-photo" type="button" hidden>이 책을 만난 사진을 본다</button>
     </div>
@@ -434,8 +448,35 @@
     <h4>이어 읽기</h4>
     <div class="x-kinlist" id="x-kinlist"></div>
   </div>
+  <!-- 같은 지은이의 다른 책 — 필립 K. 딕 열네 권을 한 권씩 찾아 헤매지 않게 -->
+  <div class="x-kin x-same" id="x-same" hidden>
+    <h4 id="x-same-h">같은 지은이</h4>
+    <div class="x-samelist" id="x-samelist"></div>
+  </div>
   <div class="sealmark">藏</div>
 </div>
+
+<!-- 자판 안내 — ? 를 누르면 뜬다. 손끝으로 다니는 사람에게만 필요한 쪽지 -->
+<div class="keysheet" id="keysheet" role="dialog" aria-label="자판 안내" hidden>
+  <h4>자판으로 다니는 길</h4>
+  <dl>
+    <dt><kbd>/</kbd></dt><dd>책을 찾는다</dd>
+    <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></dt><dd>서가 · 표지 · 목록 · 통계</dd>
+    <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>서표에서 이웃 책으로</dd>
+    <dt><kbd>Esc</kbd></dt><dd>서표와 문을 닫는다 · 검색을 비운다</dd>
+    <dt><kbd>?</kbd></dt><dd>이 쪽지를 여닫는다</dd>
+  </dl>
+</div>
+
+<!-- 인쇄용 장서 목록 — 화면에는 없고 종이에만 찍힌다. 인쇄 직전에 app.js 가 채운다 -->
+<section class="printsheet" id="printsheet" aria-hidden="true" hidden>
+  <h1>서가 뒤의 방 — 장서 목록</h1>
+  <p id="print-sub"></p>
+  <table>
+    <thead><tr><th>제목</th><th>지은이</th><th>분류</th><th>상태</th><th>읽은 해</th><th>위치</th></tr></thead>
+    <tbody id="printbody"></tbody>
+  </table>
+</section>
 <!-- defer 는 순서를 지키면서 화면 그리기를 막지 않는다 — 여섯 개가 나란히
      내려오고, 문서가 다 읽힌 뒤 적힌 차례대로 실행된다 -->
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>

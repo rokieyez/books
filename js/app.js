@@ -369,6 +369,7 @@
           books.forEach((b) => {
             if (seq++ === w.latchIdx) line.appendChild(makeLatch());
             const el = document.createElement("button"); el.className = "tome";
+            if (b.id) el.dataset.id = b.id;   // 「서가에서 본다」가 이 책등을 찾는 열쇠
             if (b.paper) el.classList.add("paper");
             if (b.lean) el.classList.add("lean");
             if (b.folio) el.classList.add("folio");
@@ -925,6 +926,79 @@
   }
   window.PostLibrosMatch = matchBook;
   function filteredBooks() { return allBooks().filter(passes); }
+
+  /* ── 이름은 문이다 ─────────────────────────────────────
+     목록의 지은이 칸, 통계의 지은이·출판사 막대, 서표의 「N권 전부」를 누르면
+     그 이름으로 찾은 목록이 열린다. 검색창에 글자를 넣는 것과 같은 길이라
+     거름망·안내판·주소가 전부 따라온다 — 따로 상태를 두지 않는다. */
+  function goSearch(text) {
+    const inp = $("q");
+    inp.value = text;
+    inp.dispatchEvent(new Event("input"));
+    setView("list");
+    $("v-list").scrollIntoView({ behavior: noMotion ? "auto" : "smooth", block: "start" });
+  }
+
+  /* 검색어가 맞은 글자를 밝힌다 — innerHTML 로 끼우지 않고 조각을 짠다 (제목은 남의 글) */
+  function emph(text, query) {
+    const frag = document.createDocumentFragment();
+    const s = text || "";
+    if (!query) { frag.append(s); return frag; }
+    const low = s.toLowerCase();
+    let i = 0, j;
+    while ((j = low.indexOf(query, i)) >= 0) {
+      if (j > i) frag.append(s.slice(i, j));
+      const m = document.createElement("mark");
+      m.className = "hit";
+      m.textContent = s.slice(j, j + query.length);
+      frag.appendChild(m);
+      i = j + query.length;
+    }
+    if (i < s.length) frag.append(s.slice(i));
+    return frag;
+  }
+
+  /* ── 빈 검색의 손길 ────────────────────────────────────
+     한 글자 틀린 검색은 「찾지 못했습니다」로 끝났다. 검색어를 두 글자 조각으로
+     쪼개 제목·지은이에 가장 많이 겹치는 책 셋을 내민다 — 「카라마조브」로
+     「카라마조프」를 찾는 정도면 된다. 무겁지 않아야 하므로 한 글자 검색은 건너뛴다. */
+  function nearBooks(query, limit = 3) {
+    const qs = query.replace(/\s+/g, "");
+    if (qs.length < 2) return [];
+    const grams = new Set();
+    for (let i = 0; i < qs.length - 1; i++) grams.add(qs.slice(i, i + 2));
+    return allBooks()
+      .map((b) => {
+        const hay = `${b.t || ""} ${b.a || ""}`.toLowerCase().replace(/\s+/g, "");
+        let score = 0;
+        grams.forEach((g) => { if (hay.includes(g)) score++; });
+        return [b, score];
+      })
+      .filter(([, s]) => s >= Math.max(1, Math.ceil(grams.size / 2)))
+      .sort((p, r) => r[1] - p[1] || (p[0].t || "").localeCompare(r[0].t || "", "ko"))
+      .slice(0, limit)
+      .map(([b]) => b);
+  }
+  function renderNear(host, query) {
+    if (!host) return;
+    host.innerHTML = "";
+    const near = query ? nearBooks(query) : [];
+    host.hidden = !near.length;
+    if (!near.length) return;
+    const lead = document.createElement("span");
+    lead.className = "nearlead";
+    lead.textContent = "혹시 이 책인가요 —";
+    host.appendChild(lead);
+    near.forEach((b) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "nearchip";
+      chip.textContent = b.t;
+      chip.title = b.a || "";
+      chip.addEventListener("click", () => openExlibris(b, bookWall(b)));
+      host.appendChild(chip);
+    });
+  }
   function setView(v) {
     curView = v;
     document.querySelectorAll(".viewseg button").forEach(b => {
@@ -1109,13 +1183,23 @@
       ? `읽는 중 · ${b.bookmark.toLocaleString()}쪽` : b.st;
     /* 기록이 있는 책에는 표를 단다 — 520권 중 여섯 권이라 우연히는 못 만난다 */
     const mark = summarized.has(b.id) ? `<i class="hasrec" title="기록이 있는 책">✦</i>` : "";
+    /* 전화기에서는 읽은 해 칸이 접힌다 — 상태 옆에 '21 처럼 작게 곁들여 둔다 (CSS 가 560px 아래에서만 보인다) */
+    const ryInline = b.st === "읽음" && b.readYear ? `<small class="ry-inline">'${String(b.readYear).slice(-2)}</small>` : "";
     tr.innerHTML = `<td class="t"></td><td></td><td></td>
-      <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${stLabel}</td>
+      <td><span class="st-dot" style="background:${STCOLOR[b.st]}"></span>${stLabel}${ryInline}</td>
       <td class="ry">${b.readYear ?? ""}</td>
       <td>${b.year ?? ""}</td><td></td>`;
     tr.children[0].innerHTML = mark;
-    tr.children[0].append((sub ? "└ " : "") + b.t);
-    tr.children[1].textContent = b.a;
+    tr.children[0].append(sub ? "└ " : "", emph(b.t, q()));
+    // 지은이는 문이다 — 누르면 그 이름으로 찾은 목록
+    if (b.a) {
+      const who = document.createElement("button");
+      who.type = "button"; who.className = "namelink";
+      who.title = `${b.a}의 책을 모아 본다`;
+      who.appendChild(emph(b.a, q()));
+      who.addEventListener("click", (e) => { e.stopPropagation(); goSearch(b.a); });
+      tr.children[1].appendChild(who);
+    }
     tr.children[2].textContent = b.cat;
     tr.children[6].textContent = b.loc;
     tr.addEventListener("click", () => openExlibris(b, bookWall(b)));
@@ -1168,6 +1252,8 @@
     const more = $("listmore");
     more.hidden = shown >= flat.length;
     more.textContent = `더 본다 (${(flat.length - shown).toLocaleString()}줄 남음)`;
+    // 빈손일 때만 — 글자가 반쯤 맞는 책을 내민다
+    renderNear($("listnear"), !list.length && q() ? q() : "");
   }
 
   /* 통계 뷰 — 숫자는 전부 지금 꽂혀 있는 책에서 센다.
@@ -1294,13 +1380,37 @@
       li.append(`${nm} ${cnt.toLocaleString()} · ${p}%`);
       lg.appendChild(li);
     });
+    /* 읽음 상태 칸의 각주 — 막대 하나로는 칸이 비어 보인다.
+       읽은 책의 평균 쪽수·가장 두꺼운 읽은 책·가장 오래 기다린 책을 한 줄로 */
+    const sf = $("statusfoot");
+    if (sf) {
+      const facts = [];
+      const readPaged = books.filter((b) => b.st === "읽음" && b.pages);
+      if (readPaged.length >= 3) {
+        const avg = Math.round(readPaged.reduce((s, b) => s + b.pages, 0) / readPaged.length);
+        const fat = readPaged.reduce((m, b) => (b.pages > m.pages ? b : m), readPaged[0]);
+        facts.push(`읽은 책은 평균 ${avg.toLocaleString()}쪽`);
+        facts.push(`가장 두꺼운 읽은 책은 「${fat.t}」 ${fat.pages.toLocaleString()}쪽`);
+      }
+      const waiting = books.filter((b) => b.st === "안 읽음" && b.year);
+      if (waiting.length) {
+        const oldest = waiting.reduce((m, b) => (b.year < m.year ? b : m), waiting[0]);
+        const yrs = new Date().getFullYear() - oldest.year;
+        if (yrs >= 2) facts.push(`「${oldest.t}」은 ${oldest.year}년부터 ${yrs}해째 기다린다`);
+      }
+      sf.textContent = facts.join(" · ");
+      sf.hidden = !facts.length;
+    }
     const ab = $("authorbars");
     const amax = AUTHSTAT.length ? AUTHSTAT[0][1] : 0;
     if (!AUTHSTAT.length) ab.innerHTML = `<p class="statempty">지은이가 적힌 책이 아직 없습니다.</p>`;
     AUTHSTAT.forEach(([nm, v]) => {
       const el = document.createElement("div"); el.className = "hbar";
-      el.innerHTML = `<span class="lb" style="font-size:11.5px"></span><span class="track"><span class="fill" style="width:0%;background:var(--brass-dim)"></span></span><span class="val">${v}권</span>`;
+      // 이름은 문이다 — 누르면 그 지은이로 찾은 목록
+      el.innerHTML = `<button type="button" class="lb namelink" style="font-size:11.5px"></button><span class="track"><span class="fill" style="width:0%;background:var(--brass-dim)"></span></span><span class="val">${v}권</span>`;
       el.querySelector(".lb").textContent = nm;
+      el.querySelector(".lb").title = `${nm}의 책을 목록에서 본다`;
+      el.querySelector(".lb").addEventListener("click", () => goSearch(nm));
       grow.push([el.querySelector(".fill"), "width", Math.round(v/amax*100) + "%"]);
       ab.appendChild(el);
     });
@@ -1347,8 +1457,10 @@
       if (!PUBSTAT.length) pb.innerHTML = `<p class="statempty">서지를 채우면 출판사가 여기 모입니다.</p>`;
       PUBSTAT.forEach(([nm, v]) => {
         const el = document.createElement("div"); el.className = "hbar";
-        el.innerHTML = `<span class="lb" style="font-size:11.5px"></span><span class="track"><span class="fill" style="width:0%;background:var(--brass-dim)"></span></span><span class="val">${v}권</span>`;
+        el.innerHTML = `<button type="button" class="lb namelink" style="font-size:11.5px"></button><span class="track"><span class="fill" style="width:0%;background:var(--brass-dim)"></span></span><span class="val">${v}권</span>`;
         el.querySelector(".lb").textContent = nm;
+        el.querySelector(".lb").title = `${nm}에서 나온 책을 목록에서 본다`;
+        el.querySelector(".lb").addEventListener("click", () => goSearch(nm));
         grow.push([el.querySelector(".fill"), "width", Math.round(v / pmax * 100) + "%"]);
         pb.appendChild(el);
       });
@@ -2429,7 +2541,8 @@
     if (!note || !t) return;
     const word = $("q").value.trim();
     const on = curView === "walls" && (word || stFilter);
-    if (!on) { note.hidden = true; return; }
+    const near = $("wallnear");
+    if (!on) { note.hidden = true; if (near) near.hidden = true; return; }
     const n = filteredBooks().length;
     if (!n) {
       note.hidden = false;
@@ -2437,8 +2550,11 @@
         ? `"${word}" — 어느 벽도 응답하지 않았습니다.`
         : "아직 읽어 낸 책이 없습니다.";
       $("findgo").hidden = true;
+      // 거름망 없이 글자만 틀린 경우 — 반쯤 맞는 책을 내민다
+      renderNear(near, word && !stFilter ? word.toLowerCase() : "");
       return;
     }
+    if (near) near.hidden = true;
     /* 한 벽에 다 서는 만큼이면 안내가 필요 없다 — 눈으로 이미 다 보인다 */
     const crowded = n > WALL_DRAWN;
     note.hidden = !crowded;
@@ -2573,6 +2689,14 @@
     $("x-byline").textContent =
       `${b.a}${b.pages ? " · " + b.pages.toLocaleString() + "쪽" : ""}${b.year ? " · " + b.year + " 입고" : ""}`;
     paintState(b);
+    renderSame(b);
+    // 벽에 꽂힌 책이면 「서가에서 본다」 — 책상 위·기록의 벽은 자리가 없다
+    const loc = $("x-locate");
+    if (loc) {
+      const onWall = w && w.cat !== "archive";
+      loc.hidden = !onWall;
+      if (onWall) loc.textContent = `서가에서 본다 — ${b.loc && b.loc !== "자리 미정" ? b.loc : w.nm}`;
+    }
     $("veil").classList.add("show");
     $("exlibris").classList.add("show");
     /* 서표에 고유 주소를 준다 — 이 책 한 권을 그대로 건네줄 수 있어야 한다.
@@ -2790,6 +2914,40 @@
   $("x-cover").addEventListener("error", () => { $("x-cover").hidden = true; });
   $("x-close").addEventListener("click", closeExlibris);
   $("veil").addEventListener("click", closeExlibris);
+  $("x-locate")?.addEventListener("click", () => {
+    if (openBook) locateOnWall(openBook, bookWall(openBook));
+  });
+
+  /* ── 인쇄용 장서 목록 ───────────────────────────────────
+     화면의 목록은 접히고 잘리지만(시리즈 접기, 「더 본다」), 종이에는 전부 찍혀야 한다.
+     인쇄 직전에 장서 전체를 위치·제목순으로 따로 짜 넣고, 끝나면 비운다 —
+     남겨 두면 검색 엔진과 읽어 주는 기계가 목록을 두 번 읽는다. */
+  function buildPrintSheet() {
+    const body = $("printbody"), sub = $("print-sub");
+    if (!body) return;
+    const books = [...allBooks()].sort((p, r) =>
+      (p.loc || "").localeCompare(r.loc || "", "ko") || (p.t || "").localeCompare(r.t || "", "ko"));
+    body.innerHTML = "";
+    books.forEach((b) => {
+      const tr = document.createElement("tr");
+      [b.t, b.a, b.cat, b.st, b.readYear ?? "", b.loc].forEach((v) => {
+        const td = document.createElement("td"); td.textContent = v ?? ""; tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+    const d = new Date();
+    if (sub) sub.textContent = `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 · ${books.length.toLocaleString()}권 · rokiz.net/books`;
+  }
+  window.addEventListener("beforeprint", buildPrintSheet);
+  window.addEventListener("afterprint", () => { const b = $("printbody"); if (b) b.innerHTML = ""; });
+  $("printbtn")?.addEventListener("click", () => window.print());
+
+  // 자판 안내 쪽지 — ? 로 여닫는다
+  function toggleKeysheet(force) {
+    const ks = $("keysheet");
+    if (!ks) return;
+    ks.hidden = force === undefined ? !ks.hidden : !force;
+  }
   /* 서표는 장막 위에 뜬 방이다 — Tab 이 장막 뒤 서가로 새어 나가면
      보이지 않는 곳에 초점이 놓여 길을 잃는다. 안에서만 돌게 묶는다. */
   $("exlibris").addEventListener("keydown", (e) => {
@@ -2849,7 +3007,85 @@
     if (st === "읽음" && b.readYear) t = `${b.readYear}년에 읽음`;
     else if (st === "읽는 중" && b.bookmark) t = `읽는 중 · ${b.bookmark.toLocaleString()}쪽에 갈피`;
     else if (st === "안 읽음") t = "아직 안 읽음";
+    // 읽는 중이고 쪽수를 알면 — 갈피가 어디쯤인지 눈금 하나와 백분율
+    const prog = $("x-prog");
+    const pct = st === "읽는 중" && b.bookmark && b.pages
+      ? Math.max(1, Math.min(100, Math.round(b.bookmark / b.pages * 100))) : 0;
+    if (prog) {
+      prog.hidden = !pct;
+      if (pct) {
+        prog.querySelector("b").style.width = pct + "%";
+        prog.title = `${b.pages.toLocaleString()}쪽 중 ${pct}%`;
+        t += ` · ${pct}%`;
+      }
+    }
     $("x-state-t").textContent = t;
+  }
+
+  /* ── 같은 지은이의 다른 책 ──────────────────────────────
+     서표 아래 작은 칩으로. 읽은 책이 앞에 서고, 여덟 권을 넘으면
+     마지막 칩이 「N권 전부」— 그 이름으로 찾은 목록으로 건너간다. */
+  function renderSame(b) {
+    const box = $("x-same"), host = $("x-samelist"), head = $("x-same-h");
+    if (!box || !host) return;
+    host.innerHTML = "";
+    const name = (b.a || "").trim();
+    const others = name && name !== "지은이 미상"
+      ? allBooks().filter((x) => x !== b && (x.a || "").trim() === name) : [];
+    box.hidden = !others.length;
+    if (!others.length) return;
+    const rank = { "읽음": 0, "읽는 중": 1 };
+    others.sort((p, r) => (rank[p.st] ?? 2) - (rank[r.st] ?? 2) || (p.t || "").localeCompare(r.t || "", "ko"));
+    if (head) head.textContent = `${name}의 다른 책 ${others.length}권`;
+    const MAX = 8;
+    others.slice(0, MAX).forEach((x) => {
+      const chip = document.createElement("button");
+      chip.type = "button"; chip.className = "samechip";
+      const dot = document.createElement("span");
+      dot.className = "st-dot"; dot.style.background = STCOLOR[x.st] || STCOLOR["안 읽음"];
+      chip.append(dot, x.t);
+      chip.title = x.st || "";
+      chip.addEventListener("click", () => openExlibris(x, bookWall(x)));
+      host.appendChild(chip);
+    });
+    if (others.length > MAX) {
+      const all = document.createElement("button");
+      all.type = "button"; all.className = "samechip more";
+      all.textContent = `${others.length + 1}권 전부 →`;
+      all.addEventListener("click", () => { closeExlibris(); goSearch(name); });
+      host.appendChild(all);
+    }
+  }
+
+  /* ── 서가에서 본다 ──────────────────────────────────────
+     목록·표지에서 연 책은 벽의 어디에 꽂혀 있는지 모른다. 서표를 닫고 서가로 가서
+     그 책등을 잠깐 밝힌다. 벽에는 앞줄만 서므로 그려지지 않은 책이면
+     벽 이름표를 밝히고 만다. */
+  function locateOnWall(b, w) {
+    closeExlibris();
+    setView("walls");
+    const entry = wallEls.find((e) => e.w === w);
+    if (!entry) return;
+    const sec = entry.el;
+    const spine = b.id ? sec.querySelector(`.tome[data-id="${CSS.escape(b.id)}"]`) : null;
+    const target = spine || sec.querySelector(".sec-label");
+    (spine || sec).scrollIntoView({ behavior: noMotion ? "auto" : "smooth", block: "center" });
+    target.classList.remove("pointed");
+    void target.offsetWidth;   // 같은 책을 두 번 찾아도 다시 깜빡이게
+    target.classList.add("pointed");
+    setTimeout(() => target.classList.remove("pointed"), 2600);
+    if (spine) spine.focus({ preventScroll: true });
+    // 벽에는 앞줄만 그린다 — 그려지지 않은 책이면 벽만 보고 어리둥절하지 않게 한 줄 남긴다
+    if (!spine) {
+      sec.querySelector(".locnote")?.remove();
+      const note = document.createElement("p");
+      note.className = "locnote";
+      note.setAttribute("role", "status");
+      const drawn = sec.querySelectorAll(".tome").length;
+      note.textContent = `「${b.t}」는 ${b.loc !== "자리 미정" ? b.loc : "이 벽"}에 꽂혀 있습니다 — 벽에는 앞줄 ${drawn}권만 그려 둡니다`;
+      sec.querySelector(".sec-label").after(note);
+      setTimeout(() => note.remove(), 7000);
+    }
   }
 
   /* 방문자용 이음 — 읽기 전용. 어느 쪽으로 이어졌는지와 까닭만 보이고,
@@ -3345,6 +3581,16 @@
       $("q").focus();
       return;
     }
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
+    // ? 는 자판 안내 쪽지, 1~4 는 보기 — 글을 쓰는 중이 아니고 서표도 닫혀 있을 때만
+    if (!typing && e.key === "?") { e.preventDefault(); toggleKeysheet(); return; }
+    if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && /^[1-4]$/.test(e.key)
+        && !$("exlibris").classList.contains("show")) {
+      const v = ["walls", "covers", "list", "stats"][Number(e.key) - 1];
+      setView(v);
+      document.getElementById("tab-" + v)?.focus();
+      return;
+    }
     // 서표가 열려 있으면 ←/→ 로 이웃 책을 넘긴다 — 글을 쓰는 중이 아닐 때만
     if ((e.key === "ArrowLeft" || e.key === "ArrowRight")
         && $("exlibris").classList.contains("show") && openBook
@@ -3358,6 +3604,7 @@
       return;
     }
     if (e.key !== "Escape") return;
+    if ($("keysheet") && !$("keysheet").hidden) { toggleKeysheet(false); return; }
     // 검색창에서 Esc — 검색을 비운다
     if (document.activeElement === $("q") && $("q").value) {
       $("q").value = "";
