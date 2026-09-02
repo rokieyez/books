@@ -2001,6 +2001,10 @@
     background: var(--wall); border: 1px solid var(--wood3); border-radius: 2px;
     box-shadow: 0 8px 18px rgba(0,0,0,.45);
     display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+    /* 액자는 칸이 정한 폭만 쓴다. 이것이 없으면 늘어놓기·격자의 기본값
+       (min-width: auto) 이 표지 그림의 원래 폭을 바닥으로 삼아, 큰 표지를 만난
+       액자만 혼자 넓어진다 — 모바일에서 액자 여섯이 제각각이던 까닭이다. */
+    min-width: 0;
   }
   .showframe img {
     width: 100%; aspect-ratio: 7 / 10; object-fit: cover;
