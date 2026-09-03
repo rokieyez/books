@@ -40,6 +40,7 @@
 - 프로젝트 `post-libros`, ref `gaeumegwhxxnfvrhbknp`, 서울(ap-northeast-2), 조직 `rokieyez`
 - **무료 플랜 슬롯을 다 썼다** (수아요나 프로젝트와 합쳐 2/2). 세 번째 프로젝트가 필요하면 유료 전환이나 기존 프로젝트 일시정지가 먼저다
 - 무료 플랜은 오래 쓰지 않으면 프로젝트가 일시정지된다 — 개발을 쉬었다 돌아오면 대시보드에서 깨워야 할 수 있다
+- **이 프로젝트의 DB 는 글방(rokiz.net/notes)과 함께 쓴다** (2026-09-03). `notes` 표가 여기 있고 화면은 루트 사이트 저장소에 있다 — 계정이 하나뿐이라 로그인을 둘로 나눌 이유가 없다. **스키마를 손볼 때 `notes` 도 이 프로젝트의 것임을 잊지 말 것** (마이그레이션은 `supabase/migrations/` 에 함께 남긴다). `notes` 만 다른 규칙을 쓴다: 다른 표는 select 가 무조건 공개인데 글은 **발행한 것만** 공개다 (`published or auth.uid() = owner_id`) — 초고를 남에게 보일 수 없기 때문이다
 - **읽기는 공개, 쓰기는 주인만.** books·book_summaries·archive_items·book_links 의 select 는 anon 도 통과한다 (공개 서재 전환). insert/update/delete 와 intake_photos·intake_candidates·backup_snapshots 은 여전히 주인만. covers 버킷은 공개(public URL, 서명 불필요), intake 버킷은 비공개
 - **표지(cover_url)는 알라딘 CDN 주소를 그대로 쓴다** — 우리 스토리지에 없다. 죽은 주소는 화면의 error 핸들러가 걷는다
 - **한 사람만 쓰는 서재다.** `shouldCreateUser: false` 로 화면에서 막아 두었지만 진짜 잠금은 대시보드의 신규 가입 차단이다 (API 를 직접 부르면 화면 쪽 설정은 무력하다)
