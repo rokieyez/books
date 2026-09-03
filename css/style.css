@@ -10,7 +10,11 @@
     --parchment: #E2D5B8;
     --parchment-dim: #A3947A;
     --brass: #E0B15E;
-    --brass-dim: #97742F;
+    /* 4.36 이던 것을 4.68 로 — 바탕(#171009) 대비 WCAG AA(4.5)를 넘긴다.
+       9.5~11px 짜리 작은 글자(지상 높이·현관 한 줄·맞은 권수)에 쓰이는
+       색이라 특히 눈에 걸렸다. 색상은 그대로 두고 밝기만 올렸다
+       (2026-09-03, 폰으로 오는 사람의 눈으로 재고 고침) */
+    --brass-dim: #9D7931;
     --wax: #8E2F23;
     --line: #4A3A22;
     --room-glow: #2E2210;
@@ -2285,6 +2289,14 @@
   .ladder .dot::after {
     content: ""; position: absolute; left: 50%; top: 50%;
     width: 30px; height: 26px; transform: translate(-50%, -50%);
+  }
+  /* 판권장에서 집으로 나가는 길 — 글자 그대로면 16px 높이라 손가락에 작다.
+     보이는 크기는 그대로 두고 닿는 자리만 넓힌다 (2026-09-03).
+     책등(.tome)은 넓히지 않는다 — 폭이 실물의 등두께이고, 그것이 이 서가의
+     뜻이다. 손가락으로 집기 어려운 사람에게는 목록·표지 보기가 있다. */
+  footer.colophon .colo-home a { position: relative; }
+  footer.colophon .colo-home a::after {
+    content: ""; position: absolute; left: -8px; right: -8px; top: -10px; bottom: -10px;
   }
   /* 서표의 닫기는 기본 규칙에서 이미 padding 으로 넓혀 두었다(.exlibris .close) */
   .pilebook { min-height: 30px; }
