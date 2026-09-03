@@ -1046,10 +1046,12 @@
        서표가 열려 있을 때는 그 주소가 우선이므로 건드리지 않는다. */
     const want = v === "walls" ? "" : "#" + v;
     if (!openBook && !location.hash.startsWith("#book/") && location.hash !== want) {
-      // replaceState 는 hashchange 를 울리지 않는다 — 표는 해시를 실제로
-      // 바꿀 때만 남긴다. 아니면 다음에 오는 진짜 뒤로 가기를 삼켜 버린다
-      if (want) { hashSelf = true; location.hash = want; }
-      else history.replaceState(null, "", location.pathname + location.search);
+      /* 언제나 갈아 끼운다 — 쌓지 않는다. 보기는 서표와 달리 「뒤로 가기로
+         닫는」 것이 아니라 이 쪽의 상태다. 예전에는 보기를 바꿀 때마다
+         히스토리가 하나씩 늘어, 표지·목록·통계를 훑고 나면 대문으로
+         나가는 데 뒤로 가기를 네 번 눌러야 했다 (2026-09-03).
+         replaceState 는 hashchange 를 울리지 않으므로 표가 필요 없다. */
+      history.replaceState(null, "", location.pathname + location.search + want);
     }
     layoutLadder(); updateLadder();
   }
@@ -2734,8 +2736,25 @@
     $("veil").classList.add("show");
     $("exlibris").classList.add("show");
     /* 서표에 고유 주소를 준다 — 이 책 한 권을 그대로 건네줄 수 있어야 한다.
-       뒤로 가기가 서표를 닫는 문이 되도록 pushState 가 아니라 해시를 쓴다. */
-    if (b.id) { hashSelf = true; location.hash = "book/" + b.id; }
+       뒤로 가기가 서표를 닫는 문이 되도록 pushState 가 아니라 해시를 쓴다.
+       다만 히스토리에 남기는 항목은 서표 한 번에 하나뿐이어야 한다:
+       ①이미 서표가 열린 채로 이웃 책으로 넘어갈 때는 주소만 갈아 끼운다
+         (replaceState 는 hashchange 를 울리지 않으므로 hashSelf 를 세우지
+          않는다 — 세우면 다음에 오는 진짜 뒤로 가기를 삼킨다)
+       ②주소로 곧장 들어온 경우(location.hash 가 이미 그 책)는 우리가 민 것이
+         아니므로 밀어넣음 을 켜지 않는다. 닫을 때 되감으면 안 된다 */
+    if (b.id) {
+      const 새해시 = "#book/" + b.id;
+      if (location.hash !== 새해시) {
+        if (밀어넣음) {
+          history.replaceState(null, "", location.pathname + location.search + 새해시);
+        } else {
+          hashSelf = true;
+          location.hash = 새해시;
+          밀어넣음 = true;
+        }
+      }
+    }
     syncWalkRow();
     syncPhotoRow(b);
     // 닫으면 원래 있던 자리로 돌아가도록 표를 남긴다
@@ -2874,8 +2893,16 @@
     $("veil").classList.remove("show");
     $("exlibris").classList.remove("show");
     openBook = null;
-    // replaceState 는 hashchange 를 울리지 않으므로 표(hashSelf)를 남기지 않는다
-    if (location.hash.startsWith("#book/")) {
+    /* 우리가 밀어 넣은 항목이면 되감는다 — 그래야 히스토리가 부풀지 않고
+       다음 뒤로 가기가 진짜 직전 쪽(대문)으로 간다. history.back() 은
+       hashchange 를 울리므로 표를 남겨 openFromHash 가 한 번 건너뛰게 한다.
+       주소로 곧장 들어온 서표는 되감을 항목이 없으니 주소만 지운다
+       (replaceState 는 hashchange 를 울리지 않아 표가 필요 없다). */
+    if (밀어넣음) {
+      밀어넣음 = false;
+      hashSelf = true;
+      history.back();
+    } else if (location.hash.startsWith("#book/")) {
       history.replaceState(null, "", location.pathname + location.search);
     }
     try { returnFocus?.focus(); } catch {}
@@ -2887,6 +2914,11 @@
      내가 주소를 바꾼 것과 사람이 뒤로 가기를 누른 것을 구별해야 하므로
      스스로 쓴 해시에는 표를 남긴다. */
   let hashSelf = false;
+  /* 서표 때문에 히스토리에 항목을 하나 밀어 넣었나. 닫을 때 그것을 되감아야
+     한다 — 예전에는 replaceState 로 주소만 바꿔서 항목이 그대로 남았다.
+     책 한 권을 열었다 닫으면 뒤로 가기가 한 번 헛돌고, 다섯 권을 그러면
+     대문으로 나가는 데 다섯 번을 눌러야 했다 (2026-09-03). */
+  let 밀어넣음 = false;
   /* 나눔 쪽의 이름 — tools/make-book-pages.mjs 의 슬러그몸() 과 글자 그대로
      같은 규칙이어야 한다. 어긋나면 없는 파일을 가리키게 되는데, 그때는
      404.html 이 뒤의 여덟 자를 주워 서표로 보낸다 (그래서 아주 깨지지는 않는다).
@@ -2904,13 +2936,17 @@
   function openFromHash() {
     if (hashSelf) { hashSelf = false; return; }
     const view = location.hash.replace(/^#/, "");
+    /* 여기로 왔다는 것은 사람이 뒤로 가기를 눌렀거나 주소를 직접 바꿨다는 뜻.
+       우리가 밀어 넣었던 항목은 그 뒤로 가기가 이미 써 버렸으므로 빚을 지운다 —
+       그러지 않으면 closeExlibris 가 history.back() 을 한 번 더 불러 두 칸을
+       물러난다. */
     if (["walls", "covers", "list", "stats"].includes(view)) {
-      if (openBook) closeExlibris();
+      if (openBook) { 밀어넣음 = false; closeExlibris(); }
       if (curView !== view) setView(view);
       return;
     }
     const m = location.hash.match(/^#book\/([\w-]+)$/);
-    if (!m) { if (openBook) closeExlibris(); return; }
+    if (!m) { if (openBook) { 밀어넣음 = false; closeExlibris(); } return; }
     if (openBook?.id === m[1]) return;   // 이미 그 책이 열려 있다 (서가를 다시 그린 뒤)
     /* 아이디 전체가 아니라 앞자리만 와도 연다. 나눔 쪽 주소가
        「제목-<앞자리 여덟>」이라, 404.html 이 그 여덟 자만 주워 보낼 때가
