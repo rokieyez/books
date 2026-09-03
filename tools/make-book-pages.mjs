@@ -366,6 +366,12 @@ ${머리}
 <meta name="twitter:image" content="${집}/og.png">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="서가 뒤의 방" href="../feed.xml">
+<!-- 정적 쪽 가운데 여기만 집의 글꼴을 받는다. 나눔 쪽은 곧장 서재로
+     넘어가고 책 목록은 로봇이 걸어 다니는 길이지만, 회고는 사람이 머물러
+     읽는 쪽이라 시스템 글꼴로는 집의 얼굴이 아니다. 굵기 하나(400)만
+     받는다 — 한글 글꼴은 굵기 하나가 CSS 로만 23KB(gzip) 다. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang&display=swap">
 ${표식쓰기({
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -375,6 +381,11 @@ ${표식쓰기({
     numberOfItems: 목록.length,
   })}
 ${옷}
+<style>
+  body { font-family: "Gowun Batang", serif; letter-spacing: .01em }
+  h1 { font-size: 22px; letter-spacing: .04em }
+  p.sum, li { word-break: keep-all }
+</style>
 </head>
 <body>
   <main>
