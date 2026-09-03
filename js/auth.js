@@ -189,17 +189,53 @@
   function realCover(url) {
     return url && !/\/noimg/i.test(url) ? url : null;
   }
-  /* 책등 색이 밝으면(사진에서 읽은 흰 책·미색 책) 금박 글자가 안 보인다 —
-     상대 휘도로 어두운 잉크를 쓸지 정한다. 0.35 가 경계: #c0c0c0 는 밝고 #77522A 는 어둡다 */
-  function isLightColor(hex) {
+  /* ── 천과 글씨 ────────────────────────────────────────────────
+     책등에는 금박으로 제목을 찍고, 밝은 천에는 먹으로 찍는다. 예전에는
+     휘도 0.35 를 문턱으로 삼아 둘 중 하나를 골랐는데, **문턱은 대비를
+     보장하지 않는다** — 중간 밝기의 천(회색·남색·붉은 천)에서는 어느 쪽을
+     골라도 글씨가 안 읽혔다. 544권 중 84%만 WCAG AA(4.5)를 넘겼다
+     (2026-09-03 실측).
+
+     그래서 세 가지를 고쳤다:
+       ① 문턱 대신 **대비를 재서 더 나은 쪽**을 고른다
+       ② 금박을 한 단계 밝혔다 (#D9BC7E → #E8D2A0) — 이것이 가장 크게 듣는다
+       ③ 그래도 4.5 를 못 넘는 천은 **글씨가 읽힐 만큼만 눌러 준다**
+          (15권이 3~19% 어두워진다 — 천은 그림이고 제목은 정보다)
+     이 세 가지로 544권이 전부 넘는다. */
+  const 금박 = "#E8D2A0", 먹 = "#1A1006";
+  const 풀기 = (hex) => {
     const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex || "").trim());
-    if (!m) return false;
-    let c = m[1];
-    if (c.length === 3) c = c.split("").map((x) => x + x).join("");
-    const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-    const r = lin(parseInt(c.slice(0, 2), 16)), g = lin(parseInt(c.slice(2, 4), 16)), bl = lin(parseInt(c.slice(4, 6), 16));
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl > 0.35;
+    if (!m) return null;
+    const c = m[1].length === 3 ? m[1].split("").map((x) => x + x).join("") : m[1];
+    return [0, 2, 4].map((i) => parseInt(c.slice(i, i + 2), 16));
+  };
+  const 묶기 = (a) => "#" + a.map((v) =>
+    Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+  const 휘도 = (rgb) => {
+    const f = rgb.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2];
+  };
+  const 대비 = (a, b) => {
+    const l1 = 휘도(a), l2 = 휘도(b);
+    return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  };
+  const 금 = 풀기(금박), 흑 = 풀기(먹);
+  /* 이 천에 무엇으로 찍을 것인가. 천이 너무 애매하면 천을 눌러서 돌려준다. */
+  function 천과글씨(hex) {
+    let c = 풀기(hex);
+    if (!c) return { c: hex, ink: false };
+    /* 100 걸음까지 1%씩 눌러 본다 — 대개 한 걸음도 안 걷는다 */
+    for (let k = 0; k <= 100; k++) {
+      const 눌린 = k ? c.map((v) => v * (1 - k / 100)) : c;
+      const g = 대비(금, 눌린), i = 대비(흑, 눌린);
+      if (Math.max(g, i) >= 4.5 || k === 100) return { c: 묶기(눌린), ink: i > g };
+    }
   }
+  /* 밝은 천인가 — 바깥에서 묻는 이가 있을 때를 위해 남겨 둔다 */
+  const isLightColor = (hex) => {
+    const c = 풀기(hex);
+    return c ? 휘도(c) > 0.35 : false;
+  };
   window.PostLibrosIsLight = isLightColor;
   function shapeForShelf(b, spineSigned) {
     let h = 0;
@@ -208,7 +244,8 @@
     const spineImg = (b.spine_url && spineSigned?.get(b.spine_url)) || null;
     const boxRatio = (spineImg && b.spine_box && b.spine_box.h > 0)
       ? b.spine_box.w / b.spine_box.h : null;
-    const color = b.spine_color || CLOTH[h % CLOTH.length];
+    const 천 = 천과글씨(b.spine_color || CLOTH[h % CLOTH.length]);
+    const color = 천.c;
     return {
       spineImg,
       boxRatio,
@@ -217,8 +254,8 @@
       a: b.author || "지은이 미상",
       cat: b.category || "문학",
       c: color,
-      // 밝은 천에는 어두운 잉크 — 책등과 가짜 표지가 같이 쓴다
-      ink: isLightColor(color),
+      // 더 잘 읽히는 쪽 — 책등·가짜 표지·연대기가 같이 쓴다
+      ink: 천.ink,
       h: b.size_height
         ? Math.max(70, Math.min(130, Math.round(b.size_height * 0.52)))
         : 78 + (h % 40),

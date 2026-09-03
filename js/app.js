@@ -3072,8 +3072,32 @@
        있다 — 이름 짓는 규칙이 어긋나도 책은 열려야 한다. */
     const b = allBooks().find((x) => x.id === m[1])
       || (m[1].length >= 8 ? allBooks().find((x) => x.id.startsWith(m[1])) : null);
-    if (b) openExlibris(b, bookWall(b));
+    if (b) { openExlibris(b, bookWall(b)); return; }
+    /* 없는 책의 주소다 — 지웠거나, 링크가 잘못 옮겨졌거나. 예전에는 아무
+       말 없이 서가만 보여 주었는데, 그러면 링크를 받은 사람은 자기가 무엇을
+       놓쳤는지 모른 채 남의 책장 앞에 선다. 한 줄 남기고 주소는 지운다
+       (그대로 두면 새로고침할 때마다 같은 말을 되풀이한다). */
+    /* 아직 장서가 도착하지 않았으면 「없다」고 말할 자격이 없다 —
+       못 연 것과 없는 것은 다르다 */
+    if (allBooks().length) 없는책알림(m[1]);
   }
+
+  function 없는책알림(id) {
+    const note = $("gonebook"), t = $("gonebook-t");
+    /* 주소는 지운다 — 그대로 두면 새로고침할 때마다 같은 말을 되풀이한다 */
+    history.replaceState(null, "", location.pathname + location.search);
+    if (!note || !t) return;
+    note.hidden = false;
+    t.textContent = "그 주소의 책이 서가에 없습니다 — 지웠거나 주소가 옮겨졌습니다.";
+    /* 사람이 무엇이든 하면(검색·아무 데나 누르기) 조용히 걷힌다 */
+    const 걷기 = () => { note.hidden = true; };
+    $("q")?.addEventListener("input", 걷기, { once: true });
+    setTimeout(() => document.addEventListener("click", 걷기, { once: true, capture: true }), 0);
+  }
+  $("gonego")?.addEventListener("click", () => {
+    $("gonebook").hidden = true;
+    setView("list");
+  });
   window.addEventListener("hashchange", openFromHash);
   /* 이 책을 만난 사진 — 인식에 쓴 원본 책장 사진을 새 탭에 연다.
      intake 버킷은 비공개라 서명 주소가 필요하고, 그건 주인에게만 나온다.

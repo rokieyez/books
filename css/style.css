@@ -24,7 +24,7 @@
     --st-doing: #BC852D;
     --st-todo: #5C79D0;
     /* 밝은 천(흰 책·미색 책)에 찍는 먹 — 금박이 안 보이는 자리에서만 쓴다 */
-    --ink: #2A1C0E;
+    --ink: #1A1006;   /* auth.js 의 먹 상수와 같은 값이어야 한다 */
     --ink-dim: rgba(42,28,14,.55);
   }
   * { box-sizing: border-box; }
@@ -319,7 +319,10 @@
     appearance: none; border: none; cursor: pointer; flex: none;
     writing-mode: vertical-rl; position: relative;
     font-family: "Gowun Batang", serif; font-weight: 700; font-size: 10px;
-    letter-spacing: .05em; color: #D9BC7E;
+    /* 금박 — 2026-09-03 에 #D9BC7E 에서 한 단계 밝혔다. 중간 밝기의 천에서
+       제목이 안 읽혔다 (544권 중 84%만 4.5 를 넘겼다). **auth.js 의 금박
+       상수와 같은 값이어야 한다** — 거기서 어느 쪽으로 찍을지 재기 때문이다. */
+    letter-spacing: .05em; color: #E8D2A0;
     padding: 9px 0 7px;
     border-radius: 2px 2px 0 0;
     box-shadow: inset -2px 0 4px rgba(0,0,0,.5), inset 1px 0 2px rgba(255,255,255,.06);
@@ -2550,4 +2553,28 @@
     .printsheet tr { break-inside: avoid; }
     .printsheet thead { display: table-header-group; }
     @page { margin: 16mm 14mm; }
+  }
+
+  /* 책등을 지나가는 길 — 탭을 처음 누르면 왼쪽 위에 나타난다.
+     display:none 이나 visibility:hidden 으로 숨기면 탭이 아예 닿지 않으므로
+     화면 밖으로 밀어 두었다가 포커스가 오면 끌어온다. */
+  .skip {
+    position: fixed; left: 12px; top: -60px; z-index: 60;
+    padding: 9px 16px; border: 1px solid var(--brass); border-radius: 2px;
+    background: var(--dark); color: var(--brass);
+    font-size: 13px; text-decoration: none;
+    transition: top .15s ease;
+  }
+  .skip:focus-visible { top: 12px; }
+
+  /* ── 키보드로 걷는 사람 (2026-09-03) ────────────────────────────
+     이 집은 곳곳에서 outline 을 끄고 제 방식으로 대답한다 — 문은 살짝
+     들리고, 테가 밝아지고, 글자 색이 바뀐다. 그 대답은 그대로 두되,
+     **어디서든 반드시 보이는 고리**를 하나 깐다. `outline: none` 을
+     하나씩 걷는 대신 한 줄로 덮는 까닭은, 새 단추를 만들 때마다
+     또 꺼질 자리이기 때문이다. !important 는 여기서 옳다.
+     마우스로 누른 사람에게는 뜨지 않는다 (:focus 가 아니라 :focus-visible). */
+  :focus-visible {
+    outline: 2px solid var(--brass) !important;
+    outline-offset: 2px;
   }

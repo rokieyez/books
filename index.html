@@ -51,6 +51,10 @@
 </head>
 <!-- view-walls: 진열장·길은 서가 보기에서만 보인다 — setView 가 바꾼다 -->
 <body class="view-walls">
+<!-- 책등을 지나가는 길 — 서가에는 탭이 209번 걸린다 (그중 150이 책등이다).
+     키보드로 오는 사람이 책상에 닿으려면 벽 다섯을 손끝으로 다 훑어야 했다.
+     평소에는 눈에 없다가 탭을 처음 누르면 나타난다 (2026-09-03). -->
+<a class="skip" href="#desk">책등을 지나 책상으로</a>
 <div class="topbar">
   <div class="inner">
     <!-- 장서인은 그림이다 — 읽어 주는 기계에는 이 방의 이름이 「장 서가 뒤의 방」이
@@ -128,6 +132,13 @@
   <p class="findnote" id="findnote" role="status" hidden>
     <span id="findnote-t"></span>
     <button type="button" class="findgo" id="findgo">목록에서 전부 본다</button>
+  </p>
+  <!-- 없는 책의 주소로 들어왔을 때. findnote 를 같이 쓰면 안 된다 —
+       그 자리는 syncFindNote 의 것이고, 장서가 늦게 도착해 renderAll 이
+       한 번 더 돌면 조용히 지워진다 (2026-09-03). -->
+  <p class="findnote gone" id="gonebook" role="alert" hidden>
+    <span id="gonebook-t"></span>
+    <button type="button" class="findgo" id="gonego">목록에서 찾아본다</button>
   </p>
   <!-- 어느 벽도 응답하지 않았을 때 — 글자가 반쯤 맞는 책 셋 -->
   <div class="near" id="wallnear" hidden></div>
