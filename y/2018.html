@@ -32,6 +32,15 @@
   li { margin:0 0 5px; font-size:12.5px; break-inside:avoid }
   li i { font-style:normal; opacity:.5 }
   @media (max-width:560px) { ul { columns:1 } }
+  /* 해마다의 막대 — 한 줄에 해·막대·권수 */
+  .years { margin:0 0 20px; font-size:12px }
+  .yr { display:grid; grid-template-columns:4.2em 1fr 3.2em; align-items:center; gap:9px; margin:0 0 5px }
+  .yr .y { color:#9C8E74; letter-spacing:.04em }
+  .yr .n { color:#9C8E74; text-align:right }
+  .yr .bar { display:block; height:7px; background:rgba(224,177,94,.10); border-radius:2px; overflow:hidden }
+  .yr .bar i { display:block; height:100%; background:rgba(224,177,94,.34) }
+  .yr.on .y, .yr.on .n { color:#E2D5B8 }
+  .yr.on .bar i { background:#E0B15E }
 </style>
 </head>
 <body>
@@ -42,7 +51,8 @@
       <li><a href="../b/%EC%8B%A0%EA%B3%A1-%EC%A7%80%EC%98%A5%ED%8E%B8-3610f3e7.html">신곡 지옥편</a> <i>단테 알리기에리</i></li>
       <li><a href="../b/%EC%8B%A0%EA%B3%A1-%EC%B2%9C%EA%B5%AD%ED%8E%B8-6fb73dc1.html">신곡 천국편</a> <i>단테 알리기에리</i></li>
     </ul>
-    <p style="margin-top:18px"><a href="2026.html">2026년</a> · <a href="2021.html">2021년</a> · <a href="../">서재로</a></p>
+    <div class="years" role="img" aria-label="해마다 읽은 권수: 2018년 2권, 2021년 1권, 2026년 4권"><div class="yr on"><span class="y">2018</span><span class="bar"><i style="width:50%"></i></span><span class="n">2권</span></div><div class="yr"><span class="y">2021</span><span class="bar"><i style="width:25%"></i></span><span class="n">1권</span></div><div class="yr"><span class="y">2026</span><span class="bar"><i style="width:100%"></i></span><span class="n">4권</span></div></div>
+    <p style="margin-top:18px"><a href="2026.html">2026년 4권</a> · <a href="2021.html">2021년 1권</a> · <a href="../#stats">서재의 통계로</a> · <a href="../">서재로</a></p>
   </main>
 </body>
 </html>

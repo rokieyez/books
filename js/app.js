@@ -1537,6 +1537,20 @@
             + years.slice(1, 4).map(([yy, v]) => `${yy}년 ${v}권`).join(", ") + " —";
           rp.appendChild(past);
         }
+        /* 해마다 한 쪽이 따로 있다 (y/<연도>.html) — 도구가 지어 둔 정적 쪽이라
+           링크 하나로 건넬 수 있고 검색에도 남는다. 이 패널은 서재 안쪽에
+           있어 나누기 어려웠다. 아직 안 지어진 해면 404 가 대문으로 보낸다. */
+        const 해길 = document.createElement("p");
+        해길.className = "recapyears";
+        해길.append("해마다 한 쪽: ");
+        years.forEach(([yy], i) => {
+          if (i) 해길.append(" · ");
+          const a = document.createElement("a");
+          a.href = `/books/y/${yy}.html`;
+          a.textContent = `${yy}년`;
+          해길.appendChild(a);
+        });
+        rp.appendChild(해길);
         // 회고를 그림 한 장으로 — 공유하거나 남겨 두거나
         const card = document.createElement("button");
         card.type = "button";

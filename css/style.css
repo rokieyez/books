@@ -2209,6 +2209,23 @@
   }
   @media (prefers-reduced-motion: reduce) { .locnote { animation: none; } }
 
+  /* 해마다의 정적 쪽으로 — 회고 패널 맨 끝에 */
+  .recapyears {
+    margin: 10px 0 0;
+    font-size: 11.5px;
+    color: var(--brass-dim);
+    letter-spacing: .02em;
+  }
+  .recapyears a {
+    color: var(--brass);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(224, 177, 94, .28);
+  }
+  .recapyears a:hover, .recapyears a:focus-visible {
+    border-bottom-color: var(--brass);
+    outline: none;
+  }
+
   /* ── 콜로폰 — 책 뒤의 판권장 ── */
   footer.colophon p { margin: 0 0 5px; }
   footer.colophon .colo-who {

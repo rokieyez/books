@@ -24,6 +24,15 @@
   li { margin:0 0 5px; font-size:12.5px; break-inside:avoid }
   li i { font-style:normal; opacity:.5 }
   @media (max-width:560px) { ul { columns:1 } }
+  /* 해마다의 막대 — 한 줄에 해·막대·권수 */
+  .years { margin:0 0 20px; font-size:12px }
+  .yr { display:grid; grid-template-columns:4.2em 1fr 3.2em; align-items:center; gap:9px; margin:0 0 5px }
+  .yr .y { color:#9C8E74; letter-spacing:.04em }
+  .yr .n { color:#9C8E74; text-align:right }
+  .yr .bar { display:block; height:7px; background:rgba(224,177,94,.10); border-radius:2px; overflow:hidden }
+  .yr .bar i { display:block; height:100%; background:rgba(224,177,94,.34) }
+  .yr.on .y, .yr.on .n { color:#E2D5B8 }
+  .yr.on .bar i { background:#E0B15E }
 </style>
 </head>
 <body>

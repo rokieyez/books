@@ -96,6 +96,15 @@ const 옷 = `<style>
   li { margin:0 0 5px; font-size:12.5px; break-inside:avoid }
   li i { font-style:normal; opacity:.5 }
   @media (max-width:560px) { ul { columns:1 } }
+  /* 해마다의 막대 — 한 줄에 해·막대·권수 */
+  .years { margin:0 0 20px; font-size:12px }
+  .yr { display:grid; grid-template-columns:4.2em 1fr 3.2em; align-items:center; gap:9px; margin:0 0 5px }
+  .yr .y { color:#9C8E74; letter-spacing:.04em }
+  .yr .n { color:#9C8E74; text-align:right }
+  .yr .bar { display:block; height:7px; background:rgba(224,177,94,.10); border-radius:2px; overflow:hidden }
+  .yr .bar i { display:block; height:100%; background:rgba(224,177,94,.34) }
+  .yr.on .y, .yr.on .n { color:#E2D5B8 }
+  .yr.on .bar i { background:#E0B15E }
 </style>`;
 
 /* ── 책 한 권의 쪽 ─────────────────────────────────────────────── */
@@ -264,10 +273,30 @@ ${정렬.map((b) => `      <li><a href="${슬러그파일(b)}">${esc(b.title || 
 `;
 };
 
+/* 해마다 몇 권을 읽었는가 — 한 해만 있으면 견줄 것이 없으므로 그리지 않는다.
+   막대는 가장 많이 읽은 해를 100 으로 잡아 잰다. 색은 하나뿐이라(황동)
+   계열색 검증이 필요 없고, 숫자를 막대 옆에 그대로 적어 두어 막대 길이를
+   눈으로 어림하지 않아도 되게 한다. 지금 보는 해는 밝게. */
+const 막대 = (이해, 해들, 해별) => {
+  if (해들.length < 2) return "";
+  const 큰 = Math.max(...해들.map((y) => 해별.get(y).length));
+  const 줄 = [...해들].sort((a, b) => a - b).map((y) => {
+    const n = 해별.get(y).length;
+    const 폭 = Math.max(3, Math.round(n / 큰 * 100));
+    const 이번 = y === 이해;
+    return `<div class="yr${이번 ? " on" : ""}">` +
+      `<span class="y">${y}</span>` +
+      `<span class="bar"><i style="width:${폭}%"></i></span>` +
+      `<span class="n">${n}권</span></div>`;
+  }).join("");
+  return `<div class="years" role="img" aria-label="해마다 읽은 권수: ${
+    [...해들].sort((a, b) => a - b).map((y) => `${y}년 ${해별.get(y).length}권`).join(", ")}">${줄}</div>`;
+};
+
 /* ── 그 해에 읽은 책 (y/<연도>.html) ───────────────────────────────
    통계의 회고 패널은 서재 안쪽에 있어 나누기 어렵다. 한 해를 한 쪽으로
    떼어 두면 링크 하나로 건넬 수 있고, 검색에도 남는다. */
-const 해쪽만들기 = (해, 목록, 해들) => {
+const 해쪽만들기 = (해, 목록, 해들, 해별) => {
   const 쪽수 = 목록.reduce((a, b) => a + (b.page_count || 0), 0);
   const 갈래 = {};
   목록.forEach((b) => { const k = b.category || "그 밖"; 갈래[k] = (갈래[k] || 0) + 1; });
@@ -313,8 +342,9 @@ ${옷}
 ${목록.map((b) => `      <li><a href="../b/${슬러그파일(b)}">${esc(b.title || "무제")}</a>` +
       (b.author ? ` <i>${esc(b.author)}</i>` : "") + `</li>`).join("\n")}
     </ul>
+    ${막대(해, 해들, 해별)}
     <p style="margin-top:18px">${해들.filter((y) => y !== 해)
-      .map((y) => `<a href="${y}.html">${y}년</a>`).join(" · ")}${해들.length > 1 ? " · " : ""}<a href="../">서재로</a></p>
+      .map((y) => `<a href="${y}.html">${y}년 ${해별.get(y).length}권</a>`).join(" · ")}${해들.length > 1 ? " · " : ""}<a href="../#stats">서재의 통계로</a> · <a href="../">서재로</a></p>
   </main>
 </body>
 </html>
@@ -399,7 +429,7 @@ books.filter((b) => b.read_year).forEach((b) => {
 const 해들 = [...해별.keys()].sort((a, b) => b - a);
 for (const [해, 목록] of 해별) {
   목록.sort((a, b) => (a.title || "").localeCompare(b.title || "", "ko"));
-  await writeFile(join(해자리, `${해}.html`), 해쪽만들기(해, 목록, 해들), "utf8");
+  await writeFile(join(해자리, `${해}.html`), 해쪽만들기(해, 목록, 해들, 해별), "utf8");
 }
 /* 없어진 해의 쪽은 지운다 (읽은 해를 고쳐 그 해가 비었을 때) */
 for (const f of await readdir(해자리).catch(() => [])) {
