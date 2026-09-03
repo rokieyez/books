@@ -10,6 +10,8 @@
   <!-- 밤의 서재다 — 입력창·스크롤막대·기본 위젯도 어두운 쪽을 쓰게 한다 -->
   <meta name="color-scheme" content="dark">
   <link rel="canonical" href="https://www.rokiz.net/books/">
+  <!-- 서재를 구독한다 — 새로 꽂은 책과 새로 지은 기록이 실린다 -->
+  <link rel="alternate" type="application/atom+xml" title="서가 뒤의 방" href="feed.xml">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <!-- 첫 화면까지의 길목을 미리 터 둔다. 책은 supabase 에서, 글꼴은 구글에서,
        supabase 라이브러리는 jsdelivr 에서 온다 — 이 셋의 손잡기를 앞당긴다 -->
@@ -56,9 +58,13 @@
   </div>
 </div>
 
+<!-- 자바스크립트가 없는 손님 — 사람이든 검색 로봇이든 — 에게도 길은 있어야 한다.
+     벽은 못 세워도 책 목록은 진짜 파일이라 그대로 걸어 다닐 수 있다.
+     나눔 쪽끼리는 서로 링크하지 않으므로, 로봇에게는 이것이 유일한 길이다. -->
 <noscript>
   <p class="noscript-note">이 서재는 자바스크립트로 벽을 세웁니다 — 꺼져 있으면 빈 방만 보입니다.
-    브라우저에서 자바스크립트를 켜고 다시 들어와 주세요.</p>
+    브라우저에서 자바스크립트를 켜고 다시 들어와 주세요.
+    글자로 된 <a href="b/">책 목록</a>은 자바스크립트 없이도 열립니다.</p>
 </noscript>
 
 <!-- 스크롤 높이를 알리는 장식 사다리 — 읽어 주는 기계에는 소음이다 -->

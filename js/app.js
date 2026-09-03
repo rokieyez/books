@@ -2872,6 +2872,20 @@
      내가 주소를 바꾼 것과 사람이 뒤로 가기를 누른 것을 구별해야 하므로
      스스로 쓴 해시에는 표를 남긴다. */
   let hashSelf = false;
+  /* 나눔 쪽의 이름 — tools/make-book-pages.mjs 의 슬러그몸() 과 글자 그대로
+     같은 규칙이어야 한다. 어긋나면 없는 파일을 가리키게 되는데, 그때는
+     404.html 이 뒤의 여덟 자를 주워 서표로 보낸다 (그래서 아주 깨지지는 않는다).
+     규칙을 고치면 두 곳을 함께 고치고 도구를 다시 돌릴 것. */
+  function shareSlug(b) {
+    const 몸 = String(b.t || "무제")
+      .replace(/[\u2018\u2019\u201C\u201D\u300C\u300D\u300E\u300F]/g, "")
+      .replace(/[^0-9A-Za-z\uAC00-\uD7A3\u3131-\u314E\u314F-\u3163]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40)
+      .replace(/-+$/, "") || "무제";
+    return `${몸}-${b.id.slice(0, 8)}`;
+  }
+
   function openFromHash() {
     if (hashSelf) { hashSelf = false; return; }
     const view = location.hash.replace(/^#/, "");
@@ -2883,7 +2897,11 @@
     const m = location.hash.match(/^#book\/([\w-]+)$/);
     if (!m) { if (openBook) closeExlibris(); return; }
     if (openBook?.id === m[1]) return;   // 이미 그 책이 열려 있다 (서가를 다시 그린 뒤)
-    const b = allBooks().find((x) => x.id === m[1]);
+    /* 아이디 전체가 아니라 앞자리만 와도 연다. 나눔 쪽 주소가
+       「제목-<앞자리 여덟>」이라, 404.html 이 그 여덟 자만 주워 보낼 때가
+       있다 — 이름 짓는 규칙이 어긋나도 책은 열려야 한다. */
+    const b = allBooks().find((x) => x.id === m[1])
+      || (m[1].length >= 8 ? allBooks().find((x) => x.id.startsWith(m[1])) : null);
     if (b) openExlibris(b, bookWall(b));
   }
   window.addEventListener("hashchange", openFromHash);
@@ -2912,10 +2930,10 @@
     if (!openBook?.id) return;
     /* 나눔 쪽 주소를 준다 — 카톡·슬랙의 미리보기는 자바스크립트를 돌리지
        않으므로 `#book/…` 을 붙이면 어느 책이든 같은 그림이 뜬다.
-       b/<id>.html 에는 그 책의 표지와 제목이 태그로 박혀 있다.
+       b/<슬러그>.html 에는 그 책의 표지·제목·기록이 태그로 박혀 있다.
        아직 안 지은 책이면 404.html 이 알아보고 서표로 돌려보낸다. */
     const 뿌리 = location.origin + location.pathname.replace(/index\.html$/, "");
-    const url = `${뿌리}b/${openBook.id}.html`;
+    const url = `${뿌리}b/${encodeURIComponent(shareSlug(openBook))}.html`;
     const btn = e.currentTarget;
     const was = btn.textContent;
     try {

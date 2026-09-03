@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="ko">
+  <title>서가 뒤의 방</title>
+  <subtitle>책장인 줄 알았는데 문이었다 — 한 사람의 서재에 드는 책과 기록</subtitle>
+  <link href="https://www.rokiz.net/books/feed.xml" rel="self"/>
+  <link href="https://www.rokiz.net/books/"/>
+  <id>https://www.rokiz.net/books/</id>
+  <updated>2026-09-01T23:20:34.899Z</updated>
+  <author><name>로키즈</name></author>
+  <entry>
+    <title>미포시오 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%AF%B8%ED%8F%AC%EC%8B%9C%EC%98%A4-ea1db327.html"/>
+    <id>tag:rokiz.net,2026:shelved/ea1db327-e02f-47ef-9cb8-5adc91173ece</id>
+    <updated>2026-09-01T23:20:34.899Z</updated>
+    <category term="입고"/>
+    <summary>Michel Houellebecq</summary>
+  </entry>
+  <entry>
+    <title>고리오 영감 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EA%B3%A0%EB%A6%AC%EC%98%A4-%EC%98%81%EA%B0%90-682c43ec.html"/>
+    <id>tag:rokiz.net,2026:shelved/682c43ec-619c-4a09-bde0-ecb1f43be655</id>
+    <updated>2026-09-01T23:19:38.797Z</updated>
+    <category term="입고"/>
+    <summary>오느레 드 발자크 · 민음사 · 1999</summary>
+  </entry>
+  <entry>
+    <title>루모와 어둠 속의 기적 1 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%A3%A8%EB%AA%A8%EC%99%80-%EC%96%B4%EB%91%A0-%EC%86%8D%EC%9D%98-%EA%B8%B0%EC%A0%81-1-1a14b61a.html"/>
+    <id>tag:rokiz.net,2026:shelved/1a14b61a-0a3b-496f-90db-d23c65701e80</id>
+    <updated>2026-09-01T23:18:34.020Z</updated>
+    <category term="입고"/>
+    <summary>발터 뫼르스 · 들녘 · 2006</summary>
+  </entry>
+  <entry>
+    <title>루모와 어둠 속의 기적 2 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%A3%A8%EB%AA%A8%EC%99%80-%EC%96%B4%EB%91%A0-%EC%86%8D%EC%9D%98-%EA%B8%B0%EC%A0%81-2-262d539b.html"/>
+    <id>tag:rokiz.net,2026:shelved/262d539b-3942-4ee1-a6de-979d72dadc8e</id>
+    <updated>2026-09-01T23:18:29.788Z</updated>
+    <category term="입고"/>
+    <summary>발터 뫼르스 · 들녘 · 2006</summary>
+  </entry>
+  <entry>
+    <title>13인당 이야기 - 페라귀스.랑제 공작부인.황금 눈의 여인 입고</title>
+    <link href="https://www.rokiz.net/books/b/13%EC%9D%B8%EB%8B%B9-%EC%9D%B4%EC%95%BC%EA%B8%B0-%ED%8E%98%EB%9D%BC%EA%B7%80%EC%8A%A4-%EB%9E%91%EC%A0%9C-%EA%B3%B5%EC%9E%91%EB%B6%80%EC%9D%B8-%ED%99%A9%EA%B8%88-%EB%88%88%EC%9D%98-%EC%97%AC%EC%9D%B8-f4e8e49c.html"/>
+    <id>tag:rokiz.net,2026:shelved/f4e8e49c-a8d9-41b9-b574-fb861d666097</id>
+    <updated>2026-09-01T23:15:59.446Z</updated>
+    <category term="입고"/>
+    <summary>오노레 드 발자크 · 문학동네 · 2018</summary>
+  </entry>
+  <entry>
+    <title>단순한 열정 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%8B%A8%EC%88%9C%ED%95%9C-%EC%97%B4%EC%A0%95-31fa9a7e.html"/>
+    <id>tag:rokiz.net,2026:shelved/31fa9a7e-cec5-4d78-8853-6999271c6b5c</id>
+    <updated>2026-09-01T23:15:44.598Z</updated>
+    <category term="입고"/>
+    <summary>아니 에르노 · 문학동네 · 2001</summary>
+  </entry>
+  <entry>
+    <title>소리와 분노 (무선) 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%86%8C%EB%A6%AC%EC%99%80-%EB%B6%84%EB%85%B8-%EB%AC%B4%EC%84%A0-99179791.html"/>
+    <id>tag:rokiz.net,2026:shelved/99179791-a64d-4a94-8c2d-0a61325153e0</id>
+    <updated>2026-09-01T23:15:25.578Z</updated>
+    <category term="입고"/>
+    <summary>윌리엄 포크너 · 문학동네 · 2013</summary>
+  </entry>
+  <entry>
+    <title>모래그릇 1 (무선) 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%AA%A8%EB%9E%98%EA%B7%B8%EB%A6%87-1-%EB%AC%B4%EC%84%A0-1f5ae300.html"/>
+    <id>tag:rokiz.net,2026:shelved/1f5ae300-df3a-4324-bff7-5518fef4fd86</id>
+    <updated>2026-09-01T23:14:34.609Z</updated>
+    <category term="입고"/>
+    <summary>마쓰모토 세이초 · 문학동네 · 2013</summary>
+  </entry>
+  <entry>
+    <title>모래그릇 2 (무선) 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%AA%A8%EB%9E%98%EA%B7%B8%EB%A6%87-2-%EB%AC%B4%EC%84%A0-3578c014.html"/>
+    <id>tag:rokiz.net,2026:shelved/3578c014-b2fe-46cb-a057-e40451c78b98</id>
+    <updated>2026-09-01T23:14:28.450Z</updated>
+    <category term="입고"/>
+    <summary>마쓰모토 세이초 · 문학동네 · 2013</summary>
+  </entry>
+  <entry>
+    <title>시스터 캐리 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%8B%9C%EC%8A%A4%ED%84%B0-%EC%BA%90%EB%A6%AC-ec01327a.html"/>
+    <id>tag:rokiz.net,2026:shelved/ec01327a-7902-48e4-af37-ae463e6c49e4</id>
+    <updated>2026-09-01T23:14:14.553Z</updated>
+    <category term="입고"/>
+    <summary>시어도어 드라이저 · 범우사 · 1998</summary>
+  </entry>
+  <entry>
+    <title>작은 것들의 신 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%9E%91%EC%9D%80-%EA%B2%83%EB%93%A4%EC%9D%98-%EC%8B%A0-47b22895.html"/>
+    <id>tag:rokiz.net,2026:shelved/47b22895-b1e6-452a-b419-c856acfa8cbc</id>
+    <updated>2026-09-01T23:13:48.519Z</updated>
+    <category term="입고"/>
+    <summary>아룬다티 로이 · 문이당 · 2006</summary>
+  </entry>
+  <entry>
+    <title>판탈레온과 특별봉사대 (무선) 입고</title>
+    <link href="https://www.rokiz.net/books/b/%ED%8C%90%ED%83%88%EB%A0%88%EC%98%A8%EA%B3%BC-%ED%8A%B9%EB%B3%84%EB%B4%89%EC%82%AC%EB%8C%80-%EB%AC%B4%EC%84%A0-7fdfebfe.html"/>
+    <id>tag:rokiz.net,2026:shelved/7fdfebfe-5c5b-4b33-9e07-01e36a06b937</id>
+    <updated>2026-09-01T23:13:10.007Z</updated>
+    <category term="입고"/>
+    <summary>마리오 바르가스 요사 · 문학동네 · 2009</summary>
+  </entry>
+  <entry>
+    <title>노생거 수도원 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%85%B8%EC%83%9D%EA%B1%B0-%EC%88%98%EB%8F%84%EC%9B%90-345e45ad.html"/>
+    <id>tag:rokiz.net,2026:shelved/345e45ad-b5f1-46f3-8864-e57c65ebfba2</id>
+    <updated>2026-09-01T23:09:16.309Z</updated>
+    <category term="입고"/>
+    <summary>제인 오스틴 · 시공사 · 2016</summary>
+  </entry>
+  <entry>
+    <title>미션 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%AF%B8%EC%85%98-0ee22d26.html"/>
+    <id>tag:rokiz.net,2026:shelved/0ee22d26-f203-48c3-b80f-ceade71377d5</id>
+    <updated>2026-09-01T23:08:14.010Z</updated>
+    <category term="입고"/>
+    <summary>Michel Houellebecq</summary>
+  </entry>
+  <entry>
+    <title>특강 종교개혁사 - 종교개혁의 정점, 웨스트민스터 총회 편 입고</title>
+    <link href="https://www.rokiz.net/books/b/%ED%8A%B9%EA%B0%95-%EC%A2%85%EA%B5%90%EA%B0%9C%ED%98%81%EC%82%AC-%EC%A2%85%EA%B5%90%EA%B0%9C%ED%98%81%EC%9D%98-%EC%A0%95%EC%A0%90-%EC%9B%A8%EC%8A%A4%ED%8A%B8%EB%AF%BC%EC%8A%A4%ED%84%B0-%EC%B4%9D%ED%9A%8C-%ED%8E%B8-11499efa.html"/>
+    <id>tag:rokiz.net,2026:shelved/11499efa-4b96-4397-bdde-1b6dcd28b6b8</id>
+    <updated>2026-09-01T23:07:46.100Z</updated>
+    <category term="입고"/>
+    <summary>황희상 · 흑곰북스 · 2016</summary>
+  </entry>
+  <entry>
+    <title>패니와 애니 입고</title>
+    <link href="https://www.rokiz.net/books/b/%ED%8C%A8%EB%8B%88%EC%99%80-%EC%95%A0%EB%8B%88-e31483f4.html"/>
+    <id>tag:rokiz.net,2026:shelved/e31483f4-bd65-45db-ad6e-46bac085debe</id>
+    <updated>2026-09-01T15:49:23.635Z</updated>
+    <category term="입고"/>
+    <summary>데이비드 허버트 로렌스 · 창비 · 2013</summary>
+  </entry>
+  <entry>
+    <title>&lt;사랑의 하츄핑 : 고래보석의 전설&gt; 공식 애니메이션 스토리북 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%82%AC%EB%9E%91%EC%9D%98-%ED%95%98%EC%B8%84%ED%95%91-%EA%B3%A0%EB%9E%98%EB%B3%B4%EC%84%9D%EC%9D%98-%EC%A0%84%EC%84%A4-%EA%B3%B5%EC%8B%9D-%EC%95%A0%EB%8B%88%EB%A9%94%EC%9D%B4%EC%85%98-%EC%8A%A4%ED%86%A0%EB%A6%AC%EB%B6%81-291c13a6.html"/>
+    <id>tag:rokiz.net,2026:shelved/291c13a6-6733-4644-9b0f-7f3272f3ec81</id>
+    <updated>2026-09-01T15:49:22.570Z</updated>
+    <category term="입고"/>
+    <summary>SAMG엔터 · 크래커 · 2026</summary>
+  </entry>
+  <entry>
+    <title>그리운 남쪽 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EA%B7%B8%EB%A6%AC%EC%9A%B4-%EB%82%A8%EC%AA%BD-b180443f.html"/>
+    <id>tag:rokiz.net,2026:shelved/b180443f-5683-41a7-a11f-8a94a323d660</id>
+    <updated>2026-09-01T15:49:17.910Z</updated>
+    <category term="입고"/>
+    <summary>엄승철 · 북인 · 2022</summary>
+  </entry>
+  <entry>
+    <title>낙원 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%82%99%EC%9B%90-81cd807b.html"/>
+    <id>tag:rokiz.net,2026:shelved/81cd807b-85f2-436c-9689-88dd3abcdff3</id>
+    <updated>2026-09-01T15:49:15.463Z</updated>
+    <category term="입고"/>
+    <summary>압둘라자크 구르나 · 문학동네 · 2022</summary>
+  </entry>
+  <entry>
+    <title>눈의 여왕 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%88%88%EC%9D%98-%EC%97%AC%EC%99%95-243c359e.html"/>
+    <id>tag:rokiz.net,2026:shelved/243c359e-d9d5-40fc-aa35-1d518136f38f</id>
+    <updated>2026-09-01T15:49:15.085Z</updated>
+    <category term="입고"/>
+    <summary>한스 크리스티안 안데르센 · 웅진주니어 · 2005</summary>
+  </entry>
+  <entry>
+    <title>기독교 세계관 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EA%B8%B0%EB%8F%85%EA%B5%90-%EC%84%B8%EA%B3%84%EA%B4%80-c7c0de3f.html"/>
+    <id>tag:rokiz.net,2026:shelved/c7c0de3f-a593-449f-ab85-8d876041a8ad</id>
+    <updated>2026-09-01T15:49:08.252Z</updated>
+    <category term="입고"/>
+    <summary>아더 홈즈 · 엠마오서적 · 1985</summary>
+  </entry>
+  <entry>
+    <title>영원한 인간 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%98%81%EC%9B%90%ED%95%9C-%EC%9D%B8%EA%B0%84-3588dc1a.html"/>
+    <id>tag:rokiz.net,2026:shelved/3588dc1a-1f07-4b6b-86ed-739216deb43d</id>
+    <updated>2026-09-01T15:49:08.188Z</updated>
+    <category term="입고"/>
+    <summary>G. K. 체스터턴 · 복있는사람 · 2024</summary>
+  </entry>
+  <entry>
+    <title>웨스트민스터 신앙고백서 강해 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%9B%A8%EC%8A%A4%ED%8A%B8%EB%AF%BC%EC%8A%A4%ED%84%B0-%EC%8B%A0%EC%95%99%EA%B3%A0%EB%B0%B1%EC%84%9C-%EA%B0%95%ED%95%B4-6a36881c.html"/>
+    <id>tag:rokiz.net,2026:shelved/6a36881c-8085-443e-ab46-afbeb26eb06b</id>
+    <updated>2026-09-01T15:49:08.125Z</updated>
+    <category term="입고"/>
+    <summary>G. I. Willimason · 크리스챤출판사 · 2009</summary>
+  </entry>
+  <entry>
+    <title>고백록 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EA%B3%A0%EB%B0%B1%EB%A1%9D-ab973964.html"/>
+    <id>tag:rokiz.net,2026:shelved/ab973964-2a35-4edb-a93b-4171d00b1fcc</id>
+    <updated>2026-09-01T15:49:08.052Z</updated>
+    <category term="입고"/>
+    <summary>아우구스티누스 · CH북스(크리스천다이제스트) · 2016</summary>
+  </entry>
+  <entry>
+    <title>독일 민족의 그리스도인 귀족에게 고함 외 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%8F%85%EC%9D%BC-%EB%AF%BC%EC%A1%B1%EC%9D%98-%EA%B7%B8%EB%A6%AC%EC%8A%A4%EB%8F%84%EC%9D%B8-%EA%B7%80%EC%A1%B1%EC%97%90%EA%B2%8C-%EA%B3%A0%ED%95%A8-%EC%99%B8-fb547df8.html"/>
+    <id>tag:rokiz.net,2026:shelved/fb547df8-9a19-43c3-a691-0f9f3ca2a209</id>
+    <updated>2026-09-01T15:48:54.260Z</updated>
+    <category term="입고"/>
+    <summary>마르틴 루터 · 길(도서출판) · 2017</summary>
+  </entry>
+  <entry>
+    <title>리마카쿠스를 순교시킨 것 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%A6%AC%EB%A7%88%EC%B9%B4%EC%BF%A0%EC%8A%A4%EB%A5%BC-%EC%88%9C%EA%B5%90%EC%8B%9C%ED%82%A8-%EA%B2%83-ff630bf0.html"/>
+    <id>tag:rokiz.net,2026:shelved/ff630bf0-c245-4474-971d-8414c772330c</id>
+    <updated>2026-09-01T15:48:46.750Z</updated>
+    <category term="입고"/>
+    <summary>존 번연</summary>
+  </entry>
+  <entry>
+    <title>기록 — 니벨룽의 노래</title>
+    <link href="https://www.rokiz.net/books/b/%EB%8B%88%EB%B2%A8%EB%A3%BD%EC%9D%98-%EB%85%B8%EB%9E%98-bc819b34.html"/>
+    <id>tag:rokiz.net,2026:note/bc819b34-c53f-4f26-ae9c-3e8e20592482</id>
+    <updated>2026-09-01T15:48:07.675Z</updated>
+    <category term="기록"/>
+    <summary>이 책은 확실히 알지 못합니다. 다만 제목과 저자, 출판사 정보를 통해 짐작되는 바만 조심스럽게 적어봅니다. 「니벨룽의 노래」는 중세 독일의 대표적 영웅서사시 『니벨룽겐의 노래』를 아우구스테 레히너가 청소년과 일반 독자를 위해 새롭게 풀어쓴 판본으로 보입니다. 원작은 지크프리트라는 영웅과 그를 둘러싼 인물들의 사랑, 배신, 복수를 그리며, 게르만 신화와 중세 기사 문학의 색채가 짙게 깔린 작품으로 알려져 있습니다. 북유럽·게르만 신화나 서사시에 관심 있는 독자, 혹은 바그너의 오페라 「니벨룽의 반지」의 원전이 궁금한 독자에게 흥미로</summary>
+  </entry>
+  <entry>
+    <title>성서의 역사 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%84%B1%EC%84%9C%EC%9D%98-%EC%97%AD%EC%82%AC-18497380.html"/>
+    <id>tag:rokiz.net,2026:shelved/18497380-33e1-4bbe-af8f-7c677e60c01e</id>
+    <updated>2026-09-01T15:47:44.227Z</updated>
+    <category term="입고"/>
+    <summary>존 바턴 · 비아토르 · 2023</summary>
+  </entry>
+  <entry>
+    <title>초대교회사 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%B4%88%EB%8C%80%EA%B5%90%ED%9A%8C%EC%82%AC-6e3b636d.html"/>
+    <id>tag:rokiz.net,2026:shelved/6e3b636d-fbfa-4f84-9262-7e848164971b</id>
+    <updated>2026-09-01T08:18:15.774Z</updated>
+    <category term="입고"/>
+    <summary>헨리 채드윅 · CH북스(크리스천다이제스트) · 1999</summary>
+  </entry>
+  <entry>
+    <title>천로역정 순례자의 노정 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%B2%9C%EB%A1%9C%EC%97%AD%EC%A0%95-%EC%88%9C%EB%A1%80%EC%9E%90%EC%9D%98-%EB%85%B8%EC%A0%95-adb8a97b.html"/>
+    <id>tag:rokiz.net,2026:shelved/adb8a97b-db9f-4c59-b4fb-49d498f207d2</id>
+    <updated>2026-09-01T08:18:12.430Z</updated>
+    <category term="입고"/>
+    <summary>존 번연</summary>
+  </entry>
+  <entry>
+    <title>종교개혁 신학과 신앙 신앙과 신학 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%A2%85%EA%B5%90%EA%B0%9C%ED%98%81-%EC%8B%A0%ED%95%99%EA%B3%BC-%EC%8B%A0%EC%95%99-%EC%8B%A0%EC%95%99%EA%B3%BC-%EC%8B%A0%ED%95%99-cc412e11.html"/>
+    <id>tag:rokiz.net,2026:shelved/cc412e11-f4d9-4682-bcd6-4f31aa76f587</id>
+    <updated>2026-09-01T08:18:03.533Z</updated>
+    <category term="입고"/>
+    <summary>홍지훈 · 동연출판사 · 2022</summary>
+  </entry>
+  <entry>
+    <title>정통 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%A0%95%ED%86%B5-77c99e0b.html"/>
+    <id>tag:rokiz.net,2026:shelved/77c99e0b-d0c5-4da9-8c96-7f8da003d1cb</id>
+    <updated>2026-09-01T08:17:52.820Z</updated>
+    <category term="입고"/>
+    <summary>G. K. 체스터턴 · 복있는사람 · 2024</summary>
+  </entry>
+  <entry>
+    <title>이단 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%9D%B4%EB%8B%A8-5e14bcdf.html"/>
+    <id>tag:rokiz.net,2026:shelved/5e14bcdf-5668-41c2-ad53-a5059b48f41b</id>
+    <updated>2026-09-01T08:17:51.771Z</updated>
+    <category term="입고"/>
+    <summary>G. K. 체스터턴 · 복있는사람 · 2024</summary>
+  </entry>
+  <entry>
+    <title>리마커블 천로역정 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EB%A6%AC%EB%A7%88%EC%BB%A4%EB%B8%94-%EC%B2%9C%EB%A1%9C%EC%97%AD%EC%A0%95-74853382.html"/>
+    <id>tag:rokiz.net,2026:shelved/74853382-00f5-45e5-a14d-b9f7d020923d</id>
+    <updated>2026-09-01T08:17:49.780Z</updated>
+    <category term="입고"/>
+    <summary>존 번연 · 규장(규장문화사) · 2007</summary>
+  </entry>
+  <entry>
+    <title>한 권으로 배우는 신학교 입고</title>
+    <link href="https://www.rokiz.net/books/b/%ED%95%9C-%EA%B6%8C%EC%9C%BC%EB%A1%9C-%EB%B0%B0%EC%9A%B0%EB%8A%94-%EC%8B%A0%ED%95%99%EA%B5%90-037325a3.html"/>
+    <id>tag:rokiz.net,2026:shelved/037325a3-6676-4397-b1ee-a1182fd80510</id>
+    <updated>2026-09-01T08:17:42.577Z</updated>
+    <category term="입고"/>
+    <summary>알리스터 맥그래스 · 규장(규장문화사) · 2012</summary>
+  </entry>
+  <entry>
+    <title>기독교의 역사 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EA%B8%B0%EB%8F%85%EA%B5%90%EC%9D%98-%EC%97%AD%EC%82%AC-ef1a971d.html"/>
+    <id>tag:rokiz.net,2026:shelved/ef1a971d-2681-4bfb-9055-d98731c5759d</id>
+    <updated>2026-09-01T08:17:23.527Z</updated>
+    <category term="입고"/>
+    <summary>알리스터 E. 맥그라스 · 포이에마 · 2016</summary>
+  </entry>
+  <entry>
+    <title>한권으로 읽는 기독교 입고</title>
+    <link href="https://www.rokiz.net/books/b/%ED%95%9C%EA%B6%8C%EC%9C%BC%EB%A1%9C-%EC%9D%BD%EB%8A%94-%EA%B8%B0%EB%8F%85%EA%B5%90-ed9a16e4.html"/>
+    <id>tag:rokiz.net,2026:shelved/ed9a16e4-cfcc-4526-bdf9-b819f64d24cd</id>
+    <updated>2026-09-01T08:17:23.527Z</updated>
+    <category term="입고"/>
+    <summary>알리스터 맥그래스 · 생명의말씀사 · 2017</summary>
+  </entry>
+  <entry>
+    <title>순전한 기독교 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%88%9C%EC%A0%84%ED%95%9C-%EA%B8%B0%EB%8F%85%EA%B5%90-df38a35e.html"/>
+    <id>tag:rokiz.net,2026:shelved/df38a35e-c844-4ad8-bcb1-9e7c8374bd20</id>
+    <updated>2026-09-01T08:17:23.527Z</updated>
+    <category term="입고"/>
+    <summary>C. S. 루이스 · 홍성사 · 2001</summary>
+  </entry>
+  <entry>
+    <title>성경의 탄생 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EC%84%B1%EA%B2%BD%EC%9D%98-%ED%83%84%EC%83%9D-d460037c.html"/>
+    <id>tag:rokiz.net,2026:shelved/d460037c-2c75-4708-8509-5d01ce34153d</id>
+    <updated>2026-09-01T08:17:23.527Z</updated>
+    <category term="입고"/>
+    <summary>존 드레인 · 옥당(북커스베르겐) · 2011</summary>
+  </entry>
+  <entry>
+    <title>고백록 세계 기독교 고전 8 입고</title>
+    <link href="https://www.rokiz.net/books/b/%EA%B3%A0%EB%B0%B1%EB%A1%9D-%EC%84%B8%EA%B3%84-%EA%B8%B0%EB%8F%85%EA%B5%90-%EA%B3%A0%EC%A0%84-8-b0bfbbee.html"/>
+    <id>tag:rokiz.net,2026:shelved/b0bfbbee-db27-4d1e-9dbe-23538db1069c</id>
+    <updated>2026-09-01T08:17:23.527Z</updated>
+    <category term="입고"/>
+    <summary>성 아우구스티누스</summary>
+  </entry>
+</feed>

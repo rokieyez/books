@@ -29,11 +29,18 @@
   <p><a href="/books/">서가 뒤의 방으로</a></p>
   <code id="where"></code>
 <script>
-  /* 나눔 쪽(b/<책id>.html)은 손으로 다시 지을 때만 생긴다.
-     새로 꽂은 책의 링크를 아직 안 지었더라도 사람은 그 책에 닿아야 한다 —
-     주소에서 책 아이디만 주워 서재의 서표로 보낸다. (미리보기만 없다) */
-  var m = location.pathname.match(/\/b\/([0-9a-f-]{36})\.html$/i);
-  document.getElementById("where").textContent = location.pathname;
+  /* 나눔 쪽(b/…)은 손으로 다시 지을 때만 생긴다. 새로 꽂은 책의 링크를
+     아직 안 지었더라도 사람은 그 책에 닿아야 한다 — 주소에서 책 아이디를
+     주워 서재의 서표로 보낸다. (미리보기만 없다)
+
+     두 꼴을 다 알아본다:
+       b/<아이디 서른여섯 자>.html      옛 주소
+       b/<제목>-<아이디 앞 여덟 자>.html  지금 주소
+     서재는 앞자리만 와도 그것으로 시작하는 책을 찾아 연다. */
+  var p = location.pathname;
+  var m = p.match(/\/b\/([0-9a-f]{8}-[0-9a-f-]{27})\.html$/i)
+       || p.match(/-([0-9a-f]{8})\.html$/i);
+  document.getElementById("where").textContent = decodeURIComponent(p);
   if (m) {
     document.getElementById("say").textContent = "그 책의 서표로 가는 중…";
     location.replace("/books/#book/" + m[1]);
