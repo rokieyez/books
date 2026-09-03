@@ -25,13 +25,22 @@ jobs:
       - name: 배포가 끝나기를 기다린다
         run: sleep 120
       - name: 서재의 지도를 알린다
+        # 파이프 어느 칸이 미끄러져도 초록으로 끝나지 않게 (pipefail)
+        shell: bash
         run: |
+          set -euo pipefail
           KEY=9ea4480d4cbad8983eaf5ad7e326b82c
           URLS=$(curl -sf https://www.rokiz.net/books/sitemap.xml \
             | grep -o '<loc>[^<]*</loc>' | sed 's|</\?loc>||g' \
             | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
-          echo "$URLS" | head -c 200; echo
-          curl -sS -X POST https://api.indexnow.org/indexnow \
+          N=$(echo "$URLS" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)))')
+          echo "지도에서 주소 ${N}개를 읽었습니다"
+          # 지도가 비었으면 알릴 것이 없다 — 그것 자체가 탈이다 (0바이트로
+          # 배포된 적이 있다, 2026-09-03). 조용히 넘어가지 않는다
+          test "$N" -gt 0
+          CODE=$(curl -sS -o /tmp/res.txt -w '%{http_code}' -X POST https://api.indexnow.org/indexnow \
             -H 'Content-Type: application/json; charset=utf-8' \
-            -d "{\"host\":\"www.rokiz.net\",\"key\":\"$KEY\",\"keyLocation\":\"https://www.rokiz.net/$KEY.txt\",\"urlList\":$URLS}" \
-            -w '\n%{http_code}\n'
+            -d "{\"host\":\"www.rokiz.net\",\"key\":\"$KEY\",\"keyLocation\":\"https://www.rokiz.net/$KEY.txt\",\"urlList\":$URLS}")
+          echo "$CODE"; cat /tmp/res.txt; echo
+          # 초록색 체크가 「알렸다」를 뜻해야 한다 — 아니면 아무도 안 본다
+          case "$CODE" in 200|202) echo "받아들여졌습니다";; *) exit 1;; esac
