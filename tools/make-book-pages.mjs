@@ -25,6 +25,13 @@ import { writeFile, mkdir, readdir, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
+/* 알림 글이 끊겨도 하던 일은 끝낸다.
+   `node tools/make-book-pages.mjs | head -2` 처럼 출력을 자르면 파이프가
+   닫히면서 EPIPE 로 프로그램이 죽는다. 그런데 지도는 맨 마지막에 쓰이므로,
+   그렇게 죽으면 sitemap.xml 이 0바이트로 남는다 — 실제로 그랬다 (2026-09-03).
+   말은 못 해도 파일은 끝까지 쓴다. */
+process.stdout.on("error", (e) => { if (e.code !== "EPIPE") throw e; });
+
 const 뿌리 = join(dirname(fileURLToPath(import.meta.url)), "..");
 const 자리 = join(뿌리, "b");
 const 해자리 = join(뿌리, "y");
