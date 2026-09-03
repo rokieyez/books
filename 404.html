@@ -21,13 +21,20 @@
     padding-bottom: 2px;
   }
   code { font-family: ui-monospace, monospace; font-size: 11px; opacity: .6; }
+  ul#near { margin: 18px 0 0; padding: 0; list-style: none; text-align: left;
+            display: inline-block; }
+  ul#near li { margin: 0 0 7px; font-size: 14px }
+  ul#near i { font-style: normal; opacity: .55; font-size: 12.5px }
 </style>
 </head>
 <body>
   <h1>이 문 뒤에는 아무것도 없습니다</h1>
   <p id="say">주소를 다시 보시거나, 서재로 돌아가세요.</p>
   <p><a href="/books/">서가 뒤의 방으로</a></p>
+  <!-- 아이디가 없는 주소면 제목으로 찾아 권한다 -->
+  <ul id="near" hidden></ul>
   <code id="where"></code>
+<script src="/books/js/config.js"></script>
 <script>
   /* 나눔 쪽(b/…)은 손으로 다시 지을 때만 생긴다. 새로 꽂은 책의 링크를
      아직 안 지었더라도 사람은 그 책에 닿아야 한다 — 주소에서 책 아이디를
@@ -44,6 +51,46 @@
   if (m) {
     document.getElementById("say").textContent = "그 책의 서표로 가는 중…";
     location.replace("/books/#book/" + m[1]);
+  } else if (/\/b\//.test(p)) {
+    /* 아이디가 없는 나눔 쪽 주소 — 오래된 링크이거나 손으로 친 주소다.
+       「아무것도 없습니다」로 끝내지 말고 제목으로 서가를 뒤져 권한다.
+       루트의 잠긴 문이 글방에 대해 하는 것과 같은 몸짓이다. */
+    찾아본다(p.split("/").pop().replace(/\.html$/i, ""));
+  }
+
+  function 찾아본다(이름) {
+    var 말 = decodeURIComponent(이름).replace(/-+/g, " ").trim();
+    if (말.length < 2) return;
+    var cfg = window.POST_LIBROS_CONFIG;
+    if (!cfg) return;
+    document.getElementById("say").textContent =
+      "그런 쪽은 없습니다. 서가에서 비슷한 제목을 찾아봅니다…";
+    /* 첫 두 낱말로만 묻는다 — 슬러그가 길수록 통째로는 아무것도 안 걸린다 */
+    var 씨 = 말.split(" ").slice(0, 2).join(" ");
+    fetch(cfg.supabaseUrl + "/rest/v1/books?select=id,title,author" +
+          "&title=ilike.*" + encodeURIComponent(씨) + "*&order=title.asc&limit=6",
+          { headers: { apikey: cfg.supabaseKey, Authorization: "Bearer " + cfg.supabaseKey } })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (책들) {
+        if (!책들.length) {
+          document.getElementById("say").textContent =
+            "그런 쪽은 없고, 서가에도 비슷한 제목이 없습니다.";
+          return;
+        }
+        document.getElementById("say").textContent = "그런 쪽은 없습니다. 이 책들일까요?";
+        var ul = document.getElementById("near");
+        책들.forEach(function (b) {
+          var li = document.createElement("li");
+          var a = document.createElement("a");
+          a.href = "/books/#book/" + b.id;
+          a.textContent = b.title;
+          var i = document.createElement("i");
+          i.textContent = " " + (b.author || "지은이 미상");
+          li.appendChild(a); li.appendChild(i); ul.appendChild(li);
+        });
+        ul.hidden = false;
+      })
+      .catch(function () { /* 서재가 자고 있으면 조용히 */ });
   }
 </script>
 </body>

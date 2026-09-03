@@ -1,0 +1,37 @@
+# 배포가 끝나면 집이 한 채로 서 있는지 견준다
+#
+# 왜 서재에서도 도는가: 점검 도구는 루트 사이트 저장소에 있고 그쪽 push 에
+# 맞춰 돈다. 그런데 서재는 따로 배포되므로, 여기서 나눔 쪽 549장을 다시
+# 짓거나 canonical 규칙을 손봐도 그쪽은 알지 못한다 — 이레에 한 번 도는
+# 정기 점검을 기다려야 했다. 도구를 받아 와 여기서도 돌린다.
+#
+# 도구를 베껴 두지 않고 받아 오는 까닭: 규칙이 두 벌이 되면 반드시 어긋난다.
+# 순수 node 스크립트라 받아서 그대로 돌리면 된다 (설치할 것이 없다).
+name: 집이 한 채인가
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: check-house
+  cancel-in-progress: true
+
+jobs:
+  # job 의 열쇠(id)는 영문·숫자·-·_ 만 받는다 — 보이는 이름만 우리말로
+  check-house:
+    name: 견준다
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 배포가 끝나기를 기다린다
+        run: sleep 120
+      - name: 점검 도구를 받아 온다
+        run: |
+          curl -sSfL -o check-house.mjs \
+            https://raw.githubusercontent.com/rokieyez/rokieyez.github.io/main/tools/check-house.mjs
+      - name: 방마다의 규칙을 견준다
+        run: node check-house.mjs
