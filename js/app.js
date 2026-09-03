@@ -2757,6 +2757,7 @@
     }
     syncWalkRow();
     syncPhotoRow(b);
+    말한글보이기(b);
     // 닫으면 원래 있던 자리로 돌아가도록 표를 남긴다
     returnFocus = document.activeElement;
     $("x-close").focus();
@@ -2931,6 +2932,48 @@
       .slice(0, 40)
       .replace(/-+$/, "") || "무제";
     return `${몸}-${b.id.slice(0, 8)}`;
+  }
+
+  /* 이 책을 말한 글 — 글방(notes)에 한 번만 묻고 표로 들고 있는다.
+     책을 열 때마다 묻지 않는 것은 여느 때와 같은 까닭이다(전송량).
+     책을 가리키는 글만 받으므로 오가는 것이 몇백 바이트를 넘지 않고,
+     공개 열쇠라 초고는 오지 않는다. 글방이 조용해도 서재는 열린다. */
+  const 글표 = new Map();
+  (async function 글방에묻기() {
+    try {
+      const cfg = window.POST_LIBROS_CONFIG;
+      if (!cfg) return;
+      const r = await fetch(
+        `${cfg.supabaseUrl}/rest/v1/notes?select=slug,title,book_id` +
+        `&book_id=not.is.null&order=published_at.desc`,
+        { headers: { apikey: cfg.supabaseKey,
+                     Authorization: "Bearer " + cfg.supabaseKey } });
+      if (!r.ok) return;
+      for (const n of await r.json()) {
+        if (!글표.has(n.book_id)) 글표.set(n.book_id, []);
+        글표.get(n.book_id).push(n);
+      }
+      if (openBook) 말한글보이기(openBook);   // 이미 열려 있으면 지금 채운다
+    } catch { /* 글방이 조용해도 서재는 열린다 */ }
+  })();
+
+  function 말한글보이기(b) {
+    const el = $("x-said");
+    if (!el) return;
+    const 글들 = 글표.get(b?.id) || [];
+    el.textContent = "";
+    el.hidden = !글들.length;
+    if (!글들.length) return;
+    const 머리 = document.createElement("b");
+    머리.textContent = "이 책을 말한 글";
+    el.appendChild(머리);
+    글들.forEach((n, i) => {
+      if (i) el.append(" · ");
+      const a = document.createElement("a");
+      a.href = "/notes/" + encodeURIComponent(n.slug) + ".html";
+      a.textContent = n.title;
+      el.appendChild(a);
+    });
   }
 
   function openFromHash() {

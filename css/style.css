@@ -2199,6 +2199,17 @@
   .x-share:hover, .x-share:focus-visible { color: var(--brass); border-bottom-color: var(--brass); }
   /* 나란히 선 두 동작 — 「복사한다 서가에서」로 붙어 읽히지 않게 사이를 띄운다 */
   .x-share + .x-share { margin-left: 16px; }
+  /* 이 책을 말한 글 — 서재에서 글방으로 건너가는 한 줄 */
+  .x-said {
+    margin: 14px 0 0; padding: 9px 12px; font-size: 13px; line-height: 1.7;
+    border-left: 2px solid rgba(224, 177, 94, .35);
+    background: rgba(224, 177, 94, .04);
+  }
+  .x-said b {
+    display: block; font-weight: 400; font-size: 11px;
+    letter-spacing: .1em; opacity: .6; margin-bottom: 2px;
+  }
+  .x-said a { color: var(--brass, #E0B15E); }
   /* 「서가에서 본다」로 왔는데 그 책이 앞줄에 없을 때 — 벽 이름표 밑의 한 줄 */
   .locnote {
     margin: 0 0 14px; padding: 8px 14px;

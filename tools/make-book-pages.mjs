@@ -101,6 +101,10 @@ const 옷 = `<style>
   dt { display:inline; opacity:.6 } dd { display:inline; margin:0 10px 0 4px }
   p.sum { margin:0 0 16px; font-size:13px; line-height:1.85; white-space:pre-line; opacity:.9 }
   a { color:#E0B15E }
+  /* 이 책을 말한 글 — 서재에서 글방으로 건너가는 한 줄 */
+  p.said { margin:0 0 14px; padding:9px 12px; font-size:13px;
+           border-left:2px solid rgba(224,177,94,.35); background:rgba(224,177,94,.04) }
+  p.said span { display:block; font-size:11px; letter-spacing:.1em; opacity:.6; margin-bottom:3px }
   ul { margin:0; padding:0; list-style:none; columns:2; column-gap:28px }
   li { margin:0 0 5px; font-size:12.5px; break-inside:avoid }
   li i { font-style:normal; opacity:.5 }
@@ -205,6 +209,9 @@ ${옷}
     <h1>${esc(제목)}</h1>
     ${줄.length ? `<dl>${줄.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}
     ${글 ? `<p class="sum">${esc(글)}</p>` : ""}
+    ${(글표.get(b.id) || []).length ? `<p class="said"><span>이 책을 말한 글</span>
+      ${(글표.get(b.id) || []).map((n) =>
+        `<a href="/notes/${encodeURIComponent(n.slug)}.html">${esc(n.title)}</a>`).join(" · ")}</p>` : ""}
     <p><a href="../#book/${b.id}">서가 뒤의 방에서 이 책을 엽니다</a>
        · <a href="index.html">책 목록</a></p>
   </main>
@@ -440,6 +447,23 @@ const books = await 전부(
   "read_status,read_year,updated_at,created_at,isbn,page_count&order=id");
 const 기록들 = await 전부("book_summaries?select=book_id,summary,generated_at");
 const 기록표 = new Map(기록들.map((s) => [s.book_id, s]));
+
+/* 이 책을 말한 글 — 글방(notes)에서 온다. 공개 열쇠로 부르므로 발행한
+   글만 오고, 초고는 오지 않는다. 글방이 조용해도 서재는 지어져야 하므로
+   못 읽으면 글 없이 간다. 서재와 글방을 잇는 유일한 자리다. */
+const 글표 = new Map();
+try {
+  const 글들 = await 전부("notes?select=slug,title,published_at,book_id" +
+                          "&book_id=not.is.null&order=published_at.desc");
+  for (const n of 글들) {
+    if (!글표.has(n.book_id)) 글표.set(n.book_id, []);
+    글표.get(n.book_id).push(n);
+  }
+  const 셈 = [...글표.values()].reduce((a, x) => a + x.length, 0);
+  if (셈) console.log(`글방에서 ${셈}편이 책을 가리키고 있습니다`);
+} catch (e) {
+  console.warn(`  글방을 읽지 못했습니다 (${e.message}) — 글 없이 짓습니다`);
+}
 
 /* 슬러그가 겹치면(같은 제목의 다른 판본) 뒤의 아이디 앞자리가 갈라 준다.
    그래도 겹치면 자리 수를 늘린다 — 파일 하나가 다른 책을 덮어쓰면 안 된다. */
