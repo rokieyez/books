@@ -267,6 +267,19 @@ ${머리}
 <link rel="canonical" href="${집}/b/">
 <meta name="description" content="서가 뒤의 방에 꽂힌 ${books.length}권 — 제목 차례로.">
 <meta name="robots" content="index, follow">
+<!-- 이 쪽도 링크로 건네진다 — og 가 없으면 카톡·슬랙이 회색 상자를 띄운다.
+     tools/check-house.mjs 가 2026-09-03 에 이 빠짐을 잡아냈다. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="서가 뒤의 방">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:title" content="책 목록 — 서가 뒤의 방">
+<meta property="og:description" content="서가 뒤의 방에 꽂힌 ${books.length}권 — 제목 차례로.">
+<meta property="og:url" content="${집}/b/">
+<meta property="og:image" content="${집}/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="책 목록 — 서가 뒤의 방">
+<meta name="twitter:description" content="서가 뒤의 방에 꽂힌 ${books.length}권 — 제목 차례로.">
+<meta name="twitter:image" content="${집}/og.png">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/atom+xml" title="서가 뒤의 방" href="../feed.xml">
 ${표식쓰기({
