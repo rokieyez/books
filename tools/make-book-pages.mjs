@@ -86,7 +86,9 @@ const 표식쓰기 = (o) => `<script type="application/ld+json">${
   JSON.stringify(o).replace(/</g, "\\u003c")}</script>`;
 
 const 머리 = `<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">`;
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#171009">
+<meta name="color-scheme" content="dark">`;
 
 /* 나눔 쪽·색인·회고가 같은 옷을 입는다 — 서재의 밤빛을 그대로 */
 const 옷 = `<style>
@@ -133,7 +135,10 @@ const 쪽만들기 = (b, 기록) => {
     b.read_status === "읽음" ? (b.read_year ? `${b.read_year}년에 읽음` : "읽음") : null,
   ].filter(Boolean).join(" · ");
   const 그림 = b.cover_url || `${집}/og.png`;
-  const 주소 = `${집}/b/${b.slug}.html`;
+  /* 지도의 loc 과 반드시 같은 글자여야 한다 (아래 지도짓기도 encodeURIComponent).
+     한쪽만 날것 한글이면 검색엔진 눈에 서로 다른 두 주소가 된다 — 어느 쪽을
+     대표로 삼을지 저쪽이 혼자 정하게 두는 셈이다. */
+  const 주소 = `${집}/b/${encodeURIComponent(b.slug)}.html`;
 
   /* 기록이 있으면 그것이 이 쪽의 본문이다 — 검색 결과에 실리는 것도 이 글이다.
      AI 가 모른다고 고백한 첫 문장은 서재 화면처럼 각주로 밀지 않고 그냥 둔다
@@ -220,7 +225,7 @@ const 옛쪽만들기 = (b) => {
   const 제목 = b.title || "무제";
   const 부제 = [b.author || "지은이 미상", b.publisher, b.published_year].filter(Boolean).join(" · ");
   const 그림 = b.cover_url || `${집}/og.png`;
-  const 새 = `${집}/b/${b.slug}.html`;
+  const 새 = `${집}/b/${encodeURIComponent(b.slug)}.html`;   // 새 쪽의 canonical 과 같은 글자로
   return `<!doctype html>
 <html lang="ko">
 <head>
