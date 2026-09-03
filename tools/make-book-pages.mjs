@@ -105,6 +105,14 @@ const 옷 = `<style>
   .yr .bar i { display:block; height:100%; background:rgba(224,177,94,.34) }
   .yr.on .y, .yr.on .n { color:#E2D5B8 }
   .yr.on .bar i { background:#E0B15E }
+  /* 그 해의 표지들 — 제목 목록보다 한 해가 한눈에 들어온다.
+     표지가 없는 책은 격자에 넣지 않는다 (빈 액자가 늘어서면 초라하다) */
+  /* 바닥을 맞춘다 — 책은 꽂혀 있는 것이지 매달린 것이 아니다.
+     표지마다 비율이 달라 위를 맞추면 아래가 들쭉날쭉해진다 */
+  .covers { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin:0 0 22px }
+  .covers a { display:block; width:78px; line-height:0 }
+  .covers img { width:78px; border-radius:2px; background:rgba(224,177,94,.06);
+                box-shadow:0 2px 10px rgba(0,0,0,.45) }
 </style>`;
 
 /* ── 책 한 권의 쪽 ─────────────────────────────────────────────── */
@@ -273,6 +281,17 @@ ${정렬.map((b) => `      <li><a href="${슬러그파일(b)}">${esc(b.title || 
 `;
 };
 
+/* 그 해에 읽은 책의 표지를 늘어놓는다. 알라딘의 「No Image」 그림은
+   표지가 없는 것으로 친다 — 회색 안내판이 액자에 걸리면 초라하다.
+   한 권도 표지가 없으면 격자를 아예 그리지 않는다. */
+const 표지격자 = (목록) => {
+  const 있는 = 목록.filter((b) => b.cover_url && !/\/noimg/i.test(b.cover_url));
+  if (!있는.length) return "";
+  return `<div class="covers">${있는.map((b) =>
+    `<a href="../b/${슬러그파일(b)}"><img src="${esc(b.cover_url)}" alt="${
+      esc(b.title || "무제")} 표지" loading="lazy" decoding="async"></a>`).join("")}</div>`;
+};
+
 /* 해마다 몇 권을 읽었는가 — 한 해만 있으면 견줄 것이 없으므로 그리지 않는다.
    막대는 가장 많이 읽은 해를 100 으로 잡아 잰다. 색은 하나뿐이라(황동)
    계열색 검증이 필요 없고, 숫자를 막대 옆에 그대로 적어 두어 막대 길이를
@@ -342,6 +361,7 @@ ${옷}
 ${목록.map((b) => `      <li><a href="../b/${슬러그파일(b)}">${esc(b.title || "무제")}</a>` +
       (b.author ? ` <i>${esc(b.author)}</i>` : "") + `</li>`).join("\n")}
     </ul>
+    ${표지격자(목록)}
     ${막대(해, 해들, 해별)}
     <p style="margin-top:18px">${해들.filter((y) => y !== 해)
       .map((y) => `<a href="${y}.html">${y}년 ${해별.get(y).length}권</a>`).join(" · ")}${해들.length > 1 ? " · " : ""}<a href="../#stats">서재의 통계로</a> · <a href="../">서재로</a></p>

@@ -1935,9 +1935,10 @@
       c.fillStyle = "#A3947A"; c.font = "32px 'Gowun Batang', serif";
       c.fillText(dear.a || "", W / 2, 1100);
     }
-    // 발
+    /* 발 — 그 해의 쪽 주소를 그대로 박는다. 카드만 받은 사람도 원본으로
+       걸어올 수 있어야 한다. 카드는 돌아다니고 맥락은 안 따라간다. */
     c.fillStyle = "#97742F"; c.font = "26px Georgia, serif";
-    c.fillText("rokiz.net/books", W / 2, H - 90);
+    c.fillText(`rokiz.net/books/y/${year}`, W / 2, H - 90);
     cv.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);

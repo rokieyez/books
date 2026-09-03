@@ -41,6 +41,14 @@
   .yr .bar i { display:block; height:100%; background:rgba(224,177,94,.34) }
   .yr.on .y, .yr.on .n { color:#E2D5B8 }
   .yr.on .bar i { background:#E0B15E }
+  /* 그 해의 표지들 — 제목 목록보다 한 해가 한눈에 들어온다.
+     표지가 없는 책은 격자에 넣지 않는다 (빈 액자가 늘어서면 초라하다) */
+  /* 바닥을 맞춘다 — 책은 꽂혀 있는 것이지 매달린 것이 아니다.
+     표지마다 비율이 달라 위를 맞추면 아래가 들쭉날쭉해진다 */
+  .covers { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin:0 0 22px }
+  .covers a { display:block; width:78px; line-height:0 }
+  .covers img { width:78px; border-radius:2px; background:rgba(224,177,94,.06);
+                box-shadow:0 2px 10px rgba(0,0,0,.45) }
 </style>
 </head>
 <body>
@@ -53,6 +61,7 @@
       <li><a href="../b/%EC%84%A4%EA%B5%AD-b2e89f3e.html">설국</a> <i>가와바타 야스나리</i></li>
       <li><a href="../b/%ED%99%94%EC%94%A8-451-ff9a508c.html">화씨 451</a> <i>레이 브래드버리</i></li>
     </ul>
+    <div class="covers"><a href="../b/%EB%A7%88%EC%9D%8C-f399f70c.html"><img src="https://image.aladin.co.kr/product/8646/90/cover200/8932317968_1.jpg" alt="마음 표지" loading="lazy" decoding="async"></a><a href="../b/%EB%AF%B8%ED%81%AC%EB%A1%9C%EB%A9%94%EA%B0%80%EC%8A%A4-%EC%BA%89%EB%94%94%EB%93%9C-%ED%98%B9%EC%9D%80-%EB%82%99%EA%B4%80%EC%A3%BC%EC%9D%98-b60ea985.html"><img src="https://image.aladin.co.kr/product/764/60/cover200/8954611907_1.jpg" alt="미크로메가스·캉디드 혹은 낙관주의 표지" loading="lazy" decoding="async"></a><a href="../b/%EC%84%A4%EA%B5%AD-b2e89f3e.html"><img src="https://image.aladin.co.kr/product/32/87/cover200/s092934786_1.jpg" alt="설국 표지" loading="lazy" decoding="async"></a><a href="../b/%ED%99%94%EC%94%A8-451-ff9a508c.html"><img src="https://image.aladin.co.kr/product/342/9/cover500/8982739084_1.jpg" alt="화씨 451 표지" loading="lazy" decoding="async"></a></div>
     <div class="years" role="img" aria-label="해마다 읽은 권수: 2018년 2권, 2021년 1권, 2026년 4권"><div class="yr"><span class="y">2018</span><span class="bar"><i style="width:50%"></i></span><span class="n">2권</span></div><div class="yr"><span class="y">2021</span><span class="bar"><i style="width:25%"></i></span><span class="n">1권</span></div><div class="yr on"><span class="y">2026</span><span class="bar"><i style="width:100%"></i></span><span class="n">4권</span></div></div>
     <p style="margin-top:18px"><a href="2021.html">2021년 1권</a> · <a href="2018.html">2018년 2권</a> · <a href="../#stats">서재의 통계로</a> · <a href="../">서재로</a></p>
   </main>
