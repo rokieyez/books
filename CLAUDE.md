@@ -54,6 +54,8 @@
 
 - 저장소는 `rokieyez/books` — **경로가 저장소 이름을 따라가므로 이름을 바꾸면 주소가 깨진다** (로컬 폴더명 post-libros 와 다른 것은 의도)
 - 주소: https://www.rokiz.net/books/ — 도메인은 루트 사이트 저장소(`rokieyez/rokieyez.github.io`)의 CNAME 파일이 정하고, 이 프로젝트는 그걸 상속만 한다
+- **서재는 집의 한 방이다.** 콜로폰 맨 끝에 대문(`/`)과 「지금」(`/now/`)으로 나가는 길을 둔다 — 여기까지 내려온 사람에게 나갈 문이 없었다 (2026-09-03). 주소는 절대 경로로 적는다: 서재는 `/books/` 에 있고 대문은 그 위다
+- **대문이 서재에 묻는다.** 대문의 「서재에 N권이…」와 `/now` 의 「읽는 중」·「최근에 꽂은 책」은 이 서재의 공개 API 와 `feed.xml` 에서 온다. 권수는 몸통 없이 세기만 하는 질의(`Prefer: count=exact` + `Range: 0-0`)라 전송량을 축내지 않는다. **`feed.xml` 의 `category term` 값(「입고」·「기록」)을 바꾸면 대문의 `/now` 가 조용히 빈손이 된다** — 바꿀 때는 루트 저장소도 함께 고칠 것
 - 도메인 등록처는 닷네임. DNS: `www` CNAME → rokieyez.github.io, 루트 → GitHub A 레코드 4개
 - 배포는 main 에 `git push` 하면 끝 (GitHub Pages legacy 빌드)
 - Supabase Redirect URLs 에 `https://www.rokiz.net/**` 가 있어야 메일 링크 로그인이 산다

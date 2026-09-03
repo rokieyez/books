@@ -2217,6 +2217,19 @@
   }
   footer.colophon .colo-who b { color: var(--parchment); font-weight: 400; }
   footer.colophon .colo-tech { opacity: .62; }
+  /* 집으로 나가는 문 — 판권장 맨 끝에 조용히 */
+  footer.colophon .colo-home { margin-top: 9px; opacity: .72; }
+  footer.colophon .colo-home a {
+    color: var(--brass);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(224, 177, 94, .3);
+    padding-bottom: 1px;
+  }
+  footer.colophon .colo-home a:hover,
+  footer.colophon .colo-home a:focus-visible {
+    border-bottom-color: var(--brass);
+    outline: none;
+  }
 
   /* ── 한 권을 다 읽었을 때 ── */
   @keyframes readLit {
