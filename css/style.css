@@ -356,7 +356,8 @@
   .wallempty {
     margin: 4px 0 14px; padding: 18px 4px 4px; text-align: center;
     font-family: "Gowun Batang", serif; font-size: 12.5px;
-    color: var(--parchment-dim); letter-spacing: .06em; opacity: .8;
+    /* .85 가 이 집의 흐린 글자 바닥이다 — .8 에서는 4.46 이었다 */
+    color: var(--parchment-dim); letter-spacing: .06em; opacity: .85;
     text-wrap: balance;
   }
   .plank {
@@ -368,17 +369,15 @@
   /* 널빤지에 붙인 갈래 이름표 — 진짜 서가의 손글씨 라벨처럼 작게 */
   .planklabel {
     position: absolute; left: 10px; top: 100%; margin-top: 3px;
-    font-family: "IBM Plex Mono", monospace; font-size: 9px;
-    letter-spacing: .12em; color: var(--brass-dim); opacity: .72;
+    /* 9px·--brass-dim·.72 에서는 대비가 3.2 였다. 전화기에서만 키우던 치수를
+       모든 화면으로 옮기고, 어두운 놋빛 대신 놋빛을 조금 눌러 쓴다 —
+       9px 은 어느 화면에서도 읽히지 않는다 (2026-09-03). */
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    letter-spacing: .08em; color: var(--brass); opacity: .8;
     white-space: nowrap; pointer-events: none;
   }
   /* 이름표가 붙은 단은 아래로 조금 더 숨을 준다 */
-  .plank.labeled { margin-bottom: 20px; }
-  /* 전화기에서는 9px 이 읽히지 않는다 — 한 치수 키운다 */
-  @media (max-width: 560px) {
-    .planklabel { font-size: 10.5px; letter-spacing: .08em; opacity: .85; }
-    .plank.labeled { margin-bottom: 22px; }
-  }
+  .plank.labeled { margin-bottom: 22px; }
 
   /* ── 서가 뒤의 방 ────────────────────────────────────── */
   .room {
@@ -2248,9 +2247,11 @@
     color: var(--parchment-dim);
   }
   footer.colophon .colo-who b { color: var(--parchment); font-weight: 400; }
-  footer.colophon .colo-tech { opacity: .62; }
+  /* .85 는 이 집의 흐린 글자 바닥이다 — .62 에서는 대비가 3.15 였다
+     (「손과 눈」 회차가 루트 사이트에만 쓸렸다, 2026-09-03) */
+  footer.colophon .colo-tech { opacity: .85; }
   /* 집으로 나가는 문 — 판권장 맨 끝에 조용히 */
-  footer.colophon .colo-home { margin-top: 9px; opacity: .72; }
+  footer.colophon .colo-home { margin-top: 9px; opacity: .85; }
   footer.colophon .colo-home a {
     color: var(--brass);
     text-decoration: none;
@@ -2365,9 +2366,12 @@
   }
   .loadfail .failgo:hover:not(:disabled) { background: rgba(224,177,94,.2); }
   .loadfail .failgo:disabled { opacity: .5; cursor: default; }
+  /* 못 연 까닭 — 방문자도 읽는 줄이다. 9.5px·.7 에서는 대비가 2.89 였고,
+     글자도 기계 말이었다 (app.js 의 까닭() 이 사람 말로 옮긴다).
+     이제 문장이므로 고정폭 글꼴을 벗기고 본문 굵기로 세운다. */
   .loadfail .failwhy {
-    display: block; margin-top: 14px; font-family: "IBM Plex Mono", monospace;
-    font-size: 9.5px; color: var(--brass-dim); opacity: .7; word-break: break-all;
+    display: block; margin-top: 14px; font-size: 11.5px; line-height: 1.7;
+    color: var(--parchment-dim); opacity: .85; word-break: keep-all;
   }
   .loadfail .failwhy:empty { display: none; }
 

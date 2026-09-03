@@ -53,7 +53,10 @@
 <body class="view-walls">
 <div class="topbar">
   <div class="inner">
-    <span class="mark"><span class="tseal">藏</span>서가 뒤의 방</span>
+    <!-- 장서인은 그림이다 — 읽어 주는 기계에는 이 방의 이름이 「장 서가 뒤의 방」이
+         되어 버린다. 눈으로만 보게 한다. (대비 2.32 로 낮지만 WCAG 1.4.3 은
+         상표·로고를 면제한다 — 이 붉은 인장이 이 서재의 표다.) -->
+    <span class="mark"><span class="tseal" aria-hidden="true">藏</span>서가 뒤의 방</span>
     <input type="search" id="q" placeholder="책을 찾습니다 — 벽마다 응답 수가 보입니다" aria-label="장서 검색">
     <!-- 막대는 읽어 낸 만큼 차오른다 — 그 막대를 누르면 차오른 만큼만 남는다 -->
     <button type="button" class="census" id="census" aria-pressed="false">

@@ -3983,6 +3983,23 @@
      「이 벽은 아직 비어 있습니다」라고 말한다 — 통신이 끊긴 것을
      **텅 빈 서재**로 보여주는 셈이라, 화면이 거짓말을 한다.
      못 연 것과 비어 있는 것은 다르다. 그렇게 말하고, 다시 열 문을 준다. */
+  /* 못 연 까닭을 사람의 말로 옮긴다. 예전에는 예외의 message 를 그대로
+     화면에 얹었는데, 그러면 방문자가 「TypeError: Failed to fetch」를 읽는다 —
+     이 집의 다른 어느 줄도 그렇게 말하지 않는다. 아는 꼴은 옮기고, 모르는
+     꼴만 원문을 남긴다 (주인이 전화기에서 볼 수 있는 유일한 실마리다).
+     원문은 console.error 에도 그대로 남는다. */
+  function 까닭(err) {
+    const m = String(err?.message || err || "");
+    if (!m) return "";
+    if (/Failed to fetch|NetworkError|load failed/i.test(m))
+      return "이 기계가 서재까지 닿지 못했습니다 — 인터넷이 끊겼거나, 서재가 잠시 쉬는 중입니다.";
+    if (/열두 셈/.test(m)) return "서재가 열두 셈 안에 답하지 않았습니다.";
+    if (/supabase-js|길\(/.test(m)) return "서재로 가는 길을 싣지 못했습니다 — 바깥 저장소가 답하지 않습니다.";
+    if (/JWT|apikey|401|403/i.test(m)) return "서재가 이 열쇠를 받지 않았습니다.";
+    if (/5\d\d/.test(m)) return "서재 쪽에서 탈이 났습니다 — 잠시 뒤에 다시 열립니다.";
+    return m.slice(0, 120);
+  }
+
   window.PostLibrosShowEmpty = (err) => {
     document.body.classList.remove("waking");
     if (!err) { renderAll(); return; }
@@ -3997,7 +4014,7 @@
          잠시 뒤 다시 열어 보세요.</p>
       <button type="button" class="failgo">다시 열어 본다</button>
       <code class="failwhy"></code>`;
-    box.querySelector(".failwhy").textContent = String(err?.message || err || "").slice(0, 160);
+    box.querySelector(".failwhy").textContent = 까닭(err);
     box.querySelector(".failgo").addEventListener("click", async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true; btn.textContent = "여는 중…";
@@ -4007,7 +4024,7 @@
       try { await window.PostLibrosRefresh(); }
       catch (again) {
         btn.disabled = false; btn.textContent = "다시 열어 본다";
-        box.querySelector(".failwhy").textContent = String(again?.message || again).slice(0, 160);
+        box.querySelector(".failwhy").textContent = 까닭(again);
       }
     });
     $("walls").appendChild(box);
