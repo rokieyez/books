@@ -33,7 +33,13 @@
   <meta property="og:image:alt" content="촛불 켜진 밤의 서재 — 책으로 된 벽">
   <meta property="og:locale" content="ko_KR">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant:ital,wght@0,500;1,500&family=Noto+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <!-- 굵기는 화면이 실제로 쓰는 것만 받는다 — 한글 글꼴은 굵기 하나가
+       CSS 로만 23KB(gzip) 다. 조각(unicode-range)이 가족당 372개라서,
+       글자 파일을 한 자도 안 받아도 이 표부터 내려온다.
+       Noto Sans KR 은 화면에서 300·400 만 쓴다 (2026-09-03 실측: 모든 보기를
+       돌며 세어 300 3,589곳 · 400 221곳 · 500 0곳). 700 은 인쇄 시트 표 머리
+       일곱 자리뿐이라 종이에서 합성 굵기로 그려지게 두었다 -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Cormorant:ital,wght@0,500;1,500&family=Noto+Sans+KR:wght@300;400&family=IBM+Plex+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <!-- view-walls: 진열장·길은 서가 보기에서만 보인다 — setView 가 바꾼다 -->
