@@ -146,14 +146,59 @@
       };
       books.forEach((b, i) => {
         const wb = widths[i];
-        // 마지막 단이 아니면 목표 폭에 닿는 순간 줄을 바꾼다. 마지막 단은 넘칠 때만
-        if (row.length && (used + wb > maxW || (left > 1 && used >= target))) flush();
+        /* 시리즈는 한 단에 나란히 서는 편이 낫다 — 「토지」가 널빤지 하나를
+           사이에 두고 갈리면 눈으로는 두 무리로 보인다. 목표 폭에 닿아서
+           끊는 것은 고르게 나누려는 재량이므로, 앞 권과 같은 시리즈면
+           참는다. 단이 정말 넘칠 때(used + wb > maxW)는 그래도 끊는다 —
+           책이 널빤지 밖으로 나가는 것보다는 갈리는 편이 낫다. */
+        const 잇는중 = i > 0 && !!seriesKeyOf(books[i - 1])
+          && seriesKeyOf(books[i - 1]) === seriesKeyOf(b);
+        if (row.length && (used + wb > maxW
+            || (left > 1 && used >= target && !잇는중))) flush();
         row.push(b); used += wb;
       });
       flush();
     });
     return out;
   }
+  /* 시리즈끼리 진열한다 — 실물 책장에서 「비블리아 고서당 사건수첩」 일곱
+     권이 벽 여기저기에 흩어져 있으면 그건 정돈된 책장이 아니다. 서재에
+     들어온 차례(벽의 원래 차례)는 그대로 두되, 같은 시리즈의 책을 그 무리의
+     **맨 앞 책이 선 자리**로 끌어와 이어 붙인다. 무리를 통째로 옮기지 않고
+     첫 자리에 모으는 것은, 벽을 다시 그려도 책들이 제자리를 지키게 하려는
+     것이다 — 검색을 한 번 할 때마다 서가가 뒤집히면 어지럽다.
+
+     묶는 기준은 목록 보기의 시리즈 접기와 같은 seriesKeyOf 다. 두 곳이 다른
+     규칙을 쓰면 「목록에서는 한 줄인데 벽에서는 흩어져 있는」 책이 생긴다.
+     한 권뿐인 무리는 시리즈가 아니므로 건드리지 않는다. */
+  function clusterSeries(list) {
+    const 무리 = new Map();
+    list.forEach((b, i) => {
+      const k = seriesKeyOf(b);
+      if (!k) return;
+      if (!무리.has(k)) 무리.set(k, []);
+      무리.get(k).push({ b, i });
+    });
+    무리.forEach((g, k) => { if (g.length < 2) 무리.delete(k); });
+    if (!무리.size) return list;
+
+    /* 시리즈 안은 권수 차례 — 문자열로 세우면 「2」가 「10」 뒤로 간다.
+       권수를 모르는 책(손으로 이름을 적은 전집 따위)은 원래 차례 그대로:
+       NaN 은 거짓이라 뒤의 x.i - y.i 로 넘어간다. */
+    무리.forEach((g) => g.sort((x, y) => (volumeNo(x.b) - volumeNo(y.b)) || x.i - y.i));
+
+    const 나간무리 = new Set(), out = [];
+    list.forEach((b) => {
+      const k = seriesKeyOf(b);
+      const g = k && 무리.get(k);
+      if (!g) { out.push(b); return; }
+      if (나간무리.has(k)) return;          // 앞선 자리에서 통째로 나갔다
+      나간무리.add(k);
+      g.forEach((x) => out.push(x.b));
+    });
+    return out;
+  }
+
   let lastWallW = 0;   // 마지막으로 단을 가른 판의 폭 — 폭이 바뀌면 다시 가른다
 
   function renderWalls() {
@@ -315,9 +360,14 @@
         const base = sortHeight
           ? [...w.books].sort((x, y) => y.h - x.h || y.w2 - x.w2)
           : w.books;
+        /* 시리즈끼리 모은 뒤에 그린다. 거르는 중에는 응답한 쪽과 아닌 쪽을
+           따로 모은다 — 한 덩어리로 모으면 시리즈의 첫 권이 응답했다는
+           이유로 응답하지 않은 나머지 권이 앞줄을 차지해, 정작 찾던 책이
+           그려지지 않는 뒷줄로 밀린다. */
         const shelved = sifting()
-          ? [...base.filter(passes), ...base.filter(b => !passes(b))]
-          : base;
+          ? [...clusterSeries(base.filter(passes)),
+             ...clusterSeries(base.filter(b => !passes(b)))]
+          : clusterSeries(base);
         /* 걸쇠(비뚤어진 책)는 진짜 책의 자리를 빼앗지 않고 사이에 끼어든다 —
            예전에는 그 자리의 책 한 권이 서가에서 열 수 없게 가려졌다 */
         const makeLatch = () => {
@@ -364,10 +414,20 @@
         // 단이 셋보다 적으면 빈 널빤지로 채운다 — 뒤의 방은 판의 높이만큼만 열린다
         while (lines.length && lines.length < SHELF_ROWS) lines.push({ label: null, books: [] });
         let seq = 0;   // 걸쇠 자리는 단이 어떻게 갈리든 몇 번째 책인지로 센다
+        let latched = false, prevBook = null;
         lines.forEach(({ label, books }) => {
           const line = document.createElement("div"); line.className = "shelfline";
           books.forEach((b) => {
-            if (seq++ === w.latchIdx) line.appendChild(makeLatch());
+            /* 걸쇠(비뚤어진 책)는 시리즈 한가운데를 비집고 들어가지 않는다 —
+               「비블리아 3」과 「4」 사이에 낀 남의 책은 일곱 권을 두 무리로
+               보이게 한다. 제 자리가 무리 안이면 무리가 끝날 때까지 미룬다. */
+            const 무리한가운데 = prevBook && !!seriesKeyOf(prevBook)
+              && seriesKeyOf(prevBook) === seriesKeyOf(b);
+            if (!latched && w.latchIdx >= 0 && seq >= w.latchIdx && !무리한가운데) {
+              line.appendChild(makeLatch()); latched = true;
+            }
+            seq++;
+            prevBook = b;
             const el = document.createElement("button"); el.className = "tome";
             if (b.id) el.dataset.id = b.id;   // 「서가에서 본다」가 이 책등을 찾는 열쇠
             if (b.paper) el.classList.add("paper");
@@ -406,6 +466,12 @@
           }
           panel.appendChild(pk);
         });
+        /* 미루다 보니 끝까지 못 낀 경우 — 걸쇠가 곧 문고리이므로
+           빠뜨리면 이 벽의 문이 열리지 않는다. 마지막 단 끝에 세운다. */
+        if (!latched && w.latchIdx >= 0) {
+          const 끝단 = [...panel.querySelectorAll(".shelfline")].filter((l) => l.children.length).pop();
+          if (끝단) 끝단.appendChild(makeLatch());
+        }
       }
       box.appendChild(panel);
       sec.appendChild(box);
@@ -1164,7 +1230,17 @@
   /* 시리즈 접기 — 「토지 1」…「토지 20」이 스무 줄을 차지하지 않게.
      제목 끝의 권수를 접고, 같은 밑동·지은이가 두 권 이상이면 시리즈로 본다.
      정렬이나 검색 중에는 접지 않는다 — 그때는 낱권이 답이다. */
-  const SERIES_RE = /^(.*?)[\s·-]+(\d{1,3})$/;
+  /* 「상·중·하」도, 괄호에 든 권수도 권수다 — 「장미의 이름 상」과 「하」가,
+     「바우돌리노 (상)」과 「바우돌리노 하」가 남남으로 서 있었다.
+     앞의 [\s·-]+ 는 반드시 있어야 한다: 없애면 「13.67」이 「13.」의 67권이 된다. */
+  const SERIES_RE = /^(.*?)[\s·-]+[(（]?(\d{1,3}|[상중하])[)）]?$/;
+  /* 몇 권째인가. 권수를 읽을 수 없으면 NaN 을 낸다 —
+     부르는 쪽이 제목 차례나 원래 차례로 넘어갈 수 있게. */
+  const volumeNo = (b) => {
+    const m = (b.t || "").match(SERIES_RE);
+    if (!m) return NaN;
+    return { 상: 1, 중: 2, 하: 3 }[m[2]] ?? Number(m[2]);
+  };
   /* 같은 무리인가 — 사람이 적은 시리즈 이름이 먼저, 없으면 제목 밑동+지은이.
      항로도의 굵기와 현관의 길 고르기가 같은 기준을 쓴다 */
   const seriesKeyOf = (b) => {
@@ -2495,7 +2571,7 @@
       const linked = new Set((es || []).map((l) => [l.book_id, l.linked_book_id].sort().join("|")));
       // 권수 순으로, 권수가 없으면(손묶기 전집) 제목 순으로 사슬을 짠다
       const vols = group
-        .map((x) => [Number(x.t.match(SERIES_RE)?.[2] ?? NaN), x])
+        .map((x) => [volumeNo(x), x])
         .sort((p, q2) => (isNaN(p[0]) || isNaN(q2[0]))
           ? p[1].t.localeCompare(q2[1].t, "ko") : p[0] - q2[0]);
       let made = 0;
