@@ -68,6 +68,17 @@
   const SIGN_SECONDS = 12 * 3600;
   const SIGN_MARGIN_MS = 10 * 60 * 1000;
 
+  /* 손톱 그림 — 카드는 180px 인데 원본은 장당 926KB 다.
+     서명 주소를 돌려 쓰는 것만으로는 반만 막힌다: 열쇠는 이 페이지가 살아
+     있는 동안만 간직되므로, 새로고침하면 열쇠가 새로 나고 열여덟 장 16MB 가
+     통째로 다시 내려온다 (같은 사진이어도 주소가 다르면 캐시는 남이다).
+     장변 320px·q0.72 짜리를 따로 두어 그 자리를 가볍게 만든다 — 재어 보니
+     책장 사진 꼴에서 11.7KB, 압축이 아예 안 되는 잡음으로도 17.8KB 라
+     926KB 대비 쉰두 배에서 여든 배다 (2026-09-04 측정).
+     원본은 책등을 오릴 때만 받는다 — 그때는 화질이 필요하다. */
+  const 썸경로 = (p) => p.replace(/([^/]+)$/, "thumb/$1").replace(/\.[^.]+$/, ".jpg");
+  let 썸목록 = null;   // Promise<Set<경로>> · null 이면 아직 안 물어봤다
+
   /* 장서도 한 번 받아 두고 그다음부터는 바뀐 줄만 덧댄다.
      책 한 권을 고칠 때마다 서가를 다시 그리는데, 그때마다 544권(447KB)을
      통째로 다시 받으면 손질 스무 번에 9MB 다 — 무료 요금제의 Egress 는
@@ -571,6 +582,40 @@
       return data.signedUrl;
     },
 
+    /* 손톱 그림이 있는 경로를 한 번만 물어 둔다 — 장마다 「있느냐」고
+       물으면 없는 것마다 오류 한 번씩이라 시끄럽다. 목록은 한 번이면 된다. */
+    async 썸있는것() {
+      /* 카드 열여덟 장이 한꺼번에 묻는다 — 답이 아니라 **묻는 일**을 간직해야
+         목록을 한 번만 받는다 (다 받은 뒤에 간직하면 열여덟 번 묻는다) */
+      if (썸목록) return 썸목록;
+      썸목록 = (async () => {
+        const user = await this.currentUser();
+        if (!user) { 썸목록 = null; return new Set(); }   // 손님 — 들어오면 다시 묻게
+        const { data } = await client.storage
+          .from("intake").list(`${user.id}/thumb`, { limit: 500 });
+        return new Set((data || []).map((f) => `${user.id}/thumb/${f.name}`));
+      })();
+      return 썸목록;
+    },
+
+    /* 손톱 그림의 주소 — 아직 없으면 null 이다 (부르는 쪽이 원본으로 물러선다) */
+    async thumbUrl(storagePath) {
+      const 길 = 썸경로(storagePath);
+      const 있는것 = await this.썸있는것();
+      if (!있는것.has(길)) return null;
+      return this.photoUrl(길);
+    },
+
+    /* 손톱 그림을 둔다. 경로에 시각·난수가 들어 바뀔 일이 없으니 이레를 붙든다. */
+    async putThumb(storagePath, blob) {
+      const 길 = 썸경로(storagePath);
+      const { error } = await client.storage.from("intake")
+        .upload(길, blob, { contentType: "image/jpeg", upsert: true, cacheControl: "604800" });
+      if (error) throw error;
+      (await this.썸있는것()).add(길);
+      return 길;
+    },
+
     /* 이 책을 어느 사진에서 만났는가 — 서표에서 원본 책장 사진을 연다.
        intake 버킷은 비공개라 주인만 서명 주소를 받는다 (방문자는 조용히 실패). */
     async spinePhotoUrl(photoId) {
@@ -636,7 +681,10 @@
     async removeIntakePhoto(photo) {
       const { error } = await client.from("intake_photos").delete().eq("id", photo.id);
       if (error) throw error;
-      await client.storage.from("intake").remove([photo.storage_path]);
+      // 손톱 그림도 함께 — 원본만 지우면 그림이 주인 없이 남는다
+      const 길 = 썸경로(photo.storage_path);
+      await client.storage.from("intake").remove([photo.storage_path, 길]);
+      (await this.썸있는것()).delete(길);
     },
 
     /* ── 궤짝: 확인이 필요한 책들 ── */

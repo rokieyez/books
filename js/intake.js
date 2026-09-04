@@ -56,6 +56,28 @@
     return blob || file;
   }
 
+  /* 손톱 그림 — 카드는 180px 인데 원본은 장당 926KB 다. 2026-09-01 에 그
+     원본을 카드 배경으로 되풀이해 실어 하루 3.8GB 가 샜다 (CLAUDE.md
+     「Egress 규칙」). 서명 열쇠를 돌려 쓰는 것으로 한 번 막았지만, 열쇠는
+     이 페이지가 사는 동안만 간직되므로 새로고침이면 16MB 가 다시 온다.
+     장변 320px·q0.72 로 바꾼다 — 재어 보니 책장 사진 꼴에서 11.7KB,
+     압축이 아예 안 되는 잡음으로도 17.8KB 다 (쉰두~여든 배, 2026-09-04 측정).
+     canvas 를 toBlob 하려면 그림이 이 집의 것이어야 한다: 서명 주소는
+     fetch → blob → createImageBitmap 으로 받는다 (cropSpines 와 같은 길). */
+  const THUMB_EDGE = 320;
+  async function 손톱(src) {
+    const bmp = await createImageBitmap(src, { imageOrientation: "from-image" });
+    const k = Math.min(1, THUMB_EDGE / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement("canvas");
+    cv.width = Math.max(1, Math.round(bmp.width * k));
+    cv.height = Math.max(1, Math.round(bmp.height * k));
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    bmp.close();
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.72));
+    if (!blob) throw new Error("손톱 그림을 만들지 못했습니다");
+    return blob;
+  }
+
   /* ── 화면 ── */
   const sec = document.createElement("section");
   sec.className = "intake";
@@ -245,7 +267,10 @@
       try {
         const blob = await shrink(file);
         status.textContent = "올리는 중…";
-        await db.uploadIntakePhoto(blob, { wall, shelf });
+        const 든것 = await db.uploadIntakePhoto(blob, { wall, shelf });
+        // 손톱 그림은 곁들이는 것이다 — 못 만들어도 사진은 들어온 것이다
+        try { await db.putThumb(든것.storage_path, await 손톱(blob)); }
+        catch (e) { console.warn("[사진] 손톱 그림을 두지 못했습니다:", e); }
         const saved = Math.max(0, file.size - blob.size);
         li.classList.add("done");
         status.textContent = saved > 0
@@ -273,6 +298,25 @@
     if (bytes < 1024) return bytes + "B";
     if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + "KB";
     return (bytes / 1048576).toFixed(1) + "MB";
+  }
+
+  /* 카드에 사진을 건다. 손톱 그림이 있으면 그것을, 없으면 원본을 걸면서
+     그 그림으로 손톱을 떠 둔다 — 옛 사진 열여덟 장은 손톱 없이 올라왔으므로
+     한 번은 원본을 받아야 한다. 그 한 번이 지나면 다시는 안 받는다. */
+  async function 그림걸기(칸, 경로) {
+    try {
+      const 작은것 = await db.thumbUrl(경로);
+      if (작은것) { 칸.style.backgroundImage = `url("${작은것}")`; return; }
+
+      const url = await db.photoUrl(경로);
+      칸.style.backgroundImage = `url("${url}")`;
+      try {
+        const blob = await (await fetch(url)).blob();
+        await db.putThumb(경로, await 손톱(blob));
+      } catch (e) { console.warn("[사진] 손톱 그림을 뜨지 못했습니다:", e); }
+    } catch {
+      칸.classList.add("nophoto");
+    }
   }
 
   /* ── 들여놓은 사진들 ── */
@@ -352,10 +396,9 @@
         try { await cropSpines(note); } catch (e) { console.error("[책등 조각]", e); }
       });
 
-      // 비공개 버킷이라 서명된 주소를 받아 와야 보인다
-      db.photoUrl(p.storage_path).then((url) => {
-        card.querySelector(".ph").style.backgroundImage = `url("${url}")`;
-      }).catch(() => card.querySelector(".ph").classList.add("nophoto"));
+      // 비공개 버킷이라 서명된 주소를 받아 와야 보인다.
+      // 카드에 거는 것은 손톱 그림이다 — 원본(926KB)은 여기 쓰지 말 것.
+      그림걸기(card.querySelector(".ph"), p.storage_path);
 
       card.querySelector(".phdel").addEventListener("click", async () => {
         card.classList.add("going");
@@ -1231,11 +1274,18 @@
       }
     });
 
-    // 주인이 들어온 뒤에야 사진 목록을 읽을 수 있다
-    db.client.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) renderShelf();
-    });
-    db.currentUser().then((u) => { if (u) renderShelf(); });
+    /* 주인이 들어온 뒤에야 사진 목록을 읽을 수 있다.
+       onAuthStateChange 는 열쇠를 새로 받을 때마다·탭이 앞으로 나올 때마다
+       울린다 — 같은 사람인데 다시 그리면 사진을 그 횟수만큼 다시 받는다.
+       사람이 **바뀐** 때만 그린다. */
+    let 지금주인 = null;
+    const 주인이면그린다 = (u) => {
+      if (!u || u.id === 지금주인) return;
+      지금주인 = u.id;
+      renderShelf();
+    };
+    db.client.auth.onAuthStateChange((_e, session) => 주인이면그린다(session?.user));
+    db.currentUser().then(주인이면그린다);
   }
 
   if (document.readyState === "loading") {
