@@ -14,6 +14,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: read
+
 concurrency:
   group: check-house
   cancel-in-progress: true
@@ -27,8 +31,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      # 왜 자지 않고 묻나: 「120초 자기」는 배포가 2분을 넘기면 옛 사이트를
+      # 견주고 초록불을 켰다. Pages 의 마지막 빌드가 이 커밋으로 끝났는지를
+      # 15초마다 묻고, 10분 안에 안 끝나면 빨간불. 묻는 것 자체가 막히면
+      # (권한·API 사정) 예전처럼 2분 자고 넘어간다 — 못 묻는다고 안 견줄 수는 없다.
       - name: 배포가 끝나기를 기다린다
-        run: sleep 120
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 40); do
+            if ! json=$(gh api "repos/${{ github.repository }}/pages/builds/latest" 2>/dev/null); then
+              echo "빌드 상태를 묻지 못했습니다 — 2분 자고 넘어갑니다"; sleep 120; exit 0
+            fi
+            st=$(jq -r .status <<<"$json"); sha=$(jq -r .commit <<<"$json")
+            echo "$i: $st ${sha:0:7} (기다리는 것: ${GITHUB_SHA:0:7})"
+            if [ "$st" = built ] && [ "$sha" = "$GITHUB_SHA" ]; then exit 0; fi
+            sleep 15
+          done
+          echo "10분이 지나도 이 커밋이 배포되지 않았습니다"; exit 1
       - name: 점검 도구를 받아 온다
         run: |
           curl -sSfL -o check-house.mjs \

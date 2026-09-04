@@ -522,7 +522,13 @@
 </section>
 <!-- defer 는 순서를 지키면서 화면 그리기를 막지 않는다 — 여섯 개가 나란히
      내려오고, 문서가 다 읽힌 뒤 적힌 차례대로 실행된다 -->
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<!-- integrity: 이 집에서 유일하게 남의 손에 든 코드다. 판(2.58.0)만 못 박으면
+     내용은 못 박히지 않는다 — CDN 이 다른 것을 내주면 브라우저가 싣지 않는다.
+     판을 올릴 때는 새 파일의 sha384 를 함께 바꿀 것:
+     curl -s <주소> | openssl dgst -sha384 -binary | openssl base64 -A -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"
+        integrity="sha384-KX6Y/AMIv9qA8TLCDul2JatZWeyrJVgj3Xu/0r30Nr05xO8md1+wHAgtdsRV9LoE"
+        crossorigin="anonymous"></script>
 <script defer src="js/config.js"></script>
 <script defer src="js/db.js"></script>
 <!-- 표본 데이터 — 로그인이 붙으면 db.js 조회로 교체된다 -->

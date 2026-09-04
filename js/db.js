@@ -169,14 +169,18 @@
        PostgREST 에는 한 번에 돌려주는 줄 수의 상한(기본 1,000)이 있어,
        .limit(2000) 이라 적어도 조용히 잘린다. 상한값을 짐작하지 않고
        한 쪽씩 끝까지 읽는다 — 서재가 커져도 그대로 산다. */
-    async listBooks({ wall = null, search = null, limit = 5000, page = 500 } = {}) {
+    async listBooks({ wall = null, limit = 5000, page = 500 } = {}) {
+      /* 예전에는 search 매개변수가 있어 `.or(\`title.ilike.%${search}%,…\`)` 로
+         PostgREST 필터 문법에 입력을 그대로 끼웠다 — 「,」「)」가 절을 바꾸는
+         주입 구멍이었고, 부르는 곳도 없었다. 찾기는 화면 쪽(app.js 의 q())이
+         받아 둔 장서 안에서 한다. 서버 쪽 찾기가 다시 필요해지면 .ilike() 를
+         낱낱이 걸 것 — 문자열을 이어 붙여 만들지 말 것. */
       const out = [];
       for (let from = 0; from < limit; from += page) {
         // id 까지 걸어야 쪽이 어긋나지 않는다 — 벽·단·자리는 겹칠 수 있다
         let qy = client.from("books").select("*")
           .order("wall").order("shelf").order("slot").order("id");
         if (wall) qy = qy.eq("wall", wall);
-        if (search) qy = qy.or(`title.ilike.%${search}%,author.ilike.%${search}%`);
         const to = Math.min(from + page, limit) - 1;
         const { data, error } = await qy.range(from, to);
         if (error) throw error;
@@ -188,7 +192,7 @@
 
     /* 서가를 다시 그릴 때 쓰는 장서 — 처음에는 전부, 그다음부터는 바뀐 것만.
        한 권 고치고 부르면 한 줄(수백 바이트)만 오간다. 걸러 보는 목록
-       (listBooks 의 wall·search) 은 이 길을 쓰지 않는다. */
+       (listBooks 의 wall) 은 이 길을 쓰지 않는다. */
     async syncBooks() {
       if (!bookCache.rows || !bookCache.mark) {
         return keepBooks(await this.listBooks({ limit: 5000 }));

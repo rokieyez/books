@@ -27,7 +27,7 @@
   dt { display:inline; opacity:.6 } dd { display:inline; margin:0 10px 0 4px }
   p.sum { margin:0 0 16px; font-size:13px; line-height:1.85; white-space:pre-line; opacity:.9 }
   a { color:#E0B15E }
-  /* 이 책을 말한 글 — 서재에서 글방으로 건너가는 한 줄 */
+
   p.said { margin:0 0 14px; padding:9px 12px; font-size:13px;
            border-left:2px solid rgba(224,177,94,.35); background:rgba(224,177,94,.04) }
   p.said span { display:block; font-size:11px; letter-spacing:.1em; opacity:.6; margin-bottom:3px }
@@ -35,7 +35,7 @@
   li { margin:0 0 5px; font-size:12.5px; break-inside:avoid }
   li i { font-style:normal; opacity:.5 }
   @media (max-width:560px) { ul { columns:1 } }
-  /* 해마다의 막대 — 한 줄에 해·막대·권수 */
+
   .years { margin:0 0 20px; font-size:12px }
   .yr { display:grid; grid-template-columns:4.2em 1fr 3.2em; align-items:center; gap:9px; margin:0 0 5px }
   .yr .y { color:#9C8E74; letter-spacing:.04em }
@@ -44,24 +44,14 @@
   .yr .bar i { display:block; height:100%; background:rgba(224,177,94,.34) }
   .yr.on .y, .yr.on .n { color:#E2D5B8 }
   .yr.on .bar i { background:#E0B15E }
-  /* 그 해의 표지들 — 제목 목록보다 한 해가 한눈에 들어온다.
-     표지가 없는 책은 격자에 넣지 않는다 (빈 액자가 늘어서면 초라하다) */
-  /* 바닥을 맞춘다 — 책은 꽂혀 있는 것이지 매달린 것이 아니다.
-     표지마다 비율이 달라 위를 맞추면 아래가 들쭉날쭉해진다 */
+
   .covers { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin:0 0 22px }
   .covers a { display:block; width:78px; line-height:0 }
-  /* 테는 밝은 쪽으로 — 어두운 표지(「화씨 451」은 검은 표지다)가 어두운
-     바탕에 녹아 빈 자리처럼 보였다. 그림이 있다는 것부터 보여야 한다 */
+
   .covers img { width:78px; border-radius:2px; background:rgba(224,177,94,.06);
                 border:1px solid rgba(226,213,184,.16);
                 box-shadow:0 2px 10px rgba(0,0,0,.45) }
-  /* 나눔 쪽에는 표지를 걸지 않는다 — 2026-09-04 에 「미리보기엔 표지가
-     뜨는데 쪽에는 없다」고 고치려다 되돌렸다. 그 쪽은 사람을 곧장 서재로
-     보내므로(아래 location.replace) 사람이 머무는 자리가 아니다. 표지를
-     걸면 넘어가는 길에 그림 한 장을 더 받게 될 뿐이고, 사람은 서재의
-     서표에서 그 표지를 본다. og:image 가 미리보기의 몫을 이미 한다. */
-  /* 키보드로 걷는 사람 — 이 쪽들은 로봇과 미리보기가 먼저 만나지만,
-     사람도 링크를 타고 들어온다 (서재의 style.css 와 같은 고리다) */
+
   :focus-visible { outline:2px solid #E0B15E; outline-offset:2px }
 </style>
 </head>

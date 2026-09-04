@@ -63,6 +63,19 @@ async function 전부(길) {
   return out;
 }
 
+/* 산출물에서 주석을 벗긴다 — 「왜 그렇게 했나」는 이 파일(생성기)에 남고,
+   쪽에는 실려 나가지 않는다. 벗기기 전에는 한 쪽 4,846B 가운데 주석이
+   1,357B(28%)였고, 주석 한 줄을 고칠 때마다 1,089장이 통째로 바뀌어
+   git 역사가 8천 줄씩 부풀었다. 로봇은 주석을 읽지 않고, 사람은
+   location.replace 로 곧장 서재로 가므로 잃는 것이 없다.
+   HTML 주석과 <style> 안의 CSS 주석만 벗긴다. 인라인 스크립트의 한 줄
+   주석은 건드리지 않는다 — 주소 문자열 안의 빗금 둘을 주석으로 오인할 수 있다. */
+const 벗기기 = (html) => html
+  .replace(/<!--[\s\S]*?-->/g, "")
+  .replace(/<style>[\s\S]*?<\/style>/g, (m) => m.replace(/\/\*[\s\S]*?\*\//g, ""))
+  .replace(/^[ \t]+$/gm, "")
+  .replace(/\n{3,}/g, "\n\n");
+
 const esc = (s) => String(s ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;");
@@ -504,10 +517,10 @@ for (const b of books) {
   const 글 = 기록표.get(b.id)?.summary || null;
   if (글) 기록붙음++;
   if (b.cover_url) 표지++;
-  await writeFile(join(자리, `${b.slug}.html`), 쪽만들기(b, 글), "utf8");
-  await writeFile(join(자리, `${b.id}.html`), 옛쪽만들기(b), "utf8");
+  await writeFile(join(자리, `${b.slug}.html`), 벗기기(쪽만들기(b, 글)), "utf8");
+  await writeFile(join(자리, `${b.id}.html`), 벗기기(옛쪽만들기(b)), "utf8");
 }
-await writeFile(join(자리, "index.html"), 색인만들기(books), "utf8");
+await writeFile(join(자리, "index.html"), 벗기기(색인만들기(books)), "utf8");
 console.log(`${books.length}권의 나눔 쪽을 지었습니다 — 기록이 실린 것 ${기록붙음}권, 표지가 붙는 것 ${표지}권`);
 console.log(`옛 주소(b/<아이디>.html) ${books.length}장도 새 쪽으로 이어 두었습니다`);
 
@@ -520,7 +533,7 @@ books.filter((b) => b.read_year).forEach((b) => {
 const 해들 = [...해별.keys()].sort((a, b) => b - a);
 for (const [해, 목록] of 해별) {
   목록.sort((a, b) => (a.title || "").localeCompare(b.title || "", "ko"));
-  await writeFile(join(해자리, `${해}.html`), 해쪽만들기(해, 목록, 해들, 해별), "utf8");
+  await writeFile(join(해자리, `${해}.html`), 벗기기(해쪽만들기(해, 목록, 해들, 해별)), "utf8");
 }
 /* 없어진 해의 쪽은 지운다 (읽은 해를 고쳐 그 해가 비었을 때) */
 for (const f of await readdir(해자리).catch(() => [])) {

@@ -169,7 +169,8 @@
     // 진짜 장서가 도착했으니 기다리던 상태를 푼다
     document.body.classList.remove("waking");
     // 서가만 다시 그리면 상단의 셈과 책상에 옛 숫자가 남는다
-    (window.PostLibrosRenderAll || renderWalls)();
+    // app.js 는 닫힌 함수라 renderWalls 를 직접 부를 수 없다 — 내놓은 문으로 간다
+    window.PostLibrosRenderAll?.();
     // `#book/<id>` 로 들어온 사람은 그 책의 서표가 열린 채로 서재를 만난다
     try { window.PostLibrosOpenHash?.(); } catch (e) { console.warn("[주소]", e); }
     return books.length;

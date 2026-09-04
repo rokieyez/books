@@ -15,10 +15,7 @@
 <meta property="og:description" content="페터 한트케">
 <meta property="og:image" content="https://www.rokiz.net/books/og.png">
 <meta property="og:url" content="https://www.rokiz.net/books/b/%EA%B8%B4-%EC%9D%B4%EB%B3%84%EC%9D%84-%EC%9C%84%ED%95%9C-%EC%A7%A7%EC%9D%80-%ED%8E%B8%EC%A7%80-1072-99c8010a.html">
-<!-- 책 표지는 세로로 길다. summary_large_image 로 걸면 1.91:1 띠에 맞추느라
-     위아래가 잘려 제목이 날아간다 — 표지가 있는 책은 정사각 썸네일(summary)로
-     온전히 보이게 하고, 표지가 없어 서재의 og.png(1200x630)로 돌아가는 책만
-     넓은 카드를 쓴다 -->
+
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="긴 이별을 위한 짧은 편지 1072">
 <meta name="twitter:description" content="페터 한트케">
@@ -36,7 +33,7 @@
   dt { display:inline; opacity:.6 } dd { display:inline; margin:0 10px 0 4px }
   p.sum { margin:0 0 16px; font-size:13px; line-height:1.85; white-space:pre-line; opacity:.9 }
   a { color:#E0B15E }
-  /* 이 책을 말한 글 — 서재에서 글방으로 건너가는 한 줄 */
+
   p.said { margin:0 0 14px; padding:9px 12px; font-size:13px;
            border-left:2px solid rgba(224,177,94,.35); background:rgba(224,177,94,.04) }
   p.said span { display:block; font-size:11px; letter-spacing:.1em; opacity:.6; margin-bottom:3px }
@@ -44,7 +41,7 @@
   li { margin:0 0 5px; font-size:12.5px; break-inside:avoid }
   li i { font-style:normal; opacity:.5 }
   @media (max-width:560px) { ul { columns:1 } }
-  /* 해마다의 막대 — 한 줄에 해·막대·권수 */
+
   .years { margin:0 0 20px; font-size:12px }
   .yr { display:grid; grid-template-columns:4.2em 1fr 3.2em; align-items:center; gap:9px; margin:0 0 5px }
   .yr .y { color:#9C8E74; letter-spacing:.04em }
@@ -53,24 +50,14 @@
   .yr .bar i { display:block; height:100%; background:rgba(224,177,94,.34) }
   .yr.on .y, .yr.on .n { color:#E2D5B8 }
   .yr.on .bar i { background:#E0B15E }
-  /* 그 해의 표지들 — 제목 목록보다 한 해가 한눈에 들어온다.
-     표지가 없는 책은 격자에 넣지 않는다 (빈 액자가 늘어서면 초라하다) */
-  /* 바닥을 맞춘다 — 책은 꽂혀 있는 것이지 매달린 것이 아니다.
-     표지마다 비율이 달라 위를 맞추면 아래가 들쭉날쭉해진다 */
+
   .covers { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin:0 0 22px }
   .covers a { display:block; width:78px; line-height:0 }
-  /* 테는 밝은 쪽으로 — 어두운 표지(「화씨 451」은 검은 표지다)가 어두운
-     바탕에 녹아 빈 자리처럼 보였다. 그림이 있다는 것부터 보여야 한다 */
+
   .covers img { width:78px; border-radius:2px; background:rgba(224,177,94,.06);
                 border:1px solid rgba(226,213,184,.16);
                 box-shadow:0 2px 10px rgba(0,0,0,.45) }
-  /* 나눔 쪽에는 표지를 걸지 않는다 — 2026-09-04 에 「미리보기엔 표지가
-     뜨는데 쪽에는 없다」고 고치려다 되돌렸다. 그 쪽은 사람을 곧장 서재로
-     보내므로(아래 location.replace) 사람이 머무는 자리가 아니다. 표지를
-     걸면 넘어가는 길에 그림 한 장을 더 받게 될 뿐이고, 사람은 서재의
-     서표에서 그 표지를 본다. og:image 가 미리보기의 몫을 이미 한다. */
-  /* 키보드로 걷는 사람 — 이 쪽들은 로봇과 미리보기가 먼저 만나지만,
-     사람도 링크를 타고 들어온다 (서재의 style.css 와 같은 고리다) */
+
   :focus-visible { outline:2px solid #E0B15E; outline-offset:2px }
 </style>
 </head>
@@ -78,14 +65,11 @@
   <main>
     <h1>긴 이별을 위한 짧은 편지 1072</h1>
     <dl><dt>지은이</dt><dd>페터 한트케</dd><dt>분류</dt><dd>문학</dd></dl>
-    
-    
+
     <p><a href="../#book/99c8010a-6d2a-401a-b574-7889f88e49f0">서가 뒤의 방에서 이 책을 엽니다</a>
        · <a href="index.html">책 목록</a></p>
   </main>
-  <!-- 사람은 곧장 서재로 보낸다. 로봇은 자바스크립트를 돌리지 않으므로
-       위의 서지와 ld+json 을 읽고 간다 — meta refresh 를 쓰면 로봇도
-       「이 쪽은 딴 데로 간다」로 알고 본문을 통째로 버린다. -->
+
   <script>location.replace("../#book/99c8010a-6d2a-401a-b574-7889f88e49f0");</script>
 </body>
 </html>

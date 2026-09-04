@@ -1,4 +1,10 @@
-/* 화면 렌더와 상호작용 */
+/* 화면 렌더와 상호작용
+ *
+ * 파일 전체를 함수 하나로 닫는다 — 안의 이름 수백 개가 window 에 걸리지 않게.
+ * 다른 파일이 쓰라고 내놓는 문은 window.PostLibros* 뿐이다 (db.js·auth.js·
+ * intake.js 도 같은 식으로 닫혀 있다). 한동안 이 껍데기가 벗겨진 채
+ * 들여쓰기만 남아 있었고, auth.js 가 renderWalls 를 전역으로 직접 불렀다. */
+(() => {
 /* ── 벽 렌더 ──────────────────────────────────────────── */
   function q() { return $("q").value.trim().toLowerCase(); }
   function anyOpen() { return !!document.querySelector(".wallsec.open"); }
@@ -932,7 +938,7 @@
     const reading = books.filter(b => b.st === "읽는 중");
     const unread = books.filter(b => b.st === "안 읽음");
     const pool = reading.length ? reading : (unread.length ? unread : books);
-    const day = new Date().toISOString().slice(0, 10);
+    const day = dayKey();
     let seed = 0;
     for (let i = 0; i < day.length; i++) seed = (seed * 31 + day.charCodeAt(i)) >>> 0;
     const pick = pool.length ? pool[seed % pool.length] : null;
@@ -985,6 +991,16 @@
      날은 **자정을 몇 번 넘었는가**로 센다. 스물네 시간으로 나누면 어제
      저녁 여덟 시에 멈춘 책을 오늘 아침에 보고도 「오늘」이라 말한다
      (2026-09-04 확인). 보는 사람의 달력을 따른다. */
+  /* 날짜 열쇠 「YYYY-MM-DD」— 반드시 이 집(브라우저)의 시간대로 자른다.
+     toISOString() 은 UTC 라 한국에서 00:00–09:00 은 어제로 찍힌다.
+     도구 쪽(tools/오늘.mjs)에서 이미 잡은 결함이 여기에도 있었다:
+     독서 달력의 오른쪽 끝 칸이 어제 열쇠를 쥐어 오늘 움직임이 내일에야 보였고,
+     「오늘의 책」이 아침 아홉 시에 바뀌었다. */
+  function dayKey(d = new Date()) {
+    const x = d instanceof Date ? d : new Date(d);
+    return new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+
   function agoOf(iso) {
     if (!iso) return null;
     const 잰 = new Date(iso), 이제 = new Date();
@@ -1417,35 +1433,16 @@
     }
   }
 
+  /* renderStats 는 칸 열넷을 차례로 세운다. 예전엔 345줄 한 덩어리였다 —
+     칸 하나를 고치려면 전부를 읽어야 했다. 칸마다 함수 하나로 가른다.
+     grow 는 「0에서 자라나는 막대」의 목록 — renderStats 가 끝에 한꺼번에 키운다. */
   function renderStats() {
     const books = allBooks();
     const n = books.length;
 
     syncStatWhole();
 
-    /* 통계는 열넷이 세로로 늘어서 5,000px 에 가깝다. 어디까지 있는지도,
-       무엇이 남았는지도 알 길이 없어 사람은 끝을 못 보고 되돌아간다
-       (2026-09-04 재어 확인: 4,936px). 칸의 제목을 모아 길잡이를 세운다 —
-       사다리가 서가 보기에서 하는 일을 여기서는 이 줄이 한다. */
-    const 길 = $("statnav");
-    if (길) {
-      길.innerHTML = "";
-      document.querySelectorAll("#v-stats .statpanel").forEach((p, i) => {
-        const h = p.querySelector("h4");
-        if (!h) return;
-        if (!p.id) p.id = `sp-${i}`;
-        const a = document.createElement("a");
-        a.href = `#${p.id}`;
-        a.textContent = h.textContent.trim();
-        /* 해시를 남기지 않는다 — 보기(#stats)를 가리키는 주소를 덮으면
-           그 자리를 건넬 수 없게 된다. 데려다만 주고 주소는 그대로 둔다. */
-        a.addEventListener("click", (e) => {
-          e.preventDefault();
-          p.scrollIntoView({ behavior: noMotion ? "auto" : "smooth", block: "start" });
-        });
-        길.appendChild(a);
-      });
-    }
+    buildStatNav();
 
     ["catbars", "yearcols", "statusbar", "authorbars", "pagesum", "wallbars", "pubbars", "memolist"]
       .forEach((id) => { const el = $(id); if (el) el.innerHTML = ""; });
@@ -1589,7 +1586,52 @@
       grow.push([el.querySelector(".fill"), "width", Math.round(v/amax*100) + "%"]);
       ab.appendChild(el);
     });
-    /* ── 읽어낸 쪽수 — 권수보다 정직한 숫자 ── */
+    statPages(books);
+    statWalls(grow);
+    statPublishers(books, grow);
+    statMemos(books);
+    statRecap(books);
+    statRhythm(books);
+
+    renderChronicle(books); // 독서 연대기 — 실제로 통과한 책들
+    renderSizeMap(books);   // 판형 지도 — 실물 치수를 아는 책만
+    renderLinkWeb(books);   // 이음의 별자리 — 데이터를 따로 받아와 그린다
+    renderAuthorWeb(books); // 작가의 별자리 — 같은 작가의 책이 한 성좌로
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      grow.forEach(([el, prop, val]) => el.style[prop] = val);
+    }));
+  }
+
+  /* 통계의 길잡이 — 칸 제목을 모아 세운다 (renderStats 가 부른다) */
+  function buildStatNav() {
+    /* 통계는 열넷이 세로로 늘어서 5,000px 에 가깝다. 어디까지 있는지도,
+       무엇이 남았는지도 알 길이 없어 사람은 끝을 못 보고 되돌아간다
+       (2026-09-04 재어 확인: 4,936px). 칸의 제목을 모아 길잡이를 세운다 —
+       사다리가 서가 보기에서 하는 일을 여기서는 이 줄이 한다. */
+    const 길 = $("statnav");
+    if (길) {
+      길.innerHTML = "";
+      document.querySelectorAll("#v-stats .statpanel").forEach((p, i) => {
+        const h = p.querySelector("h4");
+        if (!h) return;
+        if (!p.id) p.id = `sp-${i}`;
+        const a = document.createElement("a");
+        a.href = `#${p.id}`;
+        a.textContent = h.textContent.trim();
+        /* 해시를 남기지 않는다 — 보기(#stats)를 가리키는 주소를 덮으면
+           그 자리를 건넬 수 없게 된다. 데려다만 주고 주소는 그대로 둔다. */
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          p.scrollIntoView({ behavior: noMotion ? "auto" : "smooth", block: "start" });
+        });
+        길.appendChild(a);
+      });
+  }
+  }
+
+  /* ── 읽어낸 쪽수 — 권수보다 정직한 숫자 ── */
+  function statPages(books) {
     const paged = books.filter((b) => b.pages);
     const totalPages = paged.reduce((s, b) => s + b.pages, 0);
     const readPages = paged.reduce((s, b) =>
@@ -1608,9 +1650,11 @@
           <div class="pagebar"><i style="width:${pct}%"></i></div>
           <p class="pagepct">${pct}% — 읽는 중인 책은 갈피까지 센다</p>`;
       }
-    }
+  }
+  }
 
-    /* ── 벽별 읽음률 ── */
+  /* ── 벽별 읽음률 ── */
+  function statWalls(grow) {
     const wb = $("wallbars");
     if (wb) {
       WALLS.filter((w) => w.cat !== "archive" && w.n).forEach((w) => {
@@ -1622,9 +1666,11 @@
         wb.appendChild(el);
       });
       if (!wb.children.length) wb.innerHTML = `<p class="statempty">벽에 책이 꽂히면 셈이 섭니다.</p>`;
-    }
+  }
+  }
 
-    /* ── 자주 들인 출판사 — 서지를 채운 책 기준 ── */
+  /* ── 자주 들인 출판사 — 서지를 채운 책 기준 ── */
+  function statPublishers(books, grow) {
     const pb = $("pubbars");
     if (pb) {
       const PUBSTAT = tally(books, (b) => b.pub).sort((x, y) => y[1] - x[1]).slice(0, 5);
@@ -1639,9 +1685,11 @@
         grow.push([el.querySelector(".fill"), "width", Math.round(v / pmax * 100) + "%"]);
         pb.appendChild(el);
       });
-    }
+  }
+  }
 
-    /* ── 여백의 기록 — 흩어진 메모를 한자리에 ── */
+  /* ── 여백의 기록 — 흩어진 메모를 한자리에 ── */
+  function statMemos(books) {
     const ml = $("memolist"), pm = $("ps-memos");
     if (ml && pm) {
       const memos = books.filter((b) => b.memo);
@@ -1661,9 +1709,11 @@
         more.textContent = `— 그 밖에 ${memos.length - 12}권의 여백이 더 있다 —`;
         ml.appendChild(more);
       }
-    }
+  }
+  }
 
-    /* ── 그 해의 서재 — 읽은 해(read_year)로 여는 회고 ── */
+  /* ── 그 해의 서재 — 읽은 해(read_year)로 여는 회고 ── */
+  function statRecap(books) {
     const rp = $("recapbody"), rps = $("ps-recap");
     if (rp && rps) {
       rp.innerHTML = "";
@@ -1715,9 +1765,11 @@
         card.addEventListener("click", () => downloadRecapCard(y, ofYear, pages));
         rp.appendChild(card);
       }
-    }
+  }
+  }
 
-    /* ── 읽기 리듬 — 최근 91일, 갈피가 움직인 날들 ── */
+  /* ── 읽기 리듬 — 최근 91일, 갈피가 움직인 날들 ── */
+  function statRhythm(books) {
     const rg = $("rhythmgrid"), rs = $("ps-rhythm");
     if (rg && rs) {
       rg.innerHTML = "";
@@ -1728,7 +1780,8 @@
       } else {
         const byDay = new Map();
         stamps.forEach((iso) => {
-          const k = String(iso).slice(0, 10);
+          // updated_at 은 UTC 로 오므로 이 집의 날짜로 옮겨 센다
+          const k = dayKey(iso);
           byDay.set(k, (byDay.get(k) || 0) + 1);
         });
         rs.textContent = `최근 91일 · 갈피가 움직인 ${byDay.size}일`;
@@ -1736,7 +1789,7 @@
         const today = new Date(); today.setHours(0, 0, 0, 0);
         for (let i = 90; i >= 0; i--) {
           const day = new Date(today.getTime() - i * 86400000);
-          const k = day.toISOString().slice(0, 10);
+          const k = dayKey(day);
           const n = byDay.get(k) || 0;
           const cell = document.createElement("i");
           cell.className = "rcell";
@@ -1745,16 +1798,7 @@
           rg.appendChild(cell);
         }
       }
-    }
-
-    renderChronicle(books); // 독서 연대기 — 실제로 통과한 책들
-    renderSizeMap(books);   // 판형 지도 — 실물 치수를 아는 책만
-    renderLinkWeb(books);   // 이음의 별자리 — 데이터를 따로 받아와 그린다
-    renderAuthorWeb(books); // 작가의 별자리 — 같은 작가의 책이 한 성좌로
-
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      grow.forEach(([el, prop, val]) => el.style[prop] = val);
-    }));
+  }
   }
 
   /* ── 독서 연대기 ────────────────────────────────────────
@@ -2631,7 +2675,7 @@
     }
     const a = document.createElement("a");
     a.href = url;
-    a.download = `서가뒤의방-항로도-${new Date().toISOString().slice(0, 10)}.png`;
+    a.download = `서가뒤의방-항로도-${dayKey()}.png`;
     a.click();
   });
 
@@ -3120,7 +3164,9 @@
         `${cfg.supabaseUrl}/rest/v1/notes?select=slug,title,book_id` +
         `&book_id=not.is.null&order=published_at.desc`,
         { headers: { apikey: cfg.supabaseKey,
-                     Authorization: "Bearer " + cfg.supabaseKey } });
+                     Authorization: "Bearer " + cfg.supabaseKey },
+          // db.js 의 guard() 처럼 기다림에 끝을 둔다 — 느린 서버 하나가 서표를 영원히 세우지 않게
+          signal: AbortSignal.timeout(8000) });
       if (!r.ok) return;
       for (const n of await r.json()) {
         if (!글표.has(n.book_id)) 글표.set(n.book_id, []);
@@ -4183,3 +4229,4 @@
   };
 
   addEventListener("load", () => { layoutLadder(); updateLadder(); });
+})();
