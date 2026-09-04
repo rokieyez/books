@@ -124,8 +124,16 @@ const 옷 = `<style>
      표지마다 비율이 달라 위를 맞추면 아래가 들쭉날쭉해진다 */
   .covers { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin:0 0 22px }
   .covers a { display:block; width:78px; line-height:0 }
+  /* 테는 밝은 쪽으로 — 어두운 표지(「화씨 451」은 검은 표지다)가 어두운
+     바탕에 녹아 빈 자리처럼 보였다. 그림이 있다는 것부터 보여야 한다 */
   .covers img { width:78px; border-radius:2px; background:rgba(224,177,94,.06);
+                border:1px solid rgba(226,213,184,.16);
                 box-shadow:0 2px 10px rgba(0,0,0,.45) }
+  /* 나눔 쪽에는 표지를 걸지 않는다 — 2026-09-04 에 「미리보기엔 표지가
+     뜨는데 쪽에는 없다」고 고치려다 되돌렸다. 그 쪽은 사람을 곧장 서재로
+     보내므로(아래 location.replace) 사람이 머무는 자리가 아니다. 표지를
+     걸면 넘어가는 길에 그림 한 장을 더 받게 될 뿐이고, 사람은 서재의
+     서표에서 그 표지를 본다. og:image 가 미리보기의 몫을 이미 한다. */
   /* 키보드로 걷는 사람 — 이 쪽들은 로봇과 미리보기가 먼저 만나지만,
      사람도 링크를 타고 들어온다 (서재의 style.css 와 같은 고리다) */
   :focus-visible { outline:2px solid #E0B15E; outline-offset:2px }

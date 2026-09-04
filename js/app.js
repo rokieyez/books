@@ -851,7 +851,11 @@
     const books = allBooks();
     if (!books.length) { el.textContent = ""; return; }
     const done = books.filter((b) => b.st === "읽음").length;
-    const bits = [`${books.length.toLocaleString()}권이 서 있고, 그중 ${done.toLocaleString()}권을 읽어 냈습니다`];
+    /* 「읽어 냈습니다」 사이는 안 꺾이는 빈칸( )이다 — 어절로만 꺾어도
+       하필 그 둘 사이에서 갈리면 「27권을 읽어 / 냈습니다」가 된다.
+       text-wrap: balance 는 줄 길이를 고르게 할 뿐 어디서 꺾을지는
+       정해 주지 않는다 (2026-09-04 폰에서 실제로 갈렸다). */
+    const bits = [`${books.length.toLocaleString()}권이 서 있고, 그중 ${done.toLocaleString()}권을 읽어 냈습니다`];
     if (summarized.size) bits.push(`기록 ${summarized.size}편`);
     if (LINK_N) bits.push(`이음 ${LINK_N}개`);
     el.textContent = bits.join(" · ") + ".";
@@ -1142,7 +1146,17 @@
     layoutLadder(); updateLadder();
   }
   document.querySelectorAll(".viewseg button").forEach(b => {
-    b.addEventListener("click", () => setView(b.dataset.v));
+    b.addEventListener("click", () => {
+      setView(b.dataset.v);
+      /* 고른 보기를 눈앞에 데려온다 — 현관은 300px 이 넘어서, 탭만 갈아
+         끼우면 목록도 통계도 화면 밖에 남는다. 사람은 아무 일도 일어나지
+         않았다고 여긴다 (2026-09-04). 이미 그 보기를 지나 아래를 읽고
+         있으면 끌어올리지 않는다 — 읽던 자리를 뺏는 셈이 되므로. */
+      const 판 = $(b.dataset.v === "walls" ? "walls" : "v-" + b.dataset.v);
+      if (!판) return;
+      const 위 = 판.getBoundingClientRect().top;
+      if (위 > 8) 판.scrollIntoView({ behavior: noMotion ? "auto" : "smooth", block: "start" });
+    });
   });
   /* 탭 묶음 안에서의 ←/→ — 키보드로만 다니는 사람은 이 길로 보기를 바꾼다.
      (서표가 열려 있을 때의 ←/→ 는 이웃 책 넘기기라 서로 겹치지 않는다) */
@@ -1385,9 +1399,53 @@
     return [...m.entries()];
   }
 
+  /* 통계는 찾는 말을 따르지 않는다 — 서재 전체의 모습을 보는 자리이기
+     때문이다. 그런데 찾던 사람이 그대로 건너오면 걸러진 셈으로 읽는다.
+     셈을 바꾸는 대신 무엇을 세고 있는지 말한다 (2026-09-04).
+     통계를 통째로 다시 그리는 것(칸 열넷)은 무거우므로 이 줄만 떼어
+     두고, 찾는 말이 바뀔 때는 이것만 부른다. */
+  function syncStatWhole() {
+    const 통 = $("statwhole");
+    if (!통) return;
+    /* 「"발자크"과는」처럼 조사가 어긋나지 않게 말을 앞에 세우지 않는다 —
+       찾는 말이 무엇이든 문장이 성립하는 어순을 쓴다 */
+    const 말 = q() ? "찾는 말" : sifting() ? "거름망" : "";
+    통.hidden = !말;
+    if (말) {
+      통.textContent =
+        `아래 셈은 ${말}과 무관하게 서재 전체(${allBooks().length.toLocaleString()}권)를 셉니다.`;
+    }
+  }
+
   function renderStats() {
     const books = allBooks();
     const n = books.length;
+
+    syncStatWhole();
+
+    /* 통계는 열넷이 세로로 늘어서 5,000px 에 가깝다. 어디까지 있는지도,
+       무엇이 남았는지도 알 길이 없어 사람은 끝을 못 보고 되돌아간다
+       (2026-09-04 재어 확인: 4,936px). 칸의 제목을 모아 길잡이를 세운다 —
+       사다리가 서가 보기에서 하는 일을 여기서는 이 줄이 한다. */
+    const 길 = $("statnav");
+    if (길) {
+      길.innerHTML = "";
+      document.querySelectorAll("#v-stats .statpanel").forEach((p, i) => {
+        const h = p.querySelector("h4");
+        if (!h) return;
+        if (!p.id) p.id = `sp-${i}`;
+        const a = document.createElement("a");
+        a.href = `#${p.id}`;
+        a.textContent = h.textContent.trim();
+        /* 해시를 남기지 않는다 — 보기(#stats)를 가리키는 주소를 덮으면
+           그 자리를 건넬 수 없게 된다. 데려다만 주고 주소는 그대로 둔다. */
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          p.scrollIntoView({ behavior: noMotion ? "auto" : "smooth", block: "start" });
+        });
+        길.appendChild(a);
+      });
+    }
 
     ["catbars", "yearcols", "statusbar", "authorbars", "pagesum", "wallbars", "pubbars", "memolist"]
       .forEach((id) => { const el = $(id); if (el) el.innerHTML = ""; });
@@ -2672,6 +2730,11 @@
       주소에검색어($("q").value.trim());
       renderWalls();
       syncFindNote();
+      /* 진열장은 찾는 중에 물러나고, 통계는 무엇을 세고 있는지 밝힌다.
+         둘 다 이 자리에서 부르지 않으면 아무 일도 일어나지 않는다 —
+         검색은 벽·표지·목록만 다시 그려 왔다 (2026-09-04). */
+      renderShowcase();
+      syncStatWhole();
       if (curView === "covers") renderCovers();
       if (curView === "list") renderList();
     }, 140);
@@ -3971,6 +4034,10 @@
   function renderShowcase() {
     const sec = $("showcase"), grid = $("showgrid");
     if (!sec || !grid) return;
+    /* 찾는 중에는 물러난다 — 진열장은 달마다 여섯을 거는 자리라 찾는 말과
+       아무 상관이 없다. 그런데 검색 결과 옆에 나란히 서 있으면 그 여섯도
+       결과의 일부처럼 읽힌다 (2026-09-04). 거름망도 마찬가지다. */
+    if (sifting()) { sec.hidden = true; return; }
     const covered = allBooks().filter((b) => b.cover);
     if (covered.length < 3) { sec.hidden = true; return; }
     const d = new Date();
@@ -4012,6 +4079,7 @@
     renderCensus();
     renderToday();
     renderShowcase();
+    syncStatWhole();
     renderPaths();          // 이음이 만든 길 — 데이터를 따로 받아와 건다
     renderColophon();
     renderFoyerLine();

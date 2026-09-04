@@ -192,6 +192,12 @@
   </section>
 
   <section id="v-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0" hidden>
+    <!-- 통계는 늘 서재 전체를 센다. 찾는 말을 넣은 채 이리로 건너오면
+         걸러진 셈으로 읽히므로, 그때만 한 줄로 밝힌다 (app.js 가 켠다) -->
+    <p class="statwhole" id="statwhole" role="status" hidden></p>
+    <!-- 열넷이 세로로 5,000px 가까이 늘어선다 — 어디까지 있는지 알려 주는
+         길잡이. 칸 제목을 app.js 가 모아 채운다 -->
+    <nav class="statnav" id="statnav" aria-label="통계 칸으로 바로 가기"></nav>
     <div class="statgrid">
       <div class="statpanel">
         <!-- 한 분류가 장서의 아홉을 차지하면 「문학 507권」 막대 하나는 아무것도 말하지
