@@ -78,6 +78,86 @@
     return blob;
   }
 
+  /* ── 꾸러미(ZIP) 짓기 ────────────────────────────────────────────
+     책장 사진은 이 집에서 **유일하게 겹치지 않는 것**이다. 장서는 표에도
+     CSV 에도 있지만, 사진은 intake 버킷에만 있고 잃으면 되찾을 길이 없다.
+     `tools/백업.mjs` 는 공개 열쇠만 쓰므로 비공개 버킷에 닿지 못한다 —
+     주인이 들어와 있는 이 작업대만이 사진을 꺼낼 수 있는 자리다.
+
+     라이브러리를 부르지 않는 까닭: JPEG 는 이미 압축돼 있어 다시 눌러도
+     줄지 않는다. 그래서 담기만 하는(store) 꾸러미면 손해가 없고, 그 형식은
+     아래 예순 줄이면 다 적힌다. 남의 코드를 하나 더 들이는 것보다 싸다. */
+  const CRC표 = (() => {
+    const t = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[i] = c >>> 0;
+    }
+    return t;
+  })();
+  const crc32 = (u8) => {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < u8.length; i++) c = CRC표[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  };
+
+  /* 낱장을 [{이름, 바이트, 때}] 로 받아 Blob 하나로 묶는다 */
+  function 꾸러미(낱장들) {
+    const 조각 = [];
+    const 차림 = [];          // 가운데 목록(central directory)
+    let 자리 = 0;
+
+    for (const { 이름, 바이트, 때 } of 낱장들) {
+      const 이름바이트 = new TextEncoder().encode(이름);
+      const d = 때 instanceof Date && !isNaN(때) ? 때 : new Date();
+      // DOS 시각 — 초는 두 칸씩 센다 (형식이 그렇다)
+      const 시 = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+      const 날 = ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+      const c = crc32(바이트);
+
+      const 머리 = new DataView(new ArrayBuffer(30));
+      머리.setUint32(0, 0x04034b50, true);   // 낱장 머리 표식
+      머리.setUint16(4, 20, true);           // 풀려면 필요한 판
+      머리.setUint16(6, 0x0800, true);       // 이름은 UTF-8 이다
+      머리.setUint16(8, 0, true);            // 누르지 않았다 (store)
+      머리.setUint16(10, 시, true);
+      머리.setUint16(12, 날, true);
+      머리.setUint32(14, c, true);
+      머리.setUint32(18, 바이트.length, true);
+      머리.setUint32(22, 바이트.length, true);
+      머리.setUint16(26, 이름바이트.length, true);
+      머리.setUint16(28, 0, true);
+      조각.push(new Uint8Array(머리.buffer), 이름바이트, 바이트);
+
+      const 줄 = new DataView(new ArrayBuffer(46));
+      줄.setUint32(0, 0x02014b50, true);     // 목록 한 줄 표식
+      줄.setUint16(4, 20, true);
+      줄.setUint16(6, 20, true);
+      줄.setUint16(8, 0x0800, true);
+      줄.setUint16(10, 0, true);
+      줄.setUint16(12, 시, true);
+      줄.setUint16(14, 날, true);
+      줄.setUint32(16, c, true);
+      줄.setUint32(20, 바이트.length, true);
+      줄.setUint32(24, 바이트.length, true);
+      줄.setUint16(28, 이름바이트.length, true);
+      줄.setUint32(42, 자리, true);          // 이 낱장의 머리가 어디 있나
+      차림.push(new Uint8Array(줄.buffer), 이름바이트);
+
+      자리 += 30 + 이름바이트.length + 바이트.length;
+    }
+
+    const 차림길이 = 차림.reduce((s, u) => s + u.length, 0);
+    const 끝 = new DataView(new ArrayBuffer(22));
+    끝.setUint32(0, 0x06054b50, true);
+    끝.setUint16(8, 낱장들.length, true);
+    끝.setUint16(10, 낱장들.length, true);
+    끝.setUint32(12, 차림길이, true);
+    끝.setUint32(16, 자리, true);
+    return new Blob([...조각, ...차림, new Uint8Array(끝.buffer)], { type: "application/zip" });
+  }
+
   /* ── 화면 ── */
   const sec = document.createElement("section");
   sec.className = "intake";
@@ -223,8 +303,12 @@
         <b>장서를 베껴 둔다</b>
         <span>장서를 한 곳에만 두지 않습니다 — 지금 꽂힌 그대로를 파일로 내려받습니다</span>
       </div>
-      <button type="button" class="enrich-go" id="in-export">목록을 내려받는다 (CSV)</button>
+      <div class="bc-row">
+        <button type="button" class="enrich-go" id="in-export">목록을 내려받는다 (CSV)</button>
+        <button type="button" class="enrich-go" id="in-photos">사진을 내려받는다 (ZIP)</button>
+      </div>
       <div class="enrich-out" id="in-export-out"></div>
+      <div class="enrich-out" id="in-photos-out"></div>
     </div>
 
     <div class="enrich">
@@ -612,6 +696,85 @@
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 4000);
         out.innerHTML = `<p class="enrich-msg good">${rows.length.toLocaleString()}권을 베껴 두었습니다.</p>`;
+      } catch (err) {
+        out.innerHTML = `<p class="enrich-msg bad"></p>`;
+        out.querySelector("p").textContent = "베끼지 못했습니다 — " + (err.message || err);
+      }
+      btn.disabled = false;
+    });
+
+    /* 사진 내려받기 — 백업의 마지막 구멍을 메운다.
+       원본을 받는다 (손톱 그림이 아니라). 백업은 나중에 다시 오릴 수 있어야
+       하므로 화질이 필요하다 — 그래서 이 단추는 16MB 안팎을 실제로 내려받는다.
+       평소 화면이 원본을 되풀이해 받던 것이 2026-09-01 의 사고였지만, 이것은
+       주인이 **한 번 눌러 일부러** 받는 것이라 다르다. 그 사연은 CLAUDE.md 의
+       「Egress 규칙」에 있다. */
+    el("in-photos").addEventListener("click", async () => {
+      const btn = el("in-photos"), out = el("in-photos-out");
+      btn.disabled = true;
+      out.innerHTML = `<p class="enrich-msg">사진을 세는 중…</p>`;
+      try {
+        const photos = await db.listIntakePhotos({ limit: 500 });
+        if (!photos.length) {
+          out.innerHTML = `<p class="enrich-msg">들인 사진이 아직 없습니다.</p>`;
+          btn.disabled = false;
+          return;
+        }
+
+        const 낱장 = [];
+        const 못받은것 = [];
+        let 받은바이트 = 0;
+        for (const [i, p] of photos.entries()) {
+          out.innerHTML = `<p class="enrich-msg">${i + 1} / ${photos.length}장 · ${fmt(받은바이트)}</p>`;
+          try {
+            const url = await db.photoUrl(p.storage_path);
+            const r = await fetch(url, { signal: AbortSignal.timeout(60000) });
+            if (!r.ok) throw new Error(String(r.status));
+            const 바이트 = new Uint8Array(await r.arrayBuffer());
+            받은바이트 += 바이트.length;
+            낱장.push({
+              /* 꾸러미 안에서는 주인 아이디 폴더를 벗기고 **파일 이름만** 남긴다.
+                 폴더를 두지 않는 까닭: 이름에 한글이 섞이면 macOS 에 딸려 오는
+                 unzip(Info-ZIP 6.00, 2009)이 UTF-8 이름표를 못 읽어 「Illegal byte
+                 sequence」로 **해제 자체가 실패한다** (Finder·python·bsdtar 는
+                 멀쩡하다 — 그 도구만의 한계다). 백업이 도구를 가리면 안 된다.
+                 대신 풀 곳을 사람이 정한다:  unzip <꾸러미> -d 사진/  */
+              이름: p.storage_path.split("/").pop(),
+              바이트,
+              때: new Date(p.created_at),
+            });
+          } catch (e) {
+            못받은것.push(p.storage_path.split("/").pop());
+            console.error("[사진 베끼기]", p.storage_path, e);
+          }
+        }
+
+        /* 사진만 있으면 어느 벽의 무엇이었는지 알 수 없다 — 내력을 함께 넣어
+           꾸러미 하나가 스스로를 설명하게 한다 (tools/백업.mjs 의 적바림과 짝) */
+        낱장.push({
+          이름: "intake_photos.json",
+          바이트: new TextEncoder().encode(JSON.stringify(photos, null, 2)),
+          때: new Date(),
+        });
+
+        if (낱장.length === 1) throw new Error("한 장도 받지 못했습니다");
+
+        const d = new Date();
+        const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+        const zip = 꾸러미(낱장);
+        const url = URL.createObjectURL(zip);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `서가뒤의방-사진-${stamp}.zip`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 8000);
+
+        const 받은장수 = 낱장.length - 1;
+        out.innerHTML = `<p class="enrich-msg ${못받은것.length ? "" : "good"}"></p>`;
+        out.querySelector("p").textContent =
+          `${받은장수}장 · ${fmt(zip.size)} 를 베껴 두었습니다`
+          + (못받은것.length ? ` — 다만 ${못받은것.length}장은 받지 못했습니다 (${못받은것.join(", ")})` : "")
+          + ". 백업 폴더의 사진/ 에 풀어 두면 됩니다 (unzip <꾸러미> -d 사진/).";
       } catch (err) {
         out.innerHTML = `<p class="enrich-msg bad"></p>`;
         out.querySelector("p").textContent = "베끼지 못했습니다 — " + (err.message || err);
