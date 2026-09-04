@@ -976,10 +976,17 @@
 
      달을 열둘까지 세지 않는 것은, 서른 날로 나누면 364일이 「12달 전」이
      되기 때문이다 — 열두 달은 한 해다. 열한 달에서 멈추고 365일부터
-     해로 넘어간다. */
+     해로 넘어간다.
+
+     날은 **자정을 몇 번 넘었는가**로 센다. 스물네 시간으로 나누면 어제
+     저녁 여덟 시에 멈춘 책을 오늘 아침에 보고도 「오늘」이라 말한다
+     (2026-09-04 확인). 보는 사람의 달력을 따른다. */
   function agoOf(iso) {
     if (!iso) return null;
-    const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    const 잰 = new Date(iso), 이제 = new Date();
+    const d = Math.round(
+      (new Date(이제.getFullYear(), 이제.getMonth(), 이제.getDate())
+       - new Date(잰.getFullYear(), 잰.getMonth(), 잰.getDate())) / 86400000);
     if (!Number.isFinite(d) || d < 0) return null;
     if (d === 0) return "오늘";
     if (d === 1) return "어제";
