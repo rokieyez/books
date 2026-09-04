@@ -2651,11 +2651,25 @@
   /* 한 글자마다 벽 넷을 통째로 다시 그리면 1,300권에서는 손가락을 따라오지
      못한다. 타자가 멎은 뒤에 한 번만 그린다. */
   let searchTimer = null;
+  /* 찾은 것도 주소에 남는다 — 「발자크 찾아봐」라고 링크를 건넬 수 있어야
+     한다. 보기(#list·#stats)는 이미 해시에 실리므로 검색어는 물음표 쪽에
+     싣는다: ?q=발자크#list 처럼 둘이 함께 간다.
+     쌓지 않고 갈아 끼우는 까닭은 보기와 같다 — 글자를 한 자 칠 때마다
+     히스토리가 늘면 뒤로 가기로 서재를 빠져나갈 수 없다. */
+  function 주소에검색어(word) {
+    const u = new URL(location.href);
+    if (word) u.searchParams.set("q", word); else u.searchParams.delete("q");
+    const 새것 = u.pathname + u.search + u.hash;
+    if (새것 !== location.pathname + location.search + location.hash) {
+      history.replaceState(null, "", 새것);
+    }
+  }
   $("q").addEventListener("input", () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       listShown = LIST_STEP;   // 검색을 바꾸면 처음부터 다시 센다
       coversShown = COVER_STEP;
+      주소에검색어($("q").value.trim());
       renderWalls();
       syncFindNote();
       if (curView === "covers") renderCovers();
@@ -3072,7 +3086,28 @@
     });
   }
 
+  /* 물음표에 실려 온 검색어를 되살린다 — 남이 건넨 「?q=발자크」 로 들어온
+     사람은 그 검색 결과를 보아야 한다. 장서가 도착한 뒤에 걸러야 뜻이
+     있으므로 openFromHash 를 타고 온다(auth.js 가 장서를 받고 부른다).
+     딱 한 번만 한다: 사람이 지운 검색어가 되살아나면 안 된다. */
+  let 검색어되살림 = false;
+  function 주소검색어되살리기() {
+    if (검색어되살림) return;
+    검색어되살림 = true;
+    const word = new URL(location.href).searchParams.get("q")?.trim();
+    const inp = $("q");
+    if (!word || !inp || inp.value.trim() === word) return;
+    inp.value = word;
+    listShown = LIST_STEP;
+    coversShown = COVER_STEP;
+    renderWalls();
+    syncFindNote();
+    if (curView === "covers") renderCovers();
+    if (curView === "list") renderList();
+  }
+
   function openFromHash() {
+    주소검색어되살리기();
     if (hashSelf) { hashSelf = false; return; }
     const view = location.hash.replace(/^#/, "");
     /* 여기로 왔다는 것은 사람이 뒤로 가기를 눌렀거나 주소를 직접 바꿨다는 뜻.
