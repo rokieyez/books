@@ -963,16 +963,29 @@
   }
   let todayBook = null;
 
-  /* 며칠 전인지 사람 말로 — "오늘" "사흘 전" "3주 전" "두 달 전" */
+  /* 며칠 전인지 사람 말로 — "오늘" "어제" "사흘 전" "두 달 전"
+     ── 집 안에서 한 벌인 규칙이다 ─────────────────────────────
+     이 갈피 시각은 대문의 「지금」 문과 /now/ 의 첫 줄에도 그대로 걸린다.
+     세 자리가 저마다 셈하다 보니 2026-09-04 에 재어 보니 여섯 구간이
+     어긋나 있었다 — 하루 지난 것을 여기서는 「1일 전」, 대문에서는
+     「어제」라 했고, 스무날은 「2주 전」과 「20일 전」로 갈렸고, 한 해가
+     넘으면 「년」과 「해」로 말이 달라졌다. 같은 사실을 방마다 다르게
+     말하지 않도록 규칙을 하나로 맞춘다. 고칠 때는 세 곳을 함께 고친다:
+       post-libros/js/app.js · rokieyez.github.io/{index,now/index}.html
+     (tools/check-house.mjs 가 세 자리가 같은 규칙인지 재고 있다)
+
+     달을 열둘까지 세지 않는 것은, 서른 날로 나누면 364일이 「12달 전」이
+     되기 때문이다 — 열두 달은 한 해다. 열한 달에서 멈추고 365일부터
+     해로 넘어간다. */
   function agoOf(iso) {
     if (!iso) return null;
     const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
     if (!Number.isFinite(d) || d < 0) return null;
     if (d === 0) return "오늘";
-    if (d < 7) return `${d}일 전`;
-    if (d < 30) return `${Math.floor(d / 7)}주 전`;
-    if (d < 365) return `${Math.floor(d / 30)}달 전`;
-    return `${Math.floor(d / 365)}년 전`;
+    if (d === 1) return "어제";
+    if (d < 30) return `${d}일 전`;
+    if (d < 365) return `${Math.min(11, Math.floor(d / 30))}달 전`;
+    return `${Math.floor(d / 365)}해 전`;
   }
 
   /* 읽는 중인 책들이 책상 위에 실제로 쌓인다 — 눕힌 책등 더미.
